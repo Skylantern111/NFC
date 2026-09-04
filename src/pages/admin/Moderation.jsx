@@ -1,8 +1,11 @@
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Ban, ShieldCheck } from 'lucide-react';
 import { useModerationQueue, banToken, unbanToken } from '../../lib/moderation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 
 function relativeTime(timestamp) {
@@ -20,8 +23,28 @@ function relativeTime(timestamp) {
 // from public/Chat.jsx) joined against items for a display name. Listed
 // entries are a review log, not a to-do list — banning/unbanning the token
 // doesn't remove a row, since the report itself already happened.
+//
+// Known limitation: a ban is keyed on finderSessionToken, a localStorage-
+// scoped identity (see lib/finderSession.js) — clearing site data or using a
+// different browser trivially gets a new token past a ban. Strengthening
+// this needs a stronger finder identity (e.g. device/IP signal), out of
+// scope for this pass.
 export default function Moderation() {
   const { chats, items, bannedTokens, loading, toggleMockBan } = useModerationQueue();
+  const [search, setSearch] = useState('');
+
+  const filteredChats = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return chats;
+    return chats.filter((chat) => {
+      const itemName = items[chat.tagId]?.itemName || '';
+      return (
+        itemName.toLowerCase().includes(term) ||
+        (chat.blockedReason || '').toLowerCase().includes(term) ||
+        (chat.finderSessionToken || '').toLowerCase().includes(term)
+      );
+    });
+  }, [chats, items, search]);
 
   async function onToggleBan(chat) {
     const token = chat.finderSessionToken;
@@ -61,7 +84,14 @@ export default function Moderation() {
       )}
 
       {chats.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl bg-white/80 shadow-lg">
+        <>
+          <Input
+            placeholder="Search by item, reason, or finder token…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-sm"
+          />
+          <div className="overflow-x-auto rounded-2xl bg-white/80 shadow-lg">
           <Table>
             <TableHeader>
               <TableRow className="border-slate-200 hover:bg-transparent">
@@ -74,7 +104,14 @@ export default function Moderation() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {chats.map((chat) => {
+              {filteredChats.length === 0 && (
+                <TableRow className="border-slate-200 hover:bg-transparent">
+                  <TableCell colSpan={6} className="py-8 text-center text-slate-500">
+                    No reports match this search.
+                  </TableCell>
+                </TableRow>
+              )}
+              {filteredChats.map((chat) => {
                 const banned = bannedTokens.has(chat.finderSessionToken);
                 return (
                   <TableRow key={chat.id} className="border-slate-200/60">
@@ -98,23 +135,29 @@ export default function Moderation() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={banned ? 'outline' : 'destructive'}
-                        className="gap-1.5"
-                        onClick={() => onToggleBan(chat)}
-                      >
-                        <Ban className="h-3.5 w-3.5" />
-                        {banned ? 'Unban' : 'Ban token'}
-                      </Button>
+                      <div className="flex justify-end gap-1.5">
+                        <Button type="button" size="sm" variant="outline" asChild>
+                          <Link to={`/chat/${chat.id}`}>View chat</Link>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={banned ? 'outline' : 'destructive'}
+                          className="gap-1.5"
+                          onClick={() => onToggleBan(chat)}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                          {banned ? 'Unban' : 'Ban token'}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

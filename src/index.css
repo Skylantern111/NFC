@@ -94,6 +94,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Surface language rule (design system §15): this app deliberately mixes two
+   surface treatments, so use the right one rather than picking by feel.
+   - Neumorphic (`shadow-neu-flat`/`shadow-neu-pressed`, `bg-base`): chrome —
+     nav rails, sidebars, buttons/toggles, the ambient page background. Reads
+     as a physical control extruded from the canvas.
+   - Glassmorphism (`.glass` / `bg-white/70 backdrop-blur-xl`): content —
+     cards, dialogs, list rows floating above that canvas.
+   Admin data tables (Inventory/Moderation) intentionally opt OUT of glass
+   for scroll performance — solid `bg-white/80` instead, no backdrop-blur.
+   "Danger/lost" state uses the red-400 border + red-50/60 fill + red-600
+   text family everywhere it means "this item is lost" (GlassCard `lost`,
+   Items.jsx lost card, Dashboard active-incident card, NfcLanding lost
+   banner) — rose/rose-600 is reserved for admin moderation/blacklist
+   actions, a different semantic (administrative, not "item is lost"). */
+
 /* Reusable glass surface floating on the light neumorphic canvas. Kept as a
    component class so admin views can opt out. */
 @layer components {

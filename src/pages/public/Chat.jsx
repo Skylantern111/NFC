@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Ban, CheckCircle2, Send } from 'lucide-react';
+import { ArrowDown, Ban, CheckCircle2, Send } from 'lucide-react';
 import {
   useChat,
   useChatMessages,
@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, relativeTimeFromMs, toMillis } from '@/lib/utils';
 
 // Shared frosted-glass treatment applied over the ported ui/ primitives so
 // this page keeps the app's light glassmorphism language.
@@ -62,6 +62,9 @@ export default function Chat() {
   const [blockReason, setBlockReason] = useState('');
   const [blocking, setBlocking] = useState(false);
   const endRef = useRef(null);
+  const scrollRef = useRef(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true);
 
   const chat = firebaseReady ? liveChat : mockChat;
   const messages = firebaseReady ? liveMessages : mockMessages;
@@ -79,8 +82,25 @@ export default function Chat() {
   }, [chat?.tagId]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    atBottomRef.current = atBottom;
+  }, [atBottom]);
+
+  // Only auto-scroll to a new message if the reader was already at the
+  // bottom — otherwise it yanks someone away from history they're reading.
+  useEffect(() => {
+    if (atBottomRef.current) endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  }
+
+  function scrollToBottom() {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setAtBottom(true);
+  }
 
   // Opening the thread counts as reading it — clears the unread marker for
   // whichever side is viewing (drives the dot in dashboard/Messages.jsx).
@@ -95,7 +115,18 @@ export default function Chat() {
     const body = text.trim();
     setText('');
     if (firebaseReady) {
-      await sendChatMessage(chatId, role, body);
+      try {
+        await sendChatMessage(chatId, role, body);
+      } catch (err) {
+        // Restore the draft rather than silently losing it (e.g. a banned
+        // finder token gets rejected by firestore.rules#isBlockedToken).
+        setText(body);
+        alert(
+          err.code === 'permission-denied'
+            ? "This device can't send messages right now."
+            : 'Could not send message: ' + err.message
+        );
+      }
     } else {
       setMockMessages((m) => [...m, { id: `mock_${Date.now()}`, sender: role, text: body }]);
     }
@@ -154,6 +185,9 @@ export default function Chat() {
             <p className="text-xs text-slate-500">You are the {role}. Contact details stay hidden.</p>
           </div>
         </div>
+        {/* Known scope gap: only the owner can Report a chat here — a finder
+            has no reciprocal way to flag an abusive owner. Documented in
+            IMPROVEMENT_PLAN.md §10 as a product decision, not fixed here. */}
         {role === 'owner' && (
           <div className="flex shrink-0 items-center gap-2">
             {chat?.blocked ? (
@@ -189,36 +223,54 @@ export default function Chat() {
         )}
       </header>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
-        {loading && <p className="text-center text-sm text-slate-500">Loading conversation…</p>}
-        {messages.map((m) => {
-          const mine = m.sender === role;
-          return (
-            <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${
-                  m.sender === 'owner' ? 'bg-purple-600/80 text-white' : 'bg-white/60 text-slate-800'
-                }`}
-              >
-                {m.text}
+      <div className="relative flex-1 overflow-hidden">
+        <div ref={scrollRef} onScroll={handleScroll} className="h-full space-y-2 overflow-y-auto px-4 py-4">
+          {loading && <p className="text-center text-sm text-slate-500">Loading conversation…</p>}
+          {messages.map((m) => {
+            const mine = m.sender === role;
+            const time = relativeTimeFromMs(toMillis(m.timestamp));
+            return (
+              <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                <div
+                  className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${
+                    m.sender === 'owner' ? 'bg-purple-600/80 text-white' : 'bg-white/85 text-slate-800'
+                  }`}
+                >
+                  {m.text}
+                </div>
+                {time && <span className="mt-0.5 px-1 text-[10px] text-slate-400">{time}</span>}
               </div>
-            </div>
-          );
-        })}
-        <div ref={endRef} />
+            );
+          })}
+          <div ref={endRef} />
+        </div>
+        {!atBottom && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            aria-label="Scroll to latest message"
+            className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-base text-slate-600 shadow-neu-flat hover:shadow-neu-pressed-sm"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      <div className="mx-3 mb-2 flex gap-2 overflow-x-auto pb-1">
-        {QUICK_REPLIES.map((reply) => (
-          <button
-            key={reply}
-            type="button"
-            onClick={() => setText(reply)}
-            className="shrink-0 rounded-full bg-base px-3 py-1.5 text-xs text-slate-600 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm"
-          >
-            {reply}
-          </button>
-        ))}
+      <div className="relative mx-3 mb-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {QUICK_REPLIES.map((reply) => (
+            <button
+              key={reply}
+              type="button"
+              onClick={() => setText(reply)}
+              className="shrink-0 rounded-full bg-base px-3 py-1.5 text-xs text-slate-600 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm"
+            >
+              {reply}
+            </button>
+          ))}
+        </div>
+        {/* Fade hint that the row scrolls horizontally past the visible edge. */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-base to-transparent" />
       </div>
 
       <form onSubmit={send} className={cn(GLASS, 'm-3 mt-0 flex gap-2 p-2')}>

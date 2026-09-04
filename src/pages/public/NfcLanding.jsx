@@ -88,13 +88,20 @@ export default function NfcLanding() {
   // Real, gracefully-degrading browser geolocation (see lib/geolocation.js —
   // resolves null on denial/unsupported/timeout rather than throwing). Not a
   // fake timer: this is an actual GPS read, fired on demand from the toggle.
+  // A raw "lat, lng" note is one we auto-filled, not something the finder
+  // typed — safe to overwrite on a re-share without losing their own text.
+  const isAutoFilledNote = (note) => /^-?\d+\.\d+, -?\d+\.\d+$/.test(note || '');
+
   async function handleAttachLocation() {
+    const wasAutoFilled = !locationNote || isAutoFilledNote(locationNote);
     setLocStatus('loading');
     const loc = await captureLocation();
     if (loc) {
       setLocation(loc);
       setLocStatus('done');
-      setLocationNote((prev) => prev || `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`);
+      if (wasAutoFilled) {
+        setLocationNote(`${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`);
+      }
     } else {
       setLocStatus('unavailable');
     }
@@ -131,10 +138,22 @@ export default function NfcLanding() {
         lastMessageText: (note || 'New report filed').slice(0, 140),
         unreadFor: ['owner'],
       });
-      notifyOwner({ type: 'report', tagId, chatId: chat.id, reportId: report.id }).catch(() => {});
+      // Best-effort: the report itself already succeeded above, so a failure
+      // here shouldn't block the finder's flow — just surfaced for debugging
+      // rather than silently swallowed.
+      notifyOwner({ type: 'report', tagId, chatId: chat.id, reportId: report.id }).catch((err) =>
+        console.warn('notifyOwner failed:', err)
+      );
       nav(`/chat/${chat.id}`);
     } catch (err) {
-      alert('Could not send report: ' + err.message);
+      // firestore.rules#isBlockedToken rejects a banned finder's session
+      // token with a generic permission-denied — give that case a specific,
+      // human message instead of a raw Firestore error string.
+      const message =
+        err.code === 'permission-denied'
+          ? "This device can't file reports right now."
+          : 'Could not send report: ' + err.message;
+      alert(message);
       setBusy(false);
     }
   }
@@ -235,7 +254,7 @@ export default function NfcLanding() {
                     type="button"
                     variant="outline"
                     onClick={handleAttachLocation}
-                    disabled={locStatus === 'loading' || locStatus === 'done'}
+                    disabled={locStatus === 'loading'}
                     className="justify-start gap-2"
                   >
                     {locStatus === 'loading' ? (
@@ -244,7 +263,7 @@ export default function NfcLanding() {
                       <LocateFixed className="h-4 w-4" />
                     )}
                     {locStatus === 'done'
-                      ? 'Location shared'
+                      ? 'Update my location'
                       : locStatus === 'loading'
                         ? 'Getting your location…'
                         : 'Share my current location'}
@@ -263,9 +282,12 @@ export default function NfcLanding() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="finder-message" className="text-sm font-medium text-slate-600">
-                    Message to the owner
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="finder-message" className="text-sm font-medium text-slate-600">
+                      Message to the owner
+                    </Label>
+                    <span className="text-xs text-slate-400">Required</span>
+                  </div>
                   <Textarea
                     id="finder-message"
                     value={note}

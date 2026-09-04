@@ -37,6 +37,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { startAfter } from 'firebase/firestore';
 
 const BATCH_SIZES = [50, 100, 250, 500];
 const CHIP_TYPES = [
@@ -94,7 +95,12 @@ export default function Inventory() {
 
   const [rows, setRows] = useState([]);
   const [rowsLoading, setRowsLoading] = useState(true);
+  const [rowsMoreLoading, setRowsMoreLoading] = useState(false);
   const [rowsError, setRowsError] = useState('');
+  const [lastDoc, setLastDoc] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+
+  const [confirmGenerate, setConfirmGenerate] = useState(false);
 
   const [counts, setCounts] = useState({ all: null, unclaimed: null, claimed: null, blacklisted: null });
   const [statusFilter, setStatusFilter] = useState('all');
@@ -112,12 +118,39 @@ export default function Inventory() {
       const q = query(collection(db, 'tags'), orderBy('createdAt', 'desc'), limit(ROW_LIMIT));
       const snap = await getDocs(q);
       setRows(snap.docs.map((d) => d.data()));
+      setLastDoc(snap.docs[snap.docs.length - 1] || null);
+      setHasMore(snap.docs.length === ROW_LIMIT);
     } catch (err) {
       setRowsError(err.message || 'Failed to load tags.');
     } finally {
       setRowsLoading(false);
     }
   }, []);
+
+  // Table only shows ROW_LIMIT rows at a time (KPI counts above stay
+  // accurate regardless) — "Load more" pages the rest in via a startAfter
+  // cursor instead of silently truncating inventory past 100 tags.
+  async function loadMoreRows() {
+    if (!lastDoc) return;
+    setRowsMoreLoading(true);
+    setRowsError('');
+    try {
+      const q = query(
+        collection(db, 'tags'),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastDoc),
+        limit(ROW_LIMIT)
+      );
+      const snap = await getDocs(q);
+      setRows((prev) => [...prev, ...snap.docs.map((d) => d.data())]);
+      setLastDoc(snap.docs[snap.docs.length - 1] || lastDoc);
+      setHasMore(snap.docs.length === ROW_LIMIT);
+    } catch (err) {
+      setRowsError(err.message || 'Failed to load more tags.');
+    } finally {
+      setRowsMoreLoading(false);
+    }
+  }
 
   const loadCounts = useCallback(async () => {
     try {
@@ -145,6 +178,10 @@ export default function Inventory() {
     loadCounts();
   }, [loadRows, loadCounts]);
 
+  // Known limitation: read-then-write, not a transaction — two admins
+  // generating batches within the same moment could land on the same
+  // batchNumber. Low-risk for a single-admin console; fixing it properly
+  // needs a dedicated counter doc + firestore.rules change, out of scope here.
   async function nextBatchNumber() {
     const q = query(collection(db, 'tags'), orderBy('batchNumber', 'desc'), limit(1));
     const snap = await getDocs(q);
@@ -153,6 +190,7 @@ export default function Inventory() {
   }
 
   async function onGenerate() {
+    setConfirmGenerate(false);
     setGenerating(true);
     setGenerateError('');
     try {
@@ -181,15 +219,25 @@ export default function Inventory() {
     }
   }
 
-  function onExport() {
-    if (!lastBatch.length) return;
-    const blob = new Blob([batchToCsv(lastBatch)], { type: 'text/csv' });
+  function downloadCsv(tags, filename) {
+    if (!tags.length) return;
+    const blob = new Blob([batchToCsv(tags)], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nfc-batch-${lastBatch[0].batchNumber}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function onExport() {
+    downloadCsv(lastBatch, `nfc-batch-${lastBatch[0]?.batchNumber ?? 'export'}.csv`);
+  }
+
+  // Exports whatever's currently loaded + filtered in the table below, not
+  // just the batch that was just generated in this session.
+  function onExportView() {
+    downloadCsv(filteredRows, `nfc-inventory-${statusFilter}-${Date.now()}.csv`);
   }
 
   async function onCopyUrl(tagId) {
@@ -312,7 +360,7 @@ export default function Inventory() {
             )}
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Button onClick={onGenerate} disabled={generating}>
+              <Button onClick={() => setConfirmGenerate(true)} disabled={generating}>
                 {generating ? 'Generating…' : 'Generate batch'}
               </Button>
               <Button variant="outline" onClick={onExport} disabled={!lastBatch.length}>
@@ -337,12 +385,23 @@ export default function Inventory() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Input
-                placeholder="Search tag ID or batch number…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="sm:max-w-xs"
-              />
+              <div className="flex flex-1 flex-wrap items-center gap-2">
+                <Input
+                  placeholder="Search tag ID or batch number…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="sm:max-w-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onExportView}
+                  disabled={!filteredRows.length}
+                >
+                  Export this view
+                </Button>
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {STATUS_TABS.map((s) => (
                   <button
@@ -434,9 +493,36 @@ export default function Inventory() {
                 </TableBody>
               </Table>
             </div>
+            {hasMore && !rowsLoading && (
+              <div className="flex justify-center">
+                <Button variant="outline" size="sm" onClick={loadMoreRows} disabled={rowsMoreLoading}>
+                  {rowsMoreLoading ? 'Loading…' : 'Load more'}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={confirmGenerate} onOpenChange={setConfirmGenerate}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate {batchSize} tags?</DialogTitle>
+            <DialogDescription>
+              This writes {batchSize} new <span className="font-mono">unclaimed</span> {chipType} tags to
+              the inventory right away — it can't be undone from here.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmGenerate(false)}>
+              Cancel
+            </Button>
+            <Button onClick={onGenerate} disabled={generating}>
+              {generating ? 'Generating…' : `Generate ${batchSize} tags`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!blacklistTarget} onOpenChange={(open) => !open && setBlacklistTarget(null)}>
         <DialogContent>

@@ -88,9 +88,6 @@ export default function Landing() {
                   Create account
                 </Button>
               </Link>
-              <Link to="/admin" className="mt-1 text-sm text-slate-500 hover:text-slate-800">
-                Admin console →
-              </Link>
             </div>
           </GlassCard>
           <p className="mt-6 text-xs text-slate-500">
@@ -153,6 +150,12 @@ export default function Landing() {
             ))}
           </div>
         </section>
+
+        <footer className="mx-auto w-full max-w-4xl px-5 pb-8 text-center">
+          <Link to="/admin" className="text-xs text-slate-400 hover:text-slate-600">
+            Admin console →
+          </Link>
+        </footer>
       </div>
     </>
   );

@@ -7,7 +7,7 @@ export default function DashboardLayout() {
     <>
       <AmbientBackground />
       <DashboardSidebar />
-      <div className="ml-56 min-h-screen px-6 py-8 sm:px-8">
+      <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 md:ml-56">
         <Outlet />
       </div>
     </>

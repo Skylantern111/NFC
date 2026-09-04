@@ -28,3 +28,23 @@ export function daysSinceMs(ms) {
   if (!ms) return 0;
   return Math.floor((Date.now() - ms) / (24 * 60 * 60 * 1000));
 }
+
+// Maps common Firebase Auth error codes to user-facing copy instead of
+// showing raw strings like "Firebase: Error (auth/invalid-email)." to users
+// (Login.jsx / Register.jsx). Falls back to the raw message for anything
+// unmapped rather than hiding it.
+const AUTH_ERROR_MESSAGES = {
+  'auth/invalid-email': 'That email address looks invalid.',
+  'auth/user-disabled': 'This account has been disabled.',
+  'auth/user-not-found': 'No account found with that email.',
+  'auth/wrong-password': 'Incorrect password. Try again or reset it.',
+  'auth/invalid-credential': 'Incorrect email or password.',
+  'auth/too-many-requests': 'Too many attempts. Wait a moment and try again.',
+  'auth/email-already-in-use': 'An account already exists with that email.',
+  'auth/weak-password': 'Password should be at least 6 characters.',
+  'auth/network-request-failed': 'Network error — check your connection and try again.',
+};
+
+export function friendlyAuthError(err) {
+  return AUTH_ERROR_MESSAGES[err?.code] || err?.message || 'Something went wrong. Try again.';
+}

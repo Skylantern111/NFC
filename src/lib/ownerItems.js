@@ -285,7 +285,13 @@ export function useOwnerNotifications(user) {
       return;
     }
     setLoading(true);
-    const q = query(collection(db, 'notifications'), where('tagId', 'in', tagIds.slice(0, 30)));
+    // Capped: an unbounded feed could otherwise load every notification ever
+    // fired for a long-lived account on every dashboard visit.
+    const q = query(
+      collection(db, 'notifications'),
+      where('tagId', 'in', tagIds.slice(0, 30)),
+      limit(200)
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -313,6 +319,14 @@ export function useOwnerNotifications(user) {
 export async function markNotificationRead(notifId) {
   if (!firebaseReady) return;
   await updateDoc(doc(db, 'notifications', notifId), { read: true });
+}
+
+// Bulk "mark all as read" — plain sequential updates rather than a
+// writeBatch, since an owner's unread count is small (single-digit/low-tens)
+// and this keeps the call symmetric with markNotificationRead above.
+export async function markAllNotificationsRead(notifIds) {
+  if (!firebaseReady) return;
+  await Promise.all(notifIds.map((id) => updateDoc(doc(db, 'notifications', id), { read: true })));
 }
 
 // Called from the finder's own flows (NfcLanding filing a report, Chat
@@ -354,14 +368,21 @@ export async function markChatRead(chatId, role) {
 // `items/{tagId}` has no generic status field (see firestore.rules'
 // publicItemFieldsOnly()) — "found_reported" is derived elsewhere by
 // joining open reports (useOwnerOpenReports), not stored here.
-export async function toggleLostMode(tagId, isLost, { lostMessage = '', rewardAmount = 0 } = {}) {
+//
+// Disarming (isLost === false) intentionally leaves lostMessage/rewardAmount
+// untouched in Firestore, so a re-arm later prefills the owner's last draft
+// instead of forcing them to retype it (see dashboard/Items.jsx#confirmDisarm).
+export async function toggleLostMode(tagId, isLost, { lostMessage, rewardAmount } = {}) {
   if (!firebaseReady) return;
-  await updateDoc(doc(db, 'items', tagId), {
+  const patch = {
     isLostMode: isLost,
     lostSince: isLost ? serverTimestamp() : null,
-    lostMessage,
-    rewardAmount,
-  });
+  };
+  if (isLost) {
+    patch.lostMessage = lostMessage || '';
+    patch.rewardAmount = rewardAmount || 0;
+  }
+  await updateDoc(doc(db, 'items', tagId), patch);
 }
 
 // Owner confirms handoff from a chat: clears Lost Mode and flags the chat

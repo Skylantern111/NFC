@@ -66,7 +66,7 @@ export default function AdminLayout() {
     <AdminGate>
       <div className="min-h-screen bg-base">
         <AdminSidebar />
-        <div className="ml-56 px-6 py-8 sm:px-8">
+        <div className="px-4 py-6 sm:px-8 sm:py-8 md:ml-56">
           <Outlet />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, MessageSquare, PackageSearch } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -7,9 +7,11 @@ import {
   useOwnerItems,
   useOwnerChats,
   markNotificationRead,
+  markAllNotificationsRead,
 } from '../../lib/ownerItems';
 import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Card, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
 
 const glass = 'bg-white/70 backdrop-blur-xl rounded-3xl';
 
@@ -28,18 +30,38 @@ export default function Notifications() {
   const itemsByTag = useMemo(() => Object.fromEntries(items.map((i) => [i.tagId, i])), [items]);
   const chatByTag = useMemo(() => Object.fromEntries(chats.map((c) => [c.tagId, c])), [chats]);
 
+  const [markingAll, setMarkingAll] = useState(false);
+
   function onOpenNotification(n) {
     if (n.read) return;
     markNotificationRead(n.id).catch(() => {});
   }
 
+  async function onMarkAllRead() {
+    setMarkingAll(true);
+    try {
+      await markAllNotificationsRead(notifications.filter((n) => !n.read).map((n) => n.id));
+    } catch {
+      // Best-effort — the feed will just still show unread items to retry.
+    } finally {
+      setMarkingAll(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800">Notifications</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {unreadCount > 0 ? `You have ${unreadCount} new alert${unreadCount === 1 ? '' : 's'}.` : "You're all caught up."}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-800">Notifications</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {unreadCount > 0 ? `You have ${unreadCount} new alert${unreadCount === 1 ? '' : 's'}.` : "You're all caught up."}
+          </p>
+        </div>
+        {unreadCount > 0 && (
+          <Button variant="outline" size="sm" onClick={onMarkAllRead} disabled={markingAll}>
+            {markingAll ? 'Marking…' : 'Mark all as read'}
+          </Button>
+        )}
       </div>
 
       {loading && <p className="text-sm text-slate-500">Loading notifications…</p>}

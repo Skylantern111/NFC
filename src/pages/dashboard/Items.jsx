@@ -15,6 +15,7 @@ import { Switch } from '../../components/ui/switch';
 import { Label } from '../../components/ui/label';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
+import { Skeleton } from '../../components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -33,11 +34,23 @@ export default function Items() {
   const { reports } = useOwnerOpenReports(tagIds);
   const openTagSet = useMemo(() => new Set(reports.map((r) => r.tagId)), [reports]);
 
+  const [search, setSearch] = useState('');
+  const visibleItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return items;
+    return items.filter(
+      (it) => it.itemName?.toLowerCase().includes(term) || it.tagId?.toLowerCase().includes(term)
+    );
+  }, [items, search]);
+
   // { tagId, name, lostMessage, rewardAmount } while the "declare lost" dialog is open, else null.
   const [armDialog, setArmDialog] = useState(null);
+  // { tagId, name } while the "turn off lost mode" confirm dialog is open, else null.
+  const [disarmDialog, setDisarmDialog] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [disarming, setDisarming] = useState(false);
 
-  async function onToggle(item, checked) {
+  function onToggle(item, checked) {
     if (checked) {
       setArmDialog({
         tagId: item.tagId,
@@ -45,16 +58,28 @@ export default function Items() {
         lostMessage: item.lostMessage || '',
         rewardAmount: item.rewardAmount || 0,
       });
-      return;
+    } else {
+      setDisarmDialog({ tagId: item.tagId, name: item.itemName });
     }
+  }
+
+  // Turning Lost Mode off only clears isLostMode/lostSince — the drafted
+  // message and reward are kept so re-arming later prefills them instead of
+  // forcing the owner to retype (armDialog above already reads item.lostMessage/rewardAmount).
+  async function confirmDisarm() {
+    if (!disarmDialog) return;
+    setDisarming(true);
     try {
       if (firebaseReady) {
-        await toggleLostMode(item.tagId, false, { lostMessage: '', rewardAmount: 0 });
+        await toggleLostMode(disarmDialog.tagId, false, {});
       } else {
-        updateMockItem(item.tagId, { isLostMode: false, lostSince: null, lostMessage: '', rewardAmount: 0 });
+        updateMockItem(disarmDialog.tagId, { isLostMode: false, lostSince: null });
       }
+      setDisarmDialog(null);
     } catch (err) {
       alert('Could not update item: ' + err.message);
+    } finally {
+      setDisarming(false);
     }
   }
 
@@ -86,7 +111,13 @@ export default function Items() {
         </Button>
       </div>
 
-      {loading && <p className="text-sm text-slate-500">Loading your items…</p>}
+      {loading && (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-3xl" />
+          ))}
+        </div>
+      )}
 
       {!loading && items.length === 0 && (
         <Card className={`${glass} rounded-3xl`}>
@@ -96,12 +127,29 @@ export default function Items() {
         </Card>
       )}
 
-      {items.map((it) => (
+      {!loading && items.length > 0 && (
+        <Input
+          placeholder="Search by item name or tag id…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+      )}
+
+      {!loading && items.length > 0 && visibleItems.length === 0 && (
+        <Card className={`${glass} rounded-3xl`}>
+          <CardContent className="p-0 text-center text-sm text-slate-500">
+            No items match "{search}".
+          </CardContent>
+        </Card>
+      )}
+
+      {visibleItems.map((it) => (
         <Card
           key={it.tagId}
           className={
             it.isLostMode
-              ? 'rounded-2xl border-2 border-red-400 bg-red-50/60 p-6 shadow-[0_0_24px_rgba(239,68,68,0.25)]'
+              ? 'rounded-3xl border-2 border-red-400 bg-red-50/60 p-6 shadow-[0_0_24px_rgba(239,68,68,0.25)]'
               : `${glass} rounded-3xl p-6`
           }
         >
@@ -111,6 +159,7 @@ export default function Items() {
                 <p className="truncate font-bold text-slate-800">{it.itemName}</p>
                 {it.isLostMode && <Badge variant="destructive">Lost</Badge>}
                 {openTagSet.has(it.tagId) && <Badge variant="outline">Found reported</Badge>}
+                {it.category && <Badge variant="outline">{it.category}</Badge>}
               </div>
               {it.isLostMode && (it.lostMessage || it.rewardAmount > 0) && (
                 <p className="mt-1 truncate text-xs font-semibold text-amber-600">
@@ -168,6 +217,26 @@ export default function Items() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!disarmDialog} onOpenChange={(open) => !open && setDisarmDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turn off Lost Mode for "{disarmDialog?.name}"?</DialogTitle>
+            <DialogDescription>
+              The tag page will stop showing it as lost. Your reward and message stay saved and
+              prefill again next time you arm Lost Mode.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setDisarmDialog(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={confirmDisarm} disabled={disarming}>
+              {disarming ? 'Saving…' : 'Turn off Lost Mode'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

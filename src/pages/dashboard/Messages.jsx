@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -9,13 +9,24 @@ import { Badge } from '../../components/ui/badge';
 
 const glass = 'bg-white/70 backdrop-blur-xl rounded-3xl';
 
+const FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'open', label: 'Open' },
+  { value: 'resolved', label: 'Resolved' },
+];
+
 export default function Messages() {
   const { user } = useAuth();
   const { chats, loading: chatsLoading } = useOwnerChats(user);
   const { items, loading: itemsLoading } = useOwnerItems(user);
   const loading = chatsLoading || itemsLoading;
+  const [filter, setFilter] = useState('all');
 
   const itemsByTag = useMemo(() => Object.fromEntries(items.map((i) => [i.tagId, i])), [items]);
+  const visibleChats = useMemo(() => {
+    if (filter === 'all') return chats;
+    return chats.filter((c) => (filter === 'resolved' ? c.resolved : !c.resolved));
+  }, [chats, filter]);
 
   function onOpenChat(chatId) {
     markChatRead(chatId, 'owner').catch(() => {});
@@ -47,9 +58,36 @@ export default function Messages() {
       )}
 
       {chats.length > 0 && (
+        <div className="flex gap-1.5">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFilter(f.value)}
+              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
+                filter === f.value
+                  ? 'bg-purple-100 text-purple-700 shadow-neu-pressed-sm'
+                  : 'bg-base text-slate-500 shadow-neu-flat-sm hover:text-slate-800'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {chats.length > 0 && visibleChats.length === 0 && (
+        <Card className={glass}>
+          <CardContent className="p-6 text-center text-sm text-slate-500">
+            No {filter} conversations.
+          </CardContent>
+        </Card>
+      )}
+
+      {visibleChats.length > 0 && (
         <Card className={glass}>
           <CardContent className="divide-y divide-slate-200/70 p-0">
-            {chats.map((chat) => {
+            {visibleChats.map((chat) => {
               const item = itemsByTag[chat.tagId];
               const unread = Array.isArray(chat.unreadFor)
                 ? chat.unreadFor.includes('owner')

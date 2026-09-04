@@ -45,7 +45,7 @@ export default function ClaimTag() {
   const [category, setCategory] = useState('Luggage');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [nfcStatus, setNfcStatus] = useState('idle'); // idle | scanning | error
+  const [nfcStatus, setNfcStatus] = useState('idle'); // idle | scanning | error | unreadable
 
   const nfcSupported = typeof window !== 'undefined' && 'NDEFReader' in window;
 
@@ -61,7 +61,10 @@ export default function ClaimTag() {
           setTagId(scanned);
           setNfcStatus('idle');
         } else {
-          setNfcStatus('error');
+          // A tag was detected but its payload didn't match the expected
+          // /nfc/:tagId URL shape or a raw text id — distinct from never
+          // detecting a tag at all (onreadingerror below).
+          setNfcStatus('unreadable');
         }
       };
       reader.onreadingerror = () => setNfcStatus('error');
@@ -117,6 +120,7 @@ export default function ClaimTag() {
         tx.set(itemRef, {
           tagId,
           itemName,
+          category,
           isLostMode: false,
           lostMessage: '',
           rewardAmount: 0,
@@ -164,7 +168,14 @@ export default function ClaimTag() {
           )}
           {nfcStatus === 'error' && (
             <p className="text-xs text-red-500">
-              Couldn't read that tag. Try again, or enter the tag id manually.
+              No tag detected. Make sure NFC is on and try holding the tag against the back of
+              your phone again, or enter the tag id manually.
+            </p>
+          )}
+          {nfcStatus === 'unreadable' && (
+            <p className="text-xs text-red-500">
+              Read a tag, but couldn't find a tag id on it — it may not be a TagBack tag. Enter
+              the tag id manually instead.
             </p>
           )}
 
@@ -194,9 +205,6 @@ export default function ClaimTag() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-500">
-                For your reference only — categories aren't stored yet.
-              </p>
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}

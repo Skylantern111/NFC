@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../../firebase/config';
+import { friendlyAuthError } from '../../lib/utils';
 import AmbientBackground from '../../components/AmbientBackground';
 import TopNav from '../../components/nav/TopNav';
 import GlassCard from '../../components/GlassCard';
@@ -10,7 +12,8 @@ import { Button, Field } from '../../components/ui';
 
 export default function Register() {
   const nav = useNavigate();
-  const [form, setForm] = useState({ displayName: '', email: '', password: '' });
+  const [form, setForm] = useState({ displayName: '', email: '', password: '', confirmPassword: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -19,6 +22,10 @@ export default function Register() {
   async function onSubmit(e) {
     e.preventDefault();
     setErr('');
+    if (form.password !== form.confirmPassword) {
+      setErr('Passwords do not match.');
+      return;
+    }
     if (!firebaseReady) {
       nav('/dashboard');
       return;
@@ -38,7 +45,7 @@ export default function Register() {
       });
       nav('/dashboard');
     } catch (e) {
-      setErr(e.message);
+      setErr(friendlyAuthError(e));
     } finally {
       setBusy(false);
     }
@@ -57,12 +64,32 @@ export default function Register() {
             <form onSubmit={onSubmit} className="flex flex-col gap-4">
               <Field label="Name" value={form.displayName} onChange={set('displayName')} required />
               <Field label="Email" type="email" value={form.email} onChange={set('email')} required />
+              <div className="relative">
+                <Field
+                  label="Password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={form.password}
+                  onChange={set('password')}
+                  minLength={6}
+                  className="pr-11"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-[2.35rem] text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <Field
-                label="Password"
-                type="password"
+                label="Confirm password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
-                value={form.password}
-                onChange={set('password')}
+                value={form.confirmPassword}
+                onChange={set('confirmPassword')}
                 minLength={6}
                 required
               />

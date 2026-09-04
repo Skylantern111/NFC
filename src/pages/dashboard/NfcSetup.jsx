@@ -171,9 +171,16 @@ export default function NfcSetup() {
                     {writeStatus === 'scanning' ? 'Hold tag near phone…' : 'Write to NFC tag'}
                   </Button>
                 )}
-                <Button type="button" variant="outline" size="sm" onClick={onTest} className="gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onTest}
+                  className="gap-1.5"
+                  title="Opens the tap URL in a new tab, keeping this setup page open"
+                >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  Test
+                  Test (new tab)
                 </Button>
               </div>
             </div>
@@ -204,15 +211,29 @@ export default function NfcSetup() {
             How to write &amp; test
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            {STEPS.map(({ icon: Icon, title, detail }) => (
-              <div key={title} className="flex gap-3 rounded-xl bg-base p-4 shadow-neu-flat-sm">
-                <Icon className="h-5 w-5 shrink-0 text-purple-600" />
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
+            {STEPS.map(({ icon: Icon, title, detail }, i) => {
+              // Verifiable-only progress: step 2 (copy) once an id exists,
+              // step 3 (write) once a write succeeds. Steps 1 and 4 can't be
+              // confirmed from the browser, so they stay neutral rather than
+              // guessing.
+              const done = (i === 1 && !!tagId) || (i === 2 && writeStatus === 'success');
+              return (
+                <div
+                  key={title}
+                  className={`flex gap-3 rounded-xl bg-base p-4 shadow-neu-flat-sm ${done ? 'ring-1 ring-emerald-300' : ''}`}
+                >
+                  {done ? (
+                    <Check className="h-5 w-5 shrink-0 text-emerald-600" />
+                  ) : (
+                    <Icon className="h-5 w-5 shrink-0 text-purple-600" />
+                  )}
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -239,10 +260,15 @@ export default function NfcSetup() {
       <Card className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-6 shadow-lg">
         <CardContent className="flex flex-col gap-4 p-0 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-bold text-emerald-700">Ready to claim?</p>
+            <p className="font-bold text-emerald-700">Preview the finder page</p>
             <p className="mt-1 text-sm text-emerald-600">
-              After writing &amp; testing, log in and tap the NFC to connect it to your account, then
-              add your item.
+              This opens the page a finder would see after tapping this tag — good for checking
+              your write worked. This ID isn't in the provisioned inventory, so it can't be
+              claimed to an account yet. To actually claim a tag,{' '}
+              <Link to="/dashboard/items/claim" className="font-semibold underline hover:text-emerald-700">
+                use an already-provisioned tag id
+              </Link>
+              .
             </p>
           </div>
           <Button
@@ -256,14 +282,6 @@ export default function NfcSetup() {
           </Button>
         </CardContent>
       </Card>
-
-      <p className="text-xs text-slate-500">
-        Self-serve claiming for a freshly generated ID isn't wired up yet — claiming today still
-        requires a tag that's already in the admin-provisioned inventory.{' '}
-        <Link to="/dashboard/items/claim" className="text-purple-600 hover:text-pink-600">
-          Claim an existing tag →
-        </Link>
-      </p>
     </div>
   );
 }
