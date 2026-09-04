@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import AdminSidebar from '../../components/nav/AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
 
@@ -37,8 +38,8 @@ function AdminGate({ children }) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-base text-slate-500">
-        Loading…
+      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
   }
@@ -50,8 +51,8 @@ function AdminGate({ children }) {
 
   if (checkingClaim) {
     return (
-      <div className="flex h-screen items-center justify-center bg-base text-slate-500">
-        Loading…
+      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
   }

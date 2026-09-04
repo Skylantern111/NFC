@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { doc, runTransaction } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
+import { CATEGORIES, CATEGORY_ICON } from '../../lib/categories';
 import BackButton from '../../components/BackButton';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -15,8 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-
-const categories = ['Luggage', 'Keys', 'Wallet', 'Tech', 'Bike', 'Pet', 'Other'];
 
 // Pull a tagId out of a scanned NDEF message. Provisioned tags are expected
 // to carry a URL record pointing at /nfc/:tagId (see lib/tags.js#tagUrl); if
@@ -54,7 +53,12 @@ export default function ClaimTag() {
     setNfcStatus('scanning');
     try {
       const reader = new window.NDEFReader();
-      await reader.scan();
+      // Handlers must be registered BEFORE scan() is awaited, not after —
+      // scan()'s promise resolves once scanning has started, not once a tag
+      // has been read, so a tag already resting on the phone (or tapped in
+      // the gap between that resolution and a later handler assignment)
+      // could fire `reading` before anything is listening (see
+      // IMPROVEMENT_PLAN.md Round 4 #5 / the Web NFC spec's own examples).
       reader.onreading = (event) => {
         const scanned = tagIdFromNdefMessage(event.message);
         if (scanned) {
@@ -68,6 +72,7 @@ export default function ClaimTag() {
         }
       };
       reader.onreadingerror = () => setNfcStatus('error');
+      await reader.scan();
     } catch {
       setNfcStatus('error');
     }
@@ -198,11 +203,15 @@ export default function ClaimTag() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
+                  {CATEGORIES.map((c) => {
+                    const Icon = CATEGORY_ICON[c];
+                    return (
+                      <SelectItem key={c} value={c}>
+                        <Icon className="h-4 w-4 text-slate-500" />
+                        {c}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

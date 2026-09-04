@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, firebaseReady } from '../../firebase/config';
 import { friendlyAuthError } from '../../lib/utils';
 import AmbientBackground from '../../components/AmbientBackground';
 import TopNav from '../../components/nav/TopNav';
 import GlassCard from '../../components/GlassCard';
-import { Button, Field } from '../../components/ui';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 
 export default function Login() {
   const nav = useNavigate();
@@ -71,36 +73,43 @@ export default function Login() {
         </h1>
         <GlassCard>
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
-            <Field
-              label="Email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <div className="relative">
-              <Field
-                label="Password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pr-11"
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-3 top-[2.35rem] text-slate-400 hover:text-slate-600"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-11"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             {err && <p className="text-sm text-red-500">{err}</p>}
             {info && <p className="text-sm text-emerald-600">{info}</p>}
             <Button type="submit" disabled={busy}>
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
               {busy ? 'Signing in…' : 'Sign in'}
             </Button>
             <button

@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import { Toaster } from './components/ui/sonner';
 
 // Public
 import Landing from './pages/Landing';
@@ -25,6 +26,8 @@ import Moderation from './pages/admin/Moderation';
 
 export default function App() {
   return (
+    <>
+    <Toaster position="top-center" richColors closeButton />
     <Routes>
       {/* Public */}
       <Route path="/" element={<Landing />} />
@@ -67,5 +70,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

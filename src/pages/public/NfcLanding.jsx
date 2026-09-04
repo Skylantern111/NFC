@@ -15,6 +15,7 @@ import {
   MessageSquare,
   ShieldCheck,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { db, firebaseReady } from '../../firebase/config';
 import { captureLocation } from '../../lib/geolocation';
 import { getFinderToken } from '../../lib/finderSession';
@@ -31,7 +32,7 @@ import { cn } from '@/lib/utils';
 
 // Shared frosted-glass treatment applied over the ported ui/Card primitive so
 // public pages keep the app's light glassmorphism language.
-const GLASS = 'rounded-3xl bg-white/70 backdrop-blur-2xl shadow-lg';
+const GLASS = 'rounded-3xl bg-white/70 backdrop-blur-xl shadow-lg';
 
 // Public preview of an item. Intentionally only the fields a finder may see —
 // never ownerUid or any `users` data.
@@ -153,7 +154,7 @@ export default function NfcLanding() {
         err.code === 'permission-denied'
           ? "This device can't file reports right now."
           : 'Could not send report: ' + err.message;
-      alert(message);
+      toast.error(message);
       setBusy(false);
     }
   }

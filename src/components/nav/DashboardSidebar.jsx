@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Bell, LayoutGrid, MessageSquare, Nfc, Package } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useOwnerNotifications } from '../../lib/ownerItems';
+import { useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
 import SidebarShell from './SidebarShell';
 
 // REDESIGN_PLAN §3.2. Spec calls for 4 items (Dashboard/NFC Setup/Messages/
@@ -11,7 +11,7 @@ import SidebarShell from './SidebarShell';
 export default function DashboardSidebar() {
   const { user, logout, firebaseReady } = useAuth();
   const nav = useNavigate();
-  const { unreadCount } = useOwnerNotifications(user);
+  const { unreadCount } = useOwnerNotificationsContext();
 
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutGrid, end: true },

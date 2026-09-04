@@ -1,17 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, MessageSquare, PackageSearch } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
+import { useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
 import {
-  useOwnerNotifications,
   useOwnerItems,
   useOwnerChats,
   markNotificationRead,
   markAllNotificationsRead,
+  clearReadNotifications,
 } from '../../lib/ownerItems';
 import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
+import { Skeleton } from '../../components/ui/skeleton';
 
 const glass = 'bg-white/70 backdrop-blur-xl rounded-3xl';
 
@@ -22,7 +25,7 @@ const TYPE_META = {
 
 export default function Notifications() {
   const { user } = useAuth();
-  const { notifications, unreadCount, loading: notifLoading } = useOwnerNotifications(user);
+  const { notifications, unreadCount, loading: notifLoading } = useOwnerNotificationsContext();
   const { items, loading: itemsLoading } = useOwnerItems(user);
   const { chats } = useOwnerChats(user);
   const loading = notifLoading || itemsLoading;
@@ -31,6 +34,8 @@ export default function Notifications() {
   const chatByTag = useMemo(() => Object.fromEntries(chats.map((c) => [c.tagId, c])), [chats]);
 
   const [markingAll, setMarkingAll] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const readCount = useMemo(() => notifications.filter((n) => n.read).length, [notifications]);
 
   function onOpenNotification(n) {
     if (n.read) return;
@@ -48,6 +53,18 @@ export default function Notifications() {
     }
   }
 
+  async function onClearRead() {
+    setClearing(true);
+    try {
+      await clearReadNotifications(notifications.filter((n) => n.read).map((n) => n.id));
+      toast.success('Cleared read notifications.');
+    } catch (err) {
+      toast.error('Could not clear notifications: ' + err.message);
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -57,14 +74,27 @@ export default function Notifications() {
             {unreadCount > 0 ? `You have ${unreadCount} new alert${unreadCount === 1 ? '' : 's'}.` : "You're all caught up."}
           </p>
         </div>
-        {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={onMarkAllRead} disabled={markingAll}>
-            {markingAll ? 'Marking…' : 'Mark all as read'}
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {unreadCount > 0 && (
+            <Button variant="outline" size="sm" onClick={onMarkAllRead} disabled={markingAll}>
+              {markingAll ? 'Marking…' : 'Mark all as read'}
+            </Button>
+          )}
+          {readCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={onClearRead} disabled={clearing}>
+              {clearing ? 'Clearing…' : 'Clear read'}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {loading && <p className="text-sm text-slate-500">Loading notifications…</p>}
+      {loading && (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-16 rounded-3xl" />
+          ))}
+        </div>
+      )}
 
       {!loading && notifications.length === 0 && (
         <Card className={glass}>

@@ -181,5 +181,12 @@ service cloud.firestore {
     match /blockedTokens/{token} {
       allow read, write: if isAdmin();
     }
+
+    // ---- meta: small admin-only counters/singletons. tagBatchCounter backs
+    //      admin/Inventory.jsx#nextBatchNumber's transactional increment, so
+    //      two admins generating batches at once can't collide on a number. ----
+    match /meta/{docId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import { PackageSearch, SearchX } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { firebaseReady } from '../../firebase/config';
 import {
@@ -8,6 +10,7 @@ import {
   useOwnerOpenReports,
   toggleLostMode,
 } from '../../lib/ownerItems';
+import { CATEGORY_ICON } from '../../lib/categories';
 import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -76,8 +79,9 @@ export default function Items() {
         updateMockItem(disarmDialog.tagId, { isLostMode: false, lostSince: null });
       }
       setDisarmDialog(null);
+      toast.success('Lost Mode turned off.');
     } catch (err) {
-      alert('Could not update item: ' + err.message);
+      toast.error('Could not update item: ' + err.message);
     } finally {
       setDisarming(false);
     }
@@ -95,8 +99,9 @@ export default function Items() {
         updateMockItem(armDialog.tagId, { ...patch, isLostMode: true, lostSince: { toMillis: () => Date.now() } });
       }
       setArmDialog(null);
+      toast.success('Lost Mode armed.');
     } catch (err) {
-      alert('Could not update item: ' + err.message);
+      toast.error('Could not update item: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -121,8 +126,11 @@ export default function Items() {
 
       {!loading && items.length === 0 && (
         <Card className={`${glass} rounded-3xl`}>
-          <CardContent className="p-0 text-center text-sm text-slate-500">
-            No items yet. Claim your first NFC tag to get started.
+          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5">
+              <PackageSearch className="h-6 w-6 text-slate-500" />
+            </span>
+            <p className="text-sm text-slate-500">No items yet. Claim your first NFC tag to get started.</p>
           </CardContent>
         </Card>
       )}
@@ -138,8 +146,11 @@ export default function Items() {
 
       {!loading && items.length > 0 && visibleItems.length === 0 && (
         <Card className={`${glass} rounded-3xl`}>
-          <CardContent className="p-0 text-center text-sm text-slate-500">
-            No items match "{search}".
+          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5">
+              <SearchX className="h-6 w-6 text-slate-500" />
+            </span>
+            <p className="text-sm text-slate-500">No items match "{search}".</p>
           </CardContent>
         </Card>
       )}
@@ -159,7 +170,15 @@ export default function Items() {
                 <p className="truncate font-bold text-slate-800">{it.itemName}</p>
                 {it.isLostMode && <Badge variant="destructive">Lost</Badge>}
                 {openTagSet.has(it.tagId) && <Badge variant="outline">Found reported</Badge>}
-                {it.category && <Badge variant="outline">{it.category}</Badge>}
+                {it.category && (() => {
+                  const Icon = CATEGORY_ICON[it.category];
+                  return (
+                    <Badge variant="outline">
+                      {Icon && <Icon />}
+                      {it.category}
+                    </Badge>
+                  );
+                })()}
               </div>
               {it.isLostMode && (it.lostMessage || it.rewardAmount > 0) && (
                 <p className="mt-1 truncate text-xs font-semibold text-amber-600">
@@ -230,7 +249,7 @@ export default function Items() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setDisarmDialog(null)}>
+            <Button type="button" variant="ghost" autoFocus onClick={() => setDisarmDialog(null)}>
               Cancel
             </Button>
             <Button type="button" onClick={confirmDisarm} disabled={disarming}>

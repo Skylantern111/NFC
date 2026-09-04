@@ -10,7 +10,7 @@ import {
 import AmbientBackground from '../components/AmbientBackground';
 import GlassCard from '../components/GlassCard';
 import TopNav from '../components/nav/TopNav';
-import { Button } from '../components/ui';
+import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 
 // Real, implemented functions only (README.md "Core (implemented)") — no

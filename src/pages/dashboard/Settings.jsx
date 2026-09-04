@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import GlassCard from '../../components/GlassCard';
-import { Button, Field } from '../../components/ui';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 
 const DEFAULT_PREFS = { inApp: true, email: true };
@@ -70,12 +73,10 @@ export default function Settings() {
         <p className="mb-3 text-sm text-slate-500">
           Only used to reach you. Never shown to finders.
         </p>
-        <Field
-          label="Phone (optional)"
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="phone">Phone (optional)</Label>
+          <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
       </GlassCard>
 
       <GlassCard>
@@ -95,6 +96,7 @@ export default function Settings() {
           </p>
         )}
         <Button className="mt-3 w-full" onClick={onSave} disabled={saving || loading}>
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </GlassCard>

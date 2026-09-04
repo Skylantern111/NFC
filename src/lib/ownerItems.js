@@ -4,6 +4,7 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -327,6 +328,14 @@ export async function markNotificationRead(notifId) {
 export async function markAllNotificationsRead(notifIds) {
   if (!firebaseReady) return;
   await Promise.all(notifIds.map((id) => updateDoc(doc(db, 'notifications', id), { read: true })));
+}
+
+// Permanently removes read notifications (firestore.rules allows the owner
+// to delete their own — see the notifications match block). Unread ones are
+// left alone so nothing gets cleared before the owner has actually seen it.
+export async function clearReadNotifications(notifIds) {
+  if (!firebaseReady) return;
+  await Promise.all(notifIds.map((id) => deleteDoc(doc(db, 'notifications', id))));
 }
 
 // Called from the finder's own flows (NfcLanding filing a report, Chat

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../../firebase/config';
@@ -8,7 +8,9 @@ import { friendlyAuthError } from '../../lib/utils';
 import AmbientBackground from '../../components/AmbientBackground';
 import TopNav from '../../components/nav/TopNav';
 import GlassCard from '../../components/GlassCard';
-import { Button, Field } from '../../components/ui';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 
 export default function Register() {
   const nav = useNavigate();
@@ -62,39 +64,52 @@ export default function Register() {
           </h1>
           <GlassCard>
             <form onSubmit={onSubmit} className="flex flex-col gap-4">
-              <Field label="Name" value={form.displayName} onChange={set('displayName')} required />
-              <Field label="Email" type="email" value={form.email} onChange={set('email')} required />
-              <div className="relative">
-                <Field
-                  label="Password"
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="displayName">Name</Label>
+                <Input id="displayName" value={form.displayName} onChange={set('displayName')} required />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" value={form.email} onChange={set('email')} required />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={form.password}
+                    onChange={set('password')}
+                    minLength={6}
+                    className="pr-11"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <Input
+                  id="confirmPassword"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
-                  value={form.password}
-                  onChange={set('password')}
+                  value={form.confirmPassword}
+                  onChange={set('confirmPassword')}
                   minLength={6}
-                  className="pr-11"
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-[2.35rem] text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
               </div>
-              <Field
-                label="Confirm password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={form.confirmPassword}
-                onChange={set('confirmPassword')}
-                minLength={6}
-                required
-              />
               {err && <p className="text-sm text-red-500">{err}</p>}
               <Button type="submit" disabled={busy}>
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                 {busy ? 'Creating…' : 'Create account'}
               </Button>
             </form>

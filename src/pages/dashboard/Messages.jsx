@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useOwnerChats, useOwnerItems, markChatRead } from '../../lib/ownerItems';
+import { CATEGORY_ICON } from '../../lib/categories';
 import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
+import { Skeleton } from '../../components/ui/skeleton';
 
 const glass = 'bg-white/70 backdrop-blur-xl rounded-3xl';
 
@@ -39,7 +41,13 @@ export default function Messages() {
         <p className="mt-1 text-sm text-slate-500">Conversations with people who found your items.</p>
       </div>
 
-      {loading && <p className="text-sm text-slate-500">Loading conversations…</p>}
+      {loading && (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-16 rounded-3xl" />
+          ))}
+        </div>
+      )}
 
       {!loading && chats.length === 0 && (
         <Card className={glass}>
@@ -93,6 +101,7 @@ export default function Messages() {
                 ? chat.unreadFor.includes('owner')
                 : chat.unreadFor === 'owner';
               const resolved = !!chat.resolved;
+              const Icon = CATEGORY_ICON[item?.category] || MessageSquare;
               return (
                 <Link
                   key={chat.id}
@@ -102,7 +111,7 @@ export default function Messages() {
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900/5">
-                      <MessageSquare className="h-4 w-4 text-slate-500" />
+                      <Icon className="h-4 w-4 text-slate-500" />
                     </span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-800">

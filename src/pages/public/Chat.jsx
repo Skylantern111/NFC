@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ArrowDown, Ban, CheckCircle2, Send } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   useChat,
   useChatMessages,
@@ -29,7 +30,7 @@ import { cn, relativeTimeFromMs, toMillis } from '@/lib/utils';
 
 // Shared frosted-glass treatment applied over the ported ui/ primitives so
 // this page keeps the app's light glassmorphism language.
-const GLASS = 'rounded-2xl bg-white/70 backdrop-blur-2xl shadow-lg';
+const GLASS = 'rounded-2xl bg-white/70 backdrop-blur-xl shadow-lg';
 
 // Canned strings only — purely a UX convenience that inserts text into the
 // real message input. Not a separate system, nothing fake is implied.
@@ -121,7 +122,7 @@ export default function Chat() {
         // Restore the draft rather than silently losing it (e.g. a banned
         // finder token gets rejected by firestore.rules#isBlockedToken).
         setText(body);
-        alert(
+        toast.error(
           err.code === 'permission-denied'
             ? "This device can't send messages right now."
             : 'Could not send message: ' + err.message
@@ -144,8 +145,9 @@ export default function Chat() {
         setMockChat((c) => ({ ...c, resolved: true }));
       }
       setConfirmOpen(false);
+      toast.success('Marked as recovered.');
     } catch (err) {
-      alert('Could not update recovery status: ' + err.message);
+      toast.error('Could not update recovery status: ' + err.message);
     } finally {
       setResolving(false);
     }
@@ -165,8 +167,9 @@ export default function Chat() {
         setMockChat((c) => ({ ...c, blocked: true, blockedReason: blockReason.trim() }));
       }
       setBlockOpen(false);
+      toast.success('Chat reported for review.');
     } catch (err) {
-      alert('Could not report this chat: ' + err.message);
+      toast.error('Could not report this chat: ' + err.message);
     } finally {
       setBlocking(false);
     }
@@ -249,7 +252,7 @@ export default function Chat() {
             type="button"
             onClick={scrollToBottom}
             aria-label="Scroll to latest message"
-            className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-base text-slate-600 shadow-neu-flat hover:shadow-neu-pressed-sm"
+            className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-base text-slate-600 shadow-neu-flat transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
           >
             <ArrowDown className="h-4 w-4" />
           </button>
@@ -263,7 +266,7 @@ export default function Chat() {
               key={reply}
               type="button"
               onClick={() => setText(reply)}
-              className="shrink-0 rounded-full bg-base px-3 py-1.5 text-xs text-slate-600 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm"
+              className="shrink-0 rounded-full bg-base px-3 py-1.5 text-xs text-slate-600 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
             >
               {reply}
             </button>
@@ -295,7 +298,7 @@ export default function Chat() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button type="button" variant="outline" autoFocus onClick={() => setConfirmOpen(false)}>
               Cancel
             </Button>
             <Button

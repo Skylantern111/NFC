@@ -7,6 +7,7 @@ import {
   limit,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
@@ -14,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { generateBatch, batchToCsv, tagUrl } from '../../lib/tags';
+import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -60,19 +62,6 @@ const STATUS_BADGE = {
 };
 
 const ROW_LIMIT = 100;
-
-function relativeTime(date) {
-  if (!date) return '—';
-  const seconds = Math.round((Date.now() - date.getTime()) / 1000);
-  if (seconds < 5) return 'just now';
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
-}
 
 function toDate(createdAt) {
   // Firestore Timestamp has toDate(); tolerate a raw number too (shouldn't
@@ -178,15 +167,26 @@ export default function Inventory() {
     loadCounts();
   }, [loadRows, loadCounts]);
 
-  // Known limitation: read-then-write, not a transaction — two admins
-  // generating batches within the same moment could land on the same
-  // batchNumber. Low-risk for a single-admin console; fixing it properly
-  // needs a dedicated counter doc + firestore.rules change, out of scope here.
+  // Atomic increment against meta/tagBatchCounter — two admins generating
+  // batches at once can no longer land on the same batchNumber, since the
+  // read+write happens inside one Firestore transaction. Cold start (no
+  // counter doc yet) seeds it from the highest batchNumber already in `tags`
+  // so numbering stays continuous for inventories provisioned before this fix.
   async function nextBatchNumber() {
-    const q = query(collection(db, 'tags'), orderBy('batchNumber', 'desc'), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) return 1;
-    return (snap.docs[0].data().batchNumber || 0) + 1;
+    const counterRef = doc(db, 'meta', 'tagBatchCounter');
+    return runTransaction(db, async (tx) => {
+      const snap = await tx.get(counterRef);
+      if (snap.exists()) {
+        const next = (snap.data().value || 0) + 1;
+        tx.update(counterRef, { value: next });
+        return next;
+      }
+      const q = query(collection(db, 'tags'), orderBy('batchNumber', 'desc'), limit(1));
+      const existing = await getDocs(q);
+      const next = existing.empty ? 1 : (existing.docs[0].data().batchNumber || 0) + 1;
+      tx.set(counterRef, { value: next });
+      return next;
+    });
   }
 
   async function onGenerate() {
@@ -465,7 +465,7 @@ export default function Inventory() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-slate-500" title={created ? created.toLocaleString() : ''}>
-                          {relativeTime(created)}
+                          {created ? relativeTimeFromMs(toMillis(created)) : '—'}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1.5">
@@ -514,7 +514,7 @@ export default function Inventory() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmGenerate(false)}>
+            <Button variant="outline" autoFocus onClick={() => setConfirmGenerate(false)}>
               Cancel
             </Button>
             <Button onClick={onGenerate} disabled={generating}>

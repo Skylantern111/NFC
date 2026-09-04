@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Clock, MessageSquareWarning, Package, X } from 'lucide-react';
+import { AlertTriangle, Clock, MessageSquareWarning, Package, ShieldCheck, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useOwnerItems, useOwnerTagIds, useOwnerOpenReports, useOwnerChats } from '../../lib/ownerItems';
 import { daysSinceMs, relativeTimeFromMs, toMillis } from '../../lib/utils';
@@ -100,7 +100,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {stats.map((s) => (
-          <Card key={s.label} className="rounded-2xl bg-white/80 p-5 shadow-lg">
+          <Card key={s.label} className="rounded-2xl bg-white/70 backdrop-blur-xl p-5 shadow-lg">
             <CardContent className="space-y-3 p-0">
               <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
                 <s.icon className="h-4.5 w-4.5" />
@@ -173,16 +173,21 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        <Card className="rounded-3xl bg-white/80 p-6 shadow-lg">
-          <CardContent className="p-0">
-            <h2 className="mb-1 text-lg font-bold text-slate-800">No active incidents</h2>
-            <p className="text-sm text-slate-500">
-              {items.length === 0
-                ? 'Claim a tag to start protecting your belongings.'
-                : "You're all clear — no open found-item reports right now."}
-            </p>
+        <Card className="rounded-3xl bg-white/70 backdrop-blur-xl p-6 shadow-lg">
+          <CardContent className="flex flex-col items-center gap-3 p-0 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <ShieldCheck className="h-6 w-6" />
+            </span>
+            <div>
+              <h2 className="mb-1 text-lg font-bold text-slate-800">No active incidents</h2>
+              <p className="text-sm text-slate-500">
+                {items.length === 0
+                  ? 'Claim a tag to start protecting your belongings.'
+                  : "You're all clear — no open found-item reports right now."}
+              </p>
+            </div>
             {items.length === 0 && (
-              <Button asChild className="mt-3" variant="secondary">
+              <Button asChild variant="secondary">
                 <Link to="/dashboard/items/claim">Claim your first tag</Link>
               </Button>
             )}
@@ -212,7 +217,7 @@ export default function Dashboard() {
                 type="button"
                 onClick={() => dismissNudge(item)}
                 aria-label="Dismiss"
-                className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-900/5 hover:text-slate-700"
+                className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-900/5 hover:text-slate-700 active:bg-slate-900/10"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -221,7 +226,7 @@ export default function Dashboard() {
         </Card>
       ))}
 
-      <Card className="rounded-3xl bg-white/80 p-6 shadow-lg">
+      <Card className="rounded-3xl bg-white/70 backdrop-blur-xl p-6 shadow-lg">
         <CardContent className="space-y-2 p-0">
           <h2 className="text-sm font-bold text-slate-800">How your privacy is protected</h2>
           <p className="text-sm leading-relaxed text-slate-600">

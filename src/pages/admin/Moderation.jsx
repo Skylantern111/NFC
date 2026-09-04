@@ -1,23 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Ban, ShieldCheck } from 'lucide-react';
+import { toast } from 'sonner';
 import { useModerationQueue, banToken, unbanToken } from '../../lib/moderation';
+import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-
-function relativeTime(timestamp) {
-  const ms = timestamp?.toMillis ? timestamp.toMillis() : null;
-  if (!ms) return '';
-  const diffMin = Math.max(0, Math.round((Date.now() - ms) / 60000));
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.round(diffHr / 24)}d ago`;
-}
 
 // §4.13/§5.4. Real live data: chats an owner reported (chats.blocked, set
 // from public/Chat.jsx) joined against items for a display name. Listed
@@ -56,8 +47,9 @@ export default function Moderation() {
         await banToken(token, { tagId: chat.tagId, reason: chat.blockedReason });
       }
       toggleMockBan(token);
+      toast.success(banned ? 'Token unbanned.' : 'Token banned.');
     } catch (err) {
-      alert('Could not update ban status: ' + err.message);
+      toast.error('Could not update ban status: ' + err.message);
     }
   }
 
@@ -125,7 +117,7 @@ export default function Moderation() {
                       {chat.finderSessionToken}
                     </TableCell>
                     <TableCell className="text-xs text-slate-400">
-                      {relativeTime(chat.blockedAt)}
+                      {relativeTimeFromMs(toMillis(chat.blockedAt))}
                     </TableCell>
                     <TableCell>
                       {banned ? (
