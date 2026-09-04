@@ -109,7 +109,10 @@ of `firestore.rules` directly into Console → Firestore Database → Rules →
 publish.
 
 Re-run `firebase deploy --only firestore:rules` any time `firestore.rules`
-changes — nothing in the app deploys rule changes automatically.
+changes — nothing in the app deploys rule changes automatically. If you
+already deployed rules before, `firestore.rules` gained a `tags/{tagId}`
+`update` clause (the claim flow now flips `status: unclaimed → claimed`) —
+redeploy to pick it up, or claiming will fail with a permission error.
 
 ## 8. Composite indexes (only if Firestore asks for one)
 
@@ -151,15 +154,30 @@ npm run dev
 ```
 
 With `.env` filled in, `firebaseReady` is `true` and every page switches
-from its mock fixtures to live Firestore. Good end-to-end smoke test:
-register an account → claim a tag (`/dashboard/items/claim`, any string as
-a manual tag ID works for testing even without a real NFC sticker, since
-`tags/{tagId}` doesn't need to pre-exist for a fresh claim in dev — see
-`ClaimTag.jsx`'s transaction) → open that tag's public URL
-(`/nfc/:tagId`) in a private/incognito window to act as the "finder" →
-file a found report → confirm it shows up live in `/dashboard`,
-`/dashboard/messages`, and `/dashboard/notifications` for the owner
-window.
+from its mock fixtures to live Firestore — `Dashboard.jsx`, `Items.jsx`,
+`Messages.jsx`, `Notifications.jsx`, and `Chat.jsx` all read/write through
+`lib/ownerItems.js`'s live hooks now (no more separate `localStorage` mock
+layer — that was removed with `lib/api.js`/`lib/seedData.js`).
+
+`tags/{tagId}` **must already exist** before it can be claimed — either
+provisioned by an admin (`/admin/inventory`, step 11 below) or created by
+hand in the Firestore console with `{ status: 'unclaimed' }`. `ClaimTag.jsx`
+throws "Tag not found" for an id with no `tags/{tagId}` doc, by design (it's
+provisioning inventory, not a free-for-all).
+
+Good end-to-end smoke test:
+1. Provision a tag as admin (§11), or create one by hand: `tags/test-tag-1`
+   = `{ status: 'unclaimed', batchNumber: 0, createdAt: <any number> }`.
+2. Register an account → claim it at `/dashboard/items/claim` (paste
+   `test-tag-1` as the tag id — a physical tap or Web NFC scan works too,
+   see `ClaimTag.jsx#scanNfc`). Confirms `tags/test-tag-1.status` flips to
+   `claimed` (admin Inventory's counts will reflect it).
+3. Open `/nfc/test-tag-1` in a private/incognito window to act as the
+   finder → file a found report.
+4. Confirm it shows up live in `/dashboard` (hero incident card), owner's
+   `/dashboard/messages`, and `/dashboard/notifications` in the original
+   window — then open the chat and try "Mark as recovered" from the owner
+   side.
 
 ## 11. Admin claim provisioning tags (optional)
 

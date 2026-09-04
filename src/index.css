@@ -4,46 +4,45 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* Signal Glass shadcn/ui semantic tokens (ported from TagBack reference).
-     Values are HSL components (no hsl() wrapper) consumed as hsl(var(--x))
-     by tailwind.config.js so shadcn/Radix primitives render in the same
-     ink-black/charcoal-violet + Signal Mint palette as the rest of the app.
-     This app is dark-first, so :root and .dark share the same values. */
-  --background: 240 38% 6%;
-  --foreground: 253 100% 97%;
-  --card: 240 35% 12%;
-  --card-foreground: 253 100% 97%;
-  --popover: 240 34% 16%;
-  --popover-foreground: 253 100% 97%;
-  --primary: 150 100% 86%;
-  --primary-foreground: 206 49% 8%;
-  --secondary: 256 28% 19%;
-  --secondary-foreground: 255 100% 92%;
-  --muted: 240 34% 11%;
-  --muted-foreground: 243 20% 66%;
-  --accent: 248 100% 83%;
-  --accent-foreground: 244 37% 17%;
-  --destructive: 5 100% 69%;
+  /* Light Neumorphic/Glassmorphic shadcn/ui semantic tokens (TagBack
+     redesign). Values are HSL components (no hsl() wrapper) consumed as
+     hsl(var(--x)) by tailwind.config.js. `.dark` below stays as a fallback/
+     escape hatch (unused unless a theme toggle is reintroduced later). */
+  --background: 220 33% 92%;       /* ~#E9EDF5 */
+  --foreground: 222 20% 24%;       /* ~slate-800 */
+  --card: 0 0% 100%;
+  --card-foreground: 222 20% 24%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 20% 24%;
+  --primary: 273 67% 60%;          /* purple-500 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 20% 88%;
+  --secondary-foreground: 222 20% 24%;
+  --muted: 220 24% 88%;
+  --muted-foreground: 220 9% 46%;  /* ~slate-500 */
+  --accent: 328 73% 62%;           /* pink-500 */
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --border: 242 32% 24%;
-  --input: 245 28% 26%;
-  --ring: 150 100% 86%;
+  --border: 220 20% 82%;
+  --input: 220 20% 82%;
+  --ring: 273 67% 60%;
   --radius: 0.65rem;
-  --chart-1: 150 100% 86%;
-  --chart-2: 248 100% 83%;
-  --chart-3: 5 100% 69%;
-  --chart-4: 156 51% 61%;
-  --chart-5: 0 39% 45%;
-  --sidebar: 240 36% 9%;
-  --sidebar-foreground: 253 100% 97%;
-  --sidebar-primary: 150 100% 86%;
-  --sidebar-primary-foreground: 206 49% 8%;
-  --sidebar-accent: 242 35% 16%;
-  --sidebar-accent-foreground: 253 100% 97%;
-  --sidebar-border: 244 26% 21%;
-  --sidebar-ring: 150 100% 86%;
+  --chart-1: 273 67% 60%;
+  --chart-2: 328 73% 62%;
+  --chart-3: 0 72% 51%;
+  --chart-4: 156 51% 45%;
+  --chart-5: 38 92% 50%;
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 222 20% 24%;
+  --sidebar-primary: 273 67% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 270 60% 96%;
+  --sidebar-accent-foreground: 273 67% 45%;
+  --sidebar-border: 220 20% 90%;
+  --sidebar-ring: 273 67% 60%;
 }
 
 .dark {
@@ -89,20 +88,23 @@ body,
 
 body {
   margin: 0;
-  background-color: #0d0a1a;
-  color: #fff;
+  background-color: #e9edf5;
+  color: #1e293b;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Reusable glass surface. Kept as a component class so admin views can opt out. */
+/* Reusable glass surface floating on the light neumorphic canvas. Kept as a
+   component class so admin views can opt out. */
 @layer components {
   .glass {
-    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl;
+    @apply bg-white/70 backdrop-blur-xl border border-white/60 shadow-lg rounded-3xl;
   }
-  /* Localized darkening behind text so bright orbs never kill contrast. */
+  /* No dark-wash overlay needed on a light bg — contrast comes from the
+     slate-800/slate-500 text sweep instead. Kept as a no-op class so call
+     sites don't need to change. */
   .glass-legible {
-    @apply relative before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-black/40 before:to-black/10 before:pointer-events-none;
+    @apply relative;
   }
 }
 
@@ -115,5 +117,5 @@ body {
 
 /* Leaflet tiles need explicit sizing inside flex containers. */
 .leaflet-container {
-  background: #130e26;
+  background: #e9edf5;
 }

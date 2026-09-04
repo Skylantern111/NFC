@@ -30,8 +30,8 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 // Shared frosted-glass treatment applied over the ported ui/Card primitive so
-// public pages keep the app's existing dark glassmorphism language.
-const GLASS = 'rounded-3xl border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-2xl';
+// public pages keep the app's light glassmorphism language.
+const GLASS = 'rounded-3xl bg-white/70 backdrop-blur-2xl shadow-lg';
 
 // Public preview of an item. Intentionally only the fields a finder may see —
 // never ownerUid or any `users` data.
@@ -141,7 +141,7 @@ export default function NfcLanding() {
 
   if (state === 'loading') {
     return (
-      <div className="flex h-screen items-center justify-center text-slate-400">Loading…</div>
+      <div className="flex h-screen items-center justify-center text-slate-500">Loading…</div>
     );
   }
 
@@ -153,9 +153,9 @@ export default function NfcLanding() {
           <TopNav fallback="/" />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
-              <CardContent className="text-white">
+              <CardContent className="text-slate-800">
                 <h1 className="text-2xl font-bold">Tag not recognized</h1>
-                <p className="mt-2 text-slate-300">
+                <p className="mt-2 text-slate-500">
                   This tag isn't registered yet, or the link is incorrect.
                 </p>
               </CardContent>
@@ -178,36 +178,36 @@ export default function NfcLanding() {
           className={cn(
             GLASS,
             lost &&
-              'border-2 border-red-500/70 bg-red-950/20 shadow-[0_0_30px_rgba(239,68,68,0.35)] animate-pulseGlow'
+              'border-2 border-red-400 bg-red-50/60 shadow-[0_0_24px_rgba(239,68,68,0.25)] animate-pulseGlow'
           )}
         >
-          <CardContent className="text-white">
+          <CardContent className="text-slate-800">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Badge variant={lost ? 'destructive' : 'secondary'}>
                 {lost ? 'Reported lost' : 'Found item'}
               </Badge>
               {lost && item.rewardAmount > 0 && (
-                <Badge variant="outline" className="border-amber-400/40 bg-amber-500/10 text-amber-300">
+                <Badge variant="outline" className="border-amber-200 bg-amber-50/80 text-amber-600">
                   ${item.rewardAmount} reward
                 </Badge>
               )}
             </div>
-            <h1 className="text-2xl font-extrabold drop-shadow-md sm:text-3xl">
+            <h1 className="text-2xl font-extrabold text-slate-800 sm:text-3xl">
               You found {item.itemName}
             </h1>
 
             {lost && item.lostMessage && (
-              <div className="mt-4 rounded-2xl border border-red-500/25 bg-red-950/30 p-4">
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-300">
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50/70 p-4">
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-600">
                   <MessageSquare className="h-3.5 w-3.5" />
                   Message from the owner
                 </p>
-                <p className="text-red-100">{item.lostMessage}</p>
+                <p className="text-red-700">{item.lostMessage}</p>
               </div>
             )}
 
-            <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-xs text-slate-300">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
+            <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-base px-3.5 py-2.5 text-xs text-slate-600 shadow-neu-pressed-sm">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
               <span>
                 Your identity stays private — no app, no account, and no contact info is ever
                 exposed to the owner.
@@ -217,13 +217,13 @@ export default function NfcLanding() {
         </Card>
 
         <Card className={GLASS}>
-          <CardContent className="text-white">
+          <CardContent className="text-slate-800">
             <form onSubmit={submitReport} className="flex flex-col gap-5">
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-300">Current location</span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-sm font-medium text-slate-600">Current location</span>
+                    <span className="text-xs text-slate-400">
                       {locStatus === 'done'
                         ? `±${Math.round(location?.accuracy ?? 0)}m accuracy`
                         : locStatus === 'unavailable'
@@ -236,7 +236,7 @@ export default function NfcLanding() {
                     variant="outline"
                     onClick={handleAttachLocation}
                     disabled={locStatus === 'loading' || locStatus === 'done'}
-                    className="justify-start gap-2 border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                    className="justify-start gap-2"
                   >
                     {locStatus === 'loading' ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -250,7 +250,7 @@ export default function NfcLanding() {
                         : 'Share my current location'}
                   </Button>
 
-                  <Label htmlFor="location-note" className="mt-1 text-sm font-medium text-slate-300">
+                  <Label htmlFor="location-note" className="mt-1 text-sm font-medium text-slate-600">
                     <MapPin className="h-3.5 w-3.5" />
                     Location note
                   </Label>
@@ -259,12 +259,11 @@ export default function NfcLanding() {
                     value={locationNote}
                     onChange={(e) => setLocationNote(e.target.value)}
                     placeholder="e.g. Left with the concierge at Hotel Blue"
-                    className="border-white/15 bg-white/5 text-white placeholder:text-slate-500"
                   />
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="finder-message" className="text-sm font-medium text-slate-300">
+                  <Label htmlFor="finder-message" className="text-sm font-medium text-slate-600">
                     Message to the owner
                   </Label>
                   <Textarea
@@ -273,7 +272,7 @@ export default function NfcLanding() {
                     onChange={(e) => setNote(e.target.value)}
                     rows={3}
                     placeholder="e.g. Left it at the reception desk of Hotel Blue."
-                    className="flex-1 border-white/15 bg-white/5 text-white placeholder:text-slate-500 focus-visible:ring-purple-500/40"
+                    className="flex-1"
                     required
                   />
                 </div>

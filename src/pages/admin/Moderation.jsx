@@ -41,30 +41,30 @@ export default function Moderation() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold">Moderation</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="text-2xl font-extrabold text-slate-800">Moderation</h1>
+        <p className="mt-1 text-sm text-slate-500">
           Conversations owners have reported. Banning a finder's session token blocks it from
           filing new reports or sending new messages anywhere in the app.
         </p>
       </div>
 
-      {loading && <p className="text-sm text-slate-400">Loading reported conversations…</p>}
+      {loading && <p className="text-sm text-slate-500">Loading reported conversations…</p>}
 
       {!loading && chats.length === 0 && (
-        <Card className="border-slate-800 bg-panel">
+        <Card className="rounded-3xl bg-white/80 shadow-lg">
           <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
-            <ShieldCheck className="h-6 w-6 text-slate-400" />
-            <p className="font-bold text-white">Nothing reported.</p>
-            <p className="text-sm text-slate-400">Chats an owner reports as abusive show up here.</p>
+            <ShieldCheck className="h-6 w-6 text-slate-500" />
+            <p className="font-bold text-slate-800">Nothing reported.</p>
+            <p className="text-sm text-slate-500">Chats an owner reports as abusive show up here.</p>
           </CardContent>
         </Card>
       )}
 
       {chats.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-panel">
+        <div className="overflow-x-auto rounded-2xl bg-white/80 shadow-lg">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
+              <TableRow className="border-slate-200 hover:bg-transparent">
                 <TableHead>Item</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Finder token</TableHead>
@@ -77,26 +77,24 @@ export default function Moderation() {
               {chats.map((chat) => {
                 const banned = bannedTokens.has(chat.finderSessionToken);
                 return (
-                  <TableRow key={chat.id} className="border-slate-800/60">
-                    <TableCell>{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
+                  <TableRow key={chat.id} className="border-slate-200/60">
+                    <TableCell className="text-slate-700">{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="border-amber-400/30 text-amber-300">
+                      <Badge variant="outline" className="border-amber-200 bg-amber-50/80 text-amber-600">
                         {chat.blockedReason || 'No reason given'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-400">
+                    <TableCell className="font-mono text-xs text-slate-500">
                       {chat.finderSessionToken}
                     </TableCell>
-                    <TableCell className="text-xs text-slate-500">
+                    <TableCell className="text-xs text-slate-400">
                       {relativeTime(chat.blockedAt)}
                     </TableCell>
                     <TableCell>
                       {banned ? (
                         <Badge variant="destructive">Banned</Badge>
                       ) : (
-                        <Badge variant="outline" className="border-white/20 text-slate-300">
-                          Active
-                        </Badge>
+                        <Badge variant="outline">Active</Badge>
                       )}
                     </TableCell>
                     <TableCell>

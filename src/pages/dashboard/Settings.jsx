@@ -11,11 +11,11 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <h1 className="text-2xl font-extrabold drop-shadow-md">Settings</h1>
+      <h1 className="text-2xl font-extrabold text-slate-800">Settings</h1>
 
       <GlassCard>
-        <h2 className="mb-3 font-bold">Contact (private)</h2>
-        <p className="mb-3 text-sm text-slate-400">
+        <h2 className="mb-3 font-bold text-slate-800">Contact (private)</h2>
+        <p className="mb-3 text-sm text-slate-500">
           Only used to reach you. Never shown to finders.
         </p>
         <Field
@@ -27,13 +27,13 @@ export default function Settings() {
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-3 font-bold">Notifications</h2>
+        <h2 className="mb-3 font-bold text-slate-800">Notifications</h2>
         {[
           ['inApp', 'In-app alerts'],
           ['email', 'Email alerts'],
         ].map(([k, label]) => (
           <label key={k} className="flex items-center justify-between py-2">
-            <span className="text-slate-200">{label}</span>
+            <span className="text-slate-600">{label}</span>
             <input
               type="checkbox"
               checked={prefs[k]}

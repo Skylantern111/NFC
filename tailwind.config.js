@@ -6,6 +6,7 @@ export default {
       colors: {
         void: '#0D0A1A',
         panel: '#130E26',
+        base: '#E9EDF5',
 
         // shadcn/ui semantic tokens (Signal Glass palette), ported for the
         // shadcn/Radix component kit under src/components/ui. Backed by CSS
@@ -69,6 +70,14 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        // Light source: top-left. Two-layer shadow (light + dark) sells the
+        // "physical extrusion" — a single shadow reads flat.
+        'neu-flat': '8px 8px 16px rgba(163,177,198,0.6), -8px -8px 16px rgba(255,255,255,0.8)',
+        'neu-flat-sm': '4px 4px 8px rgba(163,177,198,0.55), -4px -4px 8px rgba(255,255,255,0.75)',
+        'neu-pressed': 'inset 6px 6px 12px rgba(163,177,198,0.6), inset -6px -6px 12px rgba(255,255,255,0.8)',
+        'neu-pressed-sm': 'inset 3px 3px 6px rgba(163,177,198,0.55), inset -3px -3px 6px rgba(255,255,255,0.75)',
       },
       keyframes: {
         // Slowly drifting ambient orbs. Small translate range = cheap GPU work.

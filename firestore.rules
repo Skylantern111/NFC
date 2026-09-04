@@ -58,6 +58,16 @@ service cloud.firestore {
     match /tags/{tagId} {
       allow read: if true;
       allow write: if isAdmin();
+      // Claim path: the caller may flip status unclaimed -> claimed for the
+      // exact tag they're claiming, only alongside creating itemOwners/{tagId}
+      // for themselves in the SAME transaction (see dashboard/ClaimTag.jsx).
+      // Mirrors the items#create claim clause below.
+      allow update: if isSignedIn()
+        && resource.data.status == 'unclaimed'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'claimed'
+        && existsAfter(/databases/$(database)/documents/itemOwners/$(tagId))
+        && getAfter(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid;
 
       // ---- scan log: anonymous tap counter, no finder identity captured.
       //      Public-create (any tap), owner-read only, immutable. ----

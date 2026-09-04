@@ -121,6 +121,10 @@ export default function ClaimTag() {
           lostMessage: '',
           rewardAmount: 0,
         });
+        // Flip provisioning status so admin/Inventory.jsx's claimed count and
+        // filter reflect reality (see firestore.rules tags#update for the
+        // matching claim-path allowance).
+        tx.update(tagRef, { status: 'claimed' });
       });
       nav('/dashboard/items');
     } catch (err) {
@@ -133,8 +137,8 @@ export default function ClaimTag() {
   return (
     <div className="mx-auto max-w-md">
       <BackButton fallback="/dashboard/items" className="mb-3" />
-      <h1 className="mb-4 text-2xl font-extrabold drop-shadow-md">Claim this tag</h1>
-      <Card className="border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <h1 className="mb-4 text-2xl font-extrabold text-slate-800">Claim this tag</h1>
+      <Card className="rounded-3xl bg-white/70 p-6 backdrop-blur-xl shadow-lg">
         <CardContent className="flex flex-col gap-4 p-0">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="tagId">Tag id</Label>
@@ -159,7 +163,7 @@ export default function ClaimTag() {
             </p>
           )}
           {nfcStatus === 'error' && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-red-500">
               Couldn't read that tag. Try again, or enter the tag id manually.
             </p>
           )}
@@ -195,7 +199,7 @@ export default function ClaimTag() {
               </p>
             </div>
 
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
 
             <Button type="submit" disabled={busy}>
               {busy ? 'Claiming…' : 'Claim tag'}

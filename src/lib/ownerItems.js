@@ -5,9 +5,11 @@ import {
   arrayUnion,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -346,4 +348,103 @@ export async function touchChatActivity(chatId, { sender, text }) {
 export async function markChatRead(chatId, role) {
   if (!firebaseReady) return;
   await updateDoc(doc(db, 'chats', chatId), { unreadFor: arrayRemove(role) });
+}
+
+// Owner arms/disarms Lost Mode directly on the public-safe items doc.
+// `items/{tagId}` has no generic status field (see firestore.rules'
+// publicItemFieldsOnly()) — "found_reported" is derived elsewhere by
+// joining open reports (useOwnerOpenReports), not stored here.
+export async function toggleLostMode(tagId, isLost, { lostMessage = '', rewardAmount = 0 } = {}) {
+  if (!firebaseReady) return;
+  await updateDoc(doc(db, 'items', tagId), {
+    isLostMode: isLost,
+    lostSince: isLost ? serverTimestamp() : null,
+    lostMessage,
+    rewardAmount,
+  });
+}
+
+// Owner confirms handoff from a chat: clears Lost Mode and flags the chat
+// resolved. `resolved` is a plain app-level field on the chat doc (like
+// `blocked` below) — chats carry no rules-enforced field whitelist for an
+// owner's own writes, so no firestore.rules change is needed for it.
+export async function markRecovered(tagId, chatId) {
+  if (!firebaseReady) return;
+  await updateDoc(doc(db, 'items', tagId), { isLostMode: false, lostSince: null });
+  if (chatId) await updateDoc(doc(db, 'chats', chatId), { resolved: true });
+}
+
+// Owner flags a chat for the admin moderation queue (see admin/Moderation.jsx).
+export async function reportChat(chatId, reason) {
+  if (!firebaseReady) return;
+  await updateDoc(doc(db, 'chats', chatId), { blocked: true, blockedReason: reason || null });
+}
+
+// One-time public-safe item read by tag id — same shape/rule as
+// NfcLanding.jsx's live read, reused by Chat.jsx for both owner and finder.
+export async function getPublicItem(tagId) {
+  if (!firebaseReady || !tagId) return null;
+  const snap = await getDoc(doc(db, 'items', tagId));
+  return snap.exists() ? { tagId, ...snap.data() } : null;
+}
+
+// Live single chat doc, for Chat.jsx (owner or finder view).
+export function useChat(chatId) {
+  const [chat, setChat] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!firebaseReady || !chatId) {
+      setLoading(false);
+      return;
+    }
+    const unsub = onSnapshot(
+      doc(db, 'chats', chatId),
+      (snap) => {
+        setChat(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return unsub;
+  }, [chatId]);
+
+  return { chat, loading: firebaseReady ? loading : false };
+}
+
+// Live message thread for one chat, oldest first.
+export function useChatMessages(chatId) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!firebaseReady || !chatId) {
+      setLoading(false);
+      return;
+    }
+    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return unsub;
+  }, [chatId]);
+
+  return { messages, loading: firebaseReady ? loading : false };
+}
+
+// Sends one message and stamps the parent chat's activity markers.
+// `sender` matches firestore.rules' messages#create check ('owner'|'finder').
+export async function sendChatMessage(chatId, sender, text) {
+  if (!firebaseReady) return;
+  await addDoc(collection(db, 'chats', chatId, 'messages'), {
+    sender,
+    text,
+    timestamp: serverTimestamp(),
+  });
+  await touchChatActivity(chatId, { sender, text });
 }

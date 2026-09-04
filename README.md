@@ -7,8 +7,11 @@ owner and share a location — all without either party ever seeing the
 other's name, phone, email, or address. Identity stays separated at the
 database level, not just hidden in the UI.
 
-Stack: React + Vite, Tailwind (dark glassmorphism), Firebase (Firestore + Auth),
-React Router, Leaflet, Recharts, nanoid.
+Stack: React + Vite, Tailwind (light neumorphism + glassmorphism), Firebase
+(Firestore + Auth), React Router, Google Maps, Recharts, nanoid.
+
+For how the pieces fit together (routing, data layers, Firestore schema,
+security rules, NFC write flow) see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## System functions
 
@@ -17,6 +20,7 @@ React Router, Leaflet, Recharts, nanoid.
 - Claim an NFC tag to an item (name, category) via NFC tap or manual tag-ID entry.
 - Arm / disarm "Lost Mode" on an item, with a message to the finder and an optional reward.
 - Public tap page: anyone who taps a tag sees item status and can file a "found it" report with a message and optional GPS location.
+- NFC Setup page: generate a tag ID and write its tap URL straight from the browser via Web NFC (Chrome/Android), with a free-app fallback for other browsers.
 - Anonymous two-way chat between owner and finder, keyed by a private session token (finder) / Firebase Auth (owner) — never by contact info.
 - Mark an item "Recovered" from chat, closing the report and clearing Lost Mode.
 - Admin: batch-provision NFC tag inventory, track claim lifecycle, blacklist compromised/lost tags.
@@ -37,14 +41,16 @@ public/finder pages render mock data, so every screen is previewable.
 ## Routes
 
 Public: `/`, `/login`, `/register`, `/nfc/:tagId`, `/chat/:chatId`
-Owner (protected): `/dashboard`, `/dashboard/items`, `/dashboard/items/claim`, `/dashboard/settings`
+Owner (protected): `/dashboard`, `/dashboard/items`, `/dashboard/items/claim`, `/dashboard/nfc-setup`, `/dashboard/messages`, `/dashboard/notifications`, `/dashboard/settings`
 Admin: `/admin/inventory`, `/admin/moderation`
 
 ## Design system
 
 Brand: **TagBack** — purple (`#a855f7`) → pink (`#ec4899`) gradient accent on a
-near-black (`#0d0a1a`) ambient background, pill-shaped buttons/badges, frosted
-glass cards. Full token/component spec in [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md#2-design-system-derived-from-the-tagback-landing-screenshot).
+pale lavender (`#e9edf5`) canvas, soft neumorphic (extruded/pressed) surfaces
+plus near-opaque white glass cards, pill-shaped buttons/badges. Full spec in
+[`LIGHT_NEUMORPHIC_REDESIGN_PLAN.md`](LIGHT_NEUMORPHIC_REDESIGN_PLAN.md)
+(supersedes the original dark theme in [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md#2-design-system-derived-from-the-tagback-landing-screenshot)).
 
 ## Data model &amp; privacy
 
@@ -91,5 +97,6 @@ Tag ids are 21-char nanoid (~126 bits) — non-sequential, non-guessable.
 - **Done:** admin auth (Firebase custom claim `admin: true`, `scripts/setAdmin.js`, `AdminLayout` guard) and real `tags/{tagId}` persistence (admin-gated writes in `firestore.rules`).
 - **Done:** real Firestore reads/writes for claim (`ClaimTag.jsx` transaction), the owner items/dashboard live queries, finder reports + anonymous chat, and admin batch provisioning/lifecycle.
 - **Done:** TagBack rebrand + design-system pass (color tokens, pill buttons/badges, gradient accents) — see [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md).
-- **Done:** navigation shell — owner/admin left sidebars, public `TopNav`, and stub `NFC Setup`/`Messages`/`Notifications` pages (static content + client-side-only tag ID generation, no self-serve claim yet) — see [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md#3--global-navigation-pattern).
-- **TODO:** the rest of [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md) — Dashboard/Items merge, self-serve claim transaction, live Messages/Notifications data, real moderation, admin analytics, and the other net-new functions it describes.
+- **Done:** navigation shell — owner/admin left sidebars, public `TopNav`, and `NFC Setup`/`Messages`/`Notifications` pages — see [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md#3--global-navigation-pattern).
+- **Done:** Dashboard/Items/Messages/Notifications/Chat all read and write live Firestore via `lib/ownerItems.js` (the earlier `localStorage` mock layer, `lib/api.js`, has been removed); claiming a tag now also flips `tags/{tagId}.status` to `claimed`. See [`ARCHITECTURE.md`](ARCHITECTURE.md#4-one-data-layer-live-or-mocked-by-firebaseready).
+- **TODO:** the rest of [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md) — self-serve claim of a freshly generated tag ID (still requires admin-provisioned inventory), tap→claim handoff for unclaimed tags, real moderation depth, admin analytics, and the other net-new functions it describes. See [`ARCHITECTURE.md`](ARCHITECTURE.md#8-known-gaps--inconsistencies) for the current gap list.

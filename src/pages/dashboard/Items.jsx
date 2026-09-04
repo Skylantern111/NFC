@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
-import { useOwnerItems } from '../../lib/ownerItems';
+import { firebaseReady } from '../../firebase/config';
+import {
+  useOwnerItems,
+  useOwnerTagIds,
+  useOwnerOpenReports,
+  toggleLostMode,
+} from '../../lib/ownerItems';
 import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -20,38 +24,35 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 
-const glass = 'border-white/10 bg-white/5 backdrop-blur-xl';
+const glass = 'bg-white/70 backdrop-blur-xl';
 
 export default function Items() {
   const { user } = useAuth();
   const { items, loading, updateMockItem } = useOwnerItems(user);
-  // { tagId, itemName, lostMessage, rewardAmount } while the "declare lost"
-  // dialog is open, else null.
+  const { tagIds } = useOwnerTagIds(user);
+  const { reports } = useOwnerOpenReports(tagIds);
+  const openTagSet = useMemo(() => new Set(reports.map((r) => r.tagId)), [reports]);
+
+  // { tagId, name, lostMessage, rewardAmount } while the "declare lost" dialog is open, else null.
   const [armDialog, setArmDialog] = useState(null);
   const [saving, setSaving] = useState(false);
-
-  // Writes only ever carry the exact fields firestore.rules whitelists on
-  // items/{tagId}: tagId, itemName, isLostMode, lostMessage, rewardAmount.
-  async function writeItem(tagId, patch) {
-    if (!firebaseReady) {
-      updateMockItem(tagId, patch);
-      return;
-    }
-    await updateDoc(doc(db, 'items', tagId), patch);
-  }
 
   async function onToggle(item, checked) {
     if (checked) {
       setArmDialog({
         tagId: item.tagId,
-        itemName: item.itemName,
+        name: item.itemName,
         lostMessage: item.lostMessage || '',
         rewardAmount: item.rewardAmount || 0,
       });
       return;
     }
     try {
-      await writeItem(item.tagId, { isLostMode: false, lostSince: null });
+      if (firebaseReady) {
+        await toggleLostMode(item.tagId, false, { lostMessage: '', rewardAmount: 0 });
+      } else {
+        updateMockItem(item.tagId, { isLostMode: false, lostSince: null, lostMessage: '', rewardAmount: 0 });
+      }
     } catch (err) {
       alert('Could not update item: ' + err.message);
     }
@@ -62,13 +63,12 @@ export default function Items() {
     if (!armDialog) return;
     setSaving(true);
     try {
-      await writeItem(armDialog.tagId, {
-        isLostMode: true,
-        lostMessage: armDialog.lostMessage,
-        rewardAmount: Number(armDialog.rewardAmount) || 0,
-        // Drives the Dashboard "still missing after N days" nudge (§4.5/§5.8).
-        lostSince: firebaseReady ? serverTimestamp() : { toMillis: () => Date.now() },
-      });
+      const patch = { lostMessage: armDialog.lostMessage, rewardAmount: Number(armDialog.rewardAmount) || 0 };
+      if (firebaseReady) {
+        await toggleLostMode(armDialog.tagId, true, patch);
+      } else {
+        updateMockItem(armDialog.tagId, { ...patch, isLostMode: true, lostSince: { toMillis: () => Date.now() } });
+      }
       setArmDialog(null);
     } catch (err) {
       alert('Could not update item: ' + err.message);
@@ -80,17 +80,17 @@ export default function Items() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold drop-shadow-md">My items</h1>
+        <h1 className="text-2xl font-extrabold text-slate-800">My items</h1>
         <Button asChild variant="secondary">
           <Link to="/dashboard/items/claim">+ Claim a tag</Link>
         </Button>
       </div>
 
-      {loading && <p className="text-sm text-slate-400">Loading your items…</p>}
+      {loading && <p className="text-sm text-slate-500">Loading your items…</p>}
 
       {!loading && items.length === 0 && (
-        <Card className={glass}>
-          <CardContent className="p-0 text-center text-sm text-slate-400">
+        <Card className={`${glass} rounded-3xl`}>
+          <CardContent className="p-0 text-center text-sm text-slate-500">
             No items yet. Claim your first NFC tag to get started.
           </CardContent>
         </Card>
@@ -101,25 +101,28 @@ export default function Items() {
           key={it.tagId}
           className={
             it.isLostMode
-              ? 'rounded-2xl border-2 border-red-500 bg-red-900/20 p-6 shadow-[0_0_30px_rgba(239,68,68,0.4)]'
-              : `${glass} p-6`
+              ? 'rounded-2xl border-2 border-red-400 bg-red-50/60 p-6 shadow-[0_0_24px_rgba(239,68,68,0.25)]'
+              : `${glass} rounded-3xl p-6`
           }
         >
           <CardContent className="flex items-center justify-between gap-4 p-0">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate font-bold">{it.itemName}</p>
+                <p className="truncate font-bold text-slate-800">{it.itemName}</p>
                 {it.isLostMode && <Badge variant="destructive">Lost</Badge>}
+                {openTagSet.has(it.tagId) && <Badge variant="outline">Found reported</Badge>}
               </div>
-              {it.isLostMode && it.rewardAmount > 0 && (
-                <p className="mt-1 text-xs font-semibold text-amber-300">
-                  ${it.rewardAmount} reward offered
+              {it.isLostMode && (it.lostMessage || it.rewardAmount > 0) && (
+                <p className="mt-1 truncate text-xs font-semibold text-amber-600">
+                  {it.rewardAmount > 0 ? `$${it.rewardAmount} reward` : ''}
+                  {it.rewardAmount > 0 && it.lostMessage ? ' — ' : ''}
+                  {it.lostMessage}
                 </p>
               )}
               <p className="mt-1 truncate text-xs text-slate-500">Tag: {it.tagId}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <span className="text-xs text-slate-400">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>
+              <span className="text-xs text-slate-500">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>
               <Switch checked={it.isLostMode} onCheckedChange={(checked) => onToggle(it, checked)} />
             </div>
           </CardContent>
@@ -129,9 +132,9 @@ export default function Items() {
       <Dialog open={!!armDialog} onOpenChange={(open) => !open && setArmDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Declare "{armDialog?.itemName}" lost</DialogTitle>
+            <DialogTitle>Declare "{armDialog?.name}" lost</DialogTitle>
             <DialogDescription>
-              This message and reward are shown publicly to anyone who taps the tag.
+              This message is shown publicly to anyone who taps the tag.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={confirmArm} className="flex flex-col gap-4">
@@ -146,14 +149,14 @@ export default function Items() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rewardAmount">Reward amount ($, optional)</Label>
+              <Label htmlFor="rewardAmount">Reward amount (optional)</Label>
               <Input
                 id="rewardAmount"
                 type="number"
                 min="0"
-                step="1"
-                value={armDialog?.rewardAmount ?? 0}
+                value={armDialog?.rewardAmount || ''}
                 onChange={(e) => setArmDialog((d) => ({ ...d, rewardAmount: e.target.value }))}
+                placeholder="20"
               />
             </div>
             <DialogFooter>

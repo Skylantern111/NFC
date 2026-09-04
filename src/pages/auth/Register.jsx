@@ -50,7 +50,7 @@ export default function Register() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" />
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-8">
-          <h1 className="mb-6 text-center text-3xl font-extrabold drop-shadow-md">
+          <h1 className="mb-6 text-center text-3xl font-extrabold text-slate-800">
             Create account
           </h1>
           <GlassCard>
@@ -66,15 +66,15 @@ export default function Register() {
                 minLength={6}
                 required
               />
-              {err && <p className="text-sm text-red-300">{err}</p>}
+              {err && <p className="text-sm text-red-500">{err}</p>}
               <Button type="submit" disabled={busy}>
                 {busy ? 'Creating…' : 'Create account'}
               </Button>
             </form>
           </GlassCard>
-          <p className="mt-5 text-center text-sm text-slate-400">
+          <p className="mt-5 text-center text-sm text-slate-500">
             Have an account?{' '}
-            <Link to="/login" className="font-semibold text-purple-300 hover:text-pink-200">
+            <Link to="/login" className="font-semibold text-purple-600 hover:text-pink-600">
               Sign in
             </Link>
           </p>

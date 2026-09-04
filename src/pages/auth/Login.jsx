@@ -50,7 +50,7 @@ export default function Login() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" />
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-8">
-        <h1 className="mb-6 text-center text-3xl font-extrabold drop-shadow-md">
+        <h1 className="mb-6 text-center text-3xl font-extrabold text-slate-800">
           Welcome back
         </h1>
         <GlassCard>
@@ -71,27 +71,27 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            {err && <p className="text-sm text-red-300">{err}</p>}
+            {err && <p className="text-sm text-red-500">{err}</p>}
             <Button type="submit" disabled={busy}>
               {busy ? 'Signing in…' : 'Sign in'}
             </Button>
             <button
               type="button"
               onClick={onReset}
-              className="text-sm text-slate-400 hover:text-slate-200"
+              className="text-sm text-slate-500 hover:text-slate-800"
             >
               Forgot password?
             </button>
           </form>
         </GlassCard>
-        <p className="mt-5 text-center text-sm text-slate-400">
+        <p className="mt-5 text-center text-sm text-slate-500">
           No account?{' '}
-          <Link to="/register" className="font-semibold text-purple-300 hover:text-pink-200">
+          <Link to="/register" className="font-semibold text-purple-600 hover:text-pink-600">
             Create one
           </Link>
         </p>
         {!firebaseReady && (
-          <p className="mt-4 text-center text-xs text-amber-300/80">
+          <p className="mt-4 text-center text-xs text-amber-600">
             Firebase not configured — sign-in is stubbed for preview.
           </p>
         )}

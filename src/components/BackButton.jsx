@@ -18,7 +18,7 @@ export default function BackButton({ fallback = '/', label = 'Back', className =
     <button
       type="button"
       onClick={onBack}
-      className={`inline-flex items-center gap-1.5 text-sm font-medium text-slate-300 transition-colors hover:text-white ${className}`}
+      className={`inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 ${className}`}
     >
       <ArrowLeft className="h-4 w-4" />
       {label}

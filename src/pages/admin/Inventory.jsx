@@ -53,9 +53,9 @@ const STATUS_TABS = [
 ];
 
 const STATUS_BADGE = {
-  unclaimed: 'border-slate-600 bg-slate-700/40 text-slate-300',
-  claimed: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300',
-  blacklisted: 'border-rose-500/40 bg-rose-500/15 text-rose-300',
+  unclaimed: 'border-slate-200 bg-slate-100 text-slate-600',
+  claimed: 'border-emerald-200 bg-emerald-50/80 text-emerald-600',
+  blacklisted: 'border-rose-200 bg-rose-50/80 text-rose-600',
 };
 
 const ROW_LIMIT = 100;
@@ -234,8 +234,8 @@ export default function Inventory() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold">NFC inventory</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="text-2xl font-extrabold text-slate-800">NFC inventory</h1>
+        <p className="mt-1 text-sm text-slate-500">
           Provision NFC tag batches and manage their claim lifecycle.
         </p>
       </div>
@@ -243,9 +243,9 @@ export default function Inventory() {
       {/* KPI strip — real counts from the tags collection */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {STATUS_TABS.map((s) => (
-          <div key={s.value} className="rounded-2xl border border-slate-800 bg-panel p-4">
+          <div key={s.value} className="rounded-2xl bg-white/80 p-4 shadow-lg">
             <div className="text-xs uppercase tracking-wide text-slate-500">{s.label}</div>
-            <div className="mt-1 text-2xl font-bold">
+            <div className="mt-1 text-2xl font-bold text-slate-800">
               {counts[s.value] === null ? '—' : counts[s.value].toLocaleString()}
             </div>
           </div>
@@ -254,17 +254,17 @@ export default function Inventory() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         {/* LEFT: batch provisioning form */}
-        <Card className="border-slate-800 bg-panel text-slate-100 xl:col-span-5">
+        <Card className="rounded-3xl bg-white/80 text-slate-800 shadow-lg xl:col-span-5">
           <CardHeader>
             <CardTitle>Provision a new batch</CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardDescription className="text-slate-500">
               Generates unique tag IDs and writes them to the inventory as{' '}
-              <span className="font-mono text-slate-300">unclaimed</span>.
+              <span className="font-mono text-slate-600">unclaimed</span>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label className="text-slate-300">Batch size</Label>
+              <Label className="text-slate-600">Batch size</Label>
               <ToggleGroup
                 type="single"
                 variant="outline"
@@ -285,21 +285,21 @@ export default function Inventory() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-300">Chip type</Label>
+              <Label className="text-slate-600">Chip type</Label>
               <RadioGroup value={chipType} onValueChange={setChipType} className="gap-2">
                 {CHIP_TYPES.map((c) => (
                   <label
                     key={c.value}
                     htmlFor={`chip-${c.value}`}
-                    className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition-colors ${
+                    className={`flex cursor-pointer items-center justify-between rounded-xl p-3 transition-shadow ${
                       chipType === c.value
-                        ? 'border-purple-500/60 bg-purple-500/10'
-                        : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
+                        ? 'bg-purple-50 shadow-neu-pressed-sm'
+                        : 'bg-base shadow-neu-flat-sm'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <RadioGroupItem value={c.value} id={`chip-${c.value}`} />
-                      <span className="text-sm font-medium text-slate-100">{c.label}</span>
+                      <span className="text-sm font-medium text-slate-800">{c.label}</span>
                     </div>
                     <span className="font-mono text-xs text-slate-500">{c.detail}</span>
                   </label>
@@ -308,7 +308,7 @@ export default function Inventory() {
             </div>
 
             {generateError && (
-              <p className="text-sm text-rose-400">{generateError}</p>
+              <p className="text-sm text-rose-600">{generateError}</p>
             )}
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -328,10 +328,10 @@ export default function Inventory() {
         </Card>
 
         {/* RIGHT: lifecycle table */}
-        <Card className="border-slate-800 bg-panel text-slate-100 xl:col-span-7">
+        <Card className="rounded-3xl bg-white/80 text-slate-800 shadow-lg xl:col-span-7">
           <CardHeader>
             <CardTitle>Tag lifecycle</CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardDescription className="text-slate-500">
               Most recent {ROW_LIMIT} tags, newest first.
             </CardDescription>
           </CardHeader>
@@ -341,7 +341,7 @@ export default function Inventory() {
                 placeholder="Search tag ID or batch number…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="border-slate-700 bg-slate-900/60 text-slate-100 placeholder:text-slate-500 sm:max-w-xs"
+                className="sm:max-w-xs"
               />
               <div className="flex flex-wrap gap-1.5">
                 {STATUS_TABS.map((s) => (
@@ -349,43 +349,43 @@ export default function Inventory() {
                     key={s.value}
                     type="button"
                     onClick={() => setStatusFilter(s.value)}
-                    className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
                       statusFilter === s.value
-                        ? 'border-purple-500/50 bg-purple-500/20 text-purple-200'
-                        : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200'
+                        ? 'bg-purple-100 text-purple-700 shadow-neu-pressed-sm'
+                        : 'bg-base text-slate-500 shadow-neu-flat-sm hover:text-slate-800'
                     }`}
                   >
                     {s.label}
-                    {counts[s.value] !== null && <span className="ml-1 text-slate-500">({counts[s.value]})</span>}
+                    {counts[s.value] !== null && <span className="ml-1 text-slate-400">({counts[s.value]})</span>}
                   </button>
                 ))}
               </div>
             </div>
 
-            {rowsError && <p className="text-sm text-rose-400">{rowsError}</p>}
+            {rowsError && <p className="text-sm text-rose-600">{rowsError}</p>}
 
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <div className="overflow-x-auto rounded-xl bg-base shadow-neu-pressed-sm">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-slate-800 hover:bg-transparent">
-                    <TableHead className="text-slate-400">Tag ID</TableHead>
-                    <TableHead className="text-slate-400">Batch</TableHead>
-                    <TableHead className="text-slate-400">Chip</TableHead>
-                    <TableHead className="text-slate-400">Status</TableHead>
-                    <TableHead className="text-slate-400">Created</TableHead>
-                    <TableHead className="text-right text-slate-400">Actions</TableHead>
+                  <TableRow className="border-slate-200 hover:bg-transparent">
+                    <TableHead className="text-slate-500">Tag ID</TableHead>
+                    <TableHead className="text-slate-500">Batch</TableHead>
+                    <TableHead className="text-slate-500">Chip</TableHead>
+                    <TableHead className="text-slate-500">Status</TableHead>
+                    <TableHead className="text-slate-500">Created</TableHead>
+                    <TableHead className="text-right text-slate-500">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rowsLoading && (
-                    <TableRow className="border-slate-800 hover:bg-transparent">
+                    <TableRow className="border-slate-200 hover:bg-transparent">
                       <TableCell colSpan={6} className="py-10 text-center text-slate-500">
                         Loading tags…
                       </TableCell>
                     </TableRow>
                   )}
                   {!rowsLoading && filteredRows.length === 0 && (
-                    <TableRow className="border-slate-800 hover:bg-transparent">
+                    <TableRow className="border-slate-200 hover:bg-transparent">
                       <TableCell colSpan={6} className="py-10 text-center text-slate-500">
                         No tags match this view. Generate a batch to provision tags.
                       </TableCell>
@@ -394,35 +394,30 @@ export default function Inventory() {
                   {filteredRows.map((t) => {
                     const created = toDate(t.createdAt);
                     return (
-                      <TableRow key={t.tagId} className="border-slate-800/60 hover:bg-slate-800/40">
-                        <TableCell className="font-mono text-xs text-slate-200" title={t.tagId}>
+                      <TableRow key={t.tagId} className="border-slate-200/60 hover:bg-slate-900/5">
+                        <TableCell className="font-mono text-xs text-slate-700" title={t.tagId}>
                           {t.tagId.slice(0, 10)}…
                         </TableCell>
-                        <TableCell className="text-slate-300">{t.batchNumber}</TableCell>
-                        <TableCell className="text-slate-300">{t.chipType || '—'}</TableCell>
+                        <TableCell className="text-slate-600">{t.batchNumber}</TableCell>
+                        <TableCell className="text-slate-600">{t.chipType || '—'}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={STATUS_BADGE[t.status] || STATUS_BADGE.unclaimed}>
                             {t.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-slate-400" title={created ? created.toLocaleString() : ''}>
+                        <TableCell className="text-slate-500" title={created ? created.toLocaleString() : ''}>
                           {relativeTime(created)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1.5">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800"
-                              onClick={() => onCopyUrl(t.tagId)}
-                            >
+                            <Button variant="outline" size="sm" onClick={() => onCopyUrl(t.tagId)}>
                               {copiedTagId === t.tagId ? 'Copied' : 'Copy URL'}
                             </Button>
                             {t.status !== 'blacklisted' && (
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="border-rose-800 bg-transparent text-rose-300 hover:bg-rose-950/60"
+                                className="text-rose-600"
                                 onClick={() => {
                                   setBlacklistTarget(t.tagId);
                                   setFlagReason('');
@@ -444,10 +439,10 @@ export default function Inventory() {
       </div>
 
       <Dialog open={!!blacklistTarget} onOpenChange={(open) => !open && setBlacklistTarget(null)}>
-        <DialogContent className="border-slate-800 bg-panel text-slate-100">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Blacklist tag</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription>
               This marks the tag as blacklisted so it can no longer be claimed or resolved.
               {blacklistTarget && (
                 <span className="mt-1 block font-mono text-xs text-slate-500">{blacklistTarget}</span>
@@ -455,22 +450,16 @@ export default function Inventory() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label className="text-slate-300">Reason</Label>
+            <Label className="text-slate-600">Reason</Label>
             <Input
               autoFocus
               placeholder="e.g. reported tampered / lost stock"
               value={flagReason}
               onChange={(e) => setFlagReason(e.target.value)}
-              className="border-slate-700 bg-slate-900/60 text-slate-100 placeholder:text-slate-500"
             />
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800"
-              onClick={() => setBlacklistTarget(null)}
-              disabled={blacklistBusy}
-            >
+            <Button variant="outline" onClick={() => setBlacklistTarget(null)} disabled={blacklistBusy}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={onConfirmBlacklist} disabled={blacklistBusy}>

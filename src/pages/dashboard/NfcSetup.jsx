@@ -9,12 +9,19 @@ import {
   ClipboardCopy,
   Smartphone,
   PlayCircle,
+  Loader2,
+  TriangleAlert,
 } from 'lucide-react';
 import { generateTagId, tagUrl } from '../../lib/tags';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 
-const glass = 'border-white/10 bg-white/5 backdrop-blur-xl';
+const glass = 'bg-white/70 backdrop-blur-xl rounded-3xl';
+
+// Web NFC (NDEFReader) is Chrome-on-Android + HTTPS only — no Safari/iOS,
+// no desktop. Feature-detect once; every other browser falls back to the
+// "free NFC-writer app" step, same as taptag.shop's guide.
+const webNfcSupported = typeof window !== 'undefined' && 'NDEFReader' in window;
 
 const STEPS = [
   {
@@ -30,12 +37,29 @@ const STEPS = [
   {
     icon: Nfc,
     title: '3. Write the URL to the tag',
-    detail: 'Use any free NFC-writer app on your phone to write the URL as a link record.',
+    detail: webNfcSupported
+      ? 'Tap "Write to NFC tag" below on this page, or use any free NFC-writer app.'
+      : 'Your browser can\'t write tags directly — use any free NFC-writer app on your phone.',
   },
   {
     icon: Smartphone,
     title: '4. Tap to test',
     detail: 'Tap the written tag with your phone to confirm it opens the right page.',
+  },
+];
+
+const TROUBLESHOOTING = [
+  {
+    problem: 'Write fails or shows an error',
+    fix: 'Move the tag away from metal or a phone case, hold it still against the back of the phone, and try again.',
+  },
+  {
+    problem: 'Phone doesn\'t detect the tag at all',
+    fix: 'Make sure NFC is turned on in your phone settings, then try slightly different positions on the back of the phone.',
+  },
+  {
+    problem: 'iPhone or desktop browser',
+    fix: 'Web NFC only works in Chrome on Android. On iPhone or desktop, use a free NFC-writer app instead — the URL is the same either way.',
   },
 ];
 
@@ -46,12 +70,33 @@ export default function NfcSetup() {
   const nav = useNavigate();
   const [tagId, setTagId] = useState('');
   const [copied, setCopied] = useState(false);
+  // idle | scanning | success | error
+  const [writeStatus, setWriteStatus] = useState('idle');
+  const [writeError, setWriteError] = useState('');
 
   const url = tagId ? tagUrl(tagId) : '';
 
   function onGenerate() {
     setTagId(generateTagId());
     setCopied(false);
+    setWriteStatus('idle');
+    setWriteError('');
+  }
+
+  // Writes the tap URL straight to a physical tag from the browser via Web
+  // NFC — no separate app needed on supported devices (Chrome on Android).
+  async function onWriteTag() {
+    if (!webNfcSupported || !tagId) return;
+    setWriteStatus('scanning');
+    setWriteError('');
+    try {
+      const ndef = new window.NDEFReader();
+      await ndef.write({ records: [{ recordType: 'url', data: url }] });
+      setWriteStatus('success');
+    } catch (err) {
+      setWriteStatus('error');
+      setWriteError(err?.message || 'Could not write to the tag.');
+    }
   }
 
   async function onCopy() {
@@ -78,8 +123,8 @@ export default function NfcSetup() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold drop-shadow-md">NFC Setup</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="text-2xl font-extrabold text-slate-800">NFC Setup</h1>
+        <p className="mt-1 text-sm text-slate-500">
           Generate a unique NFC ID, write its URL to a sticker, and test it.
         </p>
       </div>
@@ -88,28 +133,44 @@ export default function NfcSetup() {
         <CardContent className="space-y-4 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
                 <Nfc className="h-5 w-5 text-white" />
               </span>
               <div>
-                <p className="font-bold text-white">Generate a new NFC tag</p>
-                <p className="text-xs text-slate-400">Creates a unique ID and a ready-to-write URL.</p>
+                <p className="font-bold text-slate-800">Generate a new NFC tag</p>
+                <p className="text-xs text-slate-500">Creates a unique ID and a ready-to-write URL.</p>
               </div>
             </div>
             <Button onClick={onGenerate}>+ Generate NFC ID</Button>
           </div>
 
           {tagId && (
-            <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-xl bg-base p-4 shadow-neu-pressed-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="truncate font-mono text-sm font-bold text-white">{tagId}</p>
-                <p className="mt-0.5 truncate font-mono text-xs text-slate-400">{url}</p>
+                <p className="truncate font-mono text-sm font-bold text-slate-800">{tagId}</p>
+                <p className="mt-0.5 truncate font-mono text-xs text-slate-500">{url}</p>
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="flex shrink-0 flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={onCopy} className="gap-1.5">
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   {copied ? 'Copied' : 'Copy URL'}
                 </Button>
+                {webNfcSupported && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={onWriteTag}
+                    disabled={writeStatus === 'scanning'}
+                    className="gap-1.5"
+                  >
+                    {writeStatus === 'scanning' ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Nfc className="h-3.5 w-3.5" />
+                    )}
+                    {writeStatus === 'scanning' ? 'Hold tag near phone…' : 'Write to NFC tag'}
+                  </Button>
+                )}
                 <Button type="button" variant="outline" size="sm" onClick={onTest} className="gap-1.5">
                   <ExternalLink className="h-3.5 w-3.5" />
                   Test
@@ -117,21 +178,38 @@ export default function NfcSetup() {
               </div>
             </div>
           )}
+
+          {writeStatus === 'success' && (
+            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+              <Check className="h-4 w-4" /> Tag written. Tap it with your phone to confirm.
+            </p>
+          )}
+          {writeStatus === 'error' && (
+            <p className="flex items-center gap-1.5 text-sm font-medium text-red-500">
+              <TriangleAlert className="h-4 w-4" /> {writeError}
+            </p>
+          )}
+          {!webNfcSupported && tagId && (
+            <p className="text-xs text-slate-500">
+              This browser can't write NFC tags directly — use a free NFC-writer app on your phone
+              instead (see step 3 below).
+            </p>
+          )}
         </CardContent>
       </Card>
 
       <Card className={glass}>
         <CardContent className="p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-300">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-600">
             How to write &amp; test
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {STEPS.map(({ icon: Icon, title, detail }) => (
-              <div key={title} className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                <Icon className="h-5 w-5 shrink-0 text-purple-300" />
+              <div key={title} className="flex gap-3 rounded-xl bg-base p-4 shadow-neu-flat-sm">
+                <Icon className="h-5 w-5 shrink-0 text-purple-600" />
                 <div>
-                  <p className="text-sm font-semibold text-white">{title}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">{detail}</p>
+                  <p className="text-sm font-semibold text-slate-800">{title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
                 </div>
               </div>
             ))}
@@ -139,11 +217,30 @@ export default function NfcSetup() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-emerald-500/30 bg-emerald-950/20 p-6">
+      <Card className={glass}>
+        <CardContent className="p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-600">
+            Troubleshooting
+          </h2>
+          <div className="space-y-3">
+            {TROUBLESHOOTING.map(({ problem, fix }) => (
+              <div key={problem} className="flex gap-3 rounded-xl bg-base p-4 shadow-neu-flat-sm">
+                <TriangleAlert className="h-5 w-5 shrink-0 text-amber-500" />
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{problem}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{fix}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-6 shadow-lg">
         <CardContent className="flex flex-col gap-4 p-0 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-bold text-emerald-200">Ready to claim?</p>
-            <p className="mt-1 text-sm text-emerald-300/80">
+            <p className="font-bold text-emerald-700">Ready to claim?</p>
+            <p className="mt-1 text-sm text-emerald-600">
               After writing &amp; testing, log in and tap the NFC to connect it to your account, then
               add your item.
             </p>
@@ -152,7 +249,7 @@ export default function NfcSetup() {
             type="button"
             disabled={!tagId}
             onClick={onSimulateTap}
-            className="shrink-0 gap-1.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+            className="shrink-0 gap-1.5 rounded-full bg-emerald-600 text-white shadow-neu-flat-sm hover:bg-emerald-500 disabled:opacity-50"
           >
             <PlayCircle className="h-4 w-4" />
             Simulate Tap
@@ -163,7 +260,7 @@ export default function NfcSetup() {
       <p className="text-xs text-slate-500">
         Self-serve claiming for a freshly generated ID isn't wired up yet — claiming today still
         requires a tag that's already in the admin-provisioned inventory.{' '}
-        <Link to="/dashboard/items/claim" className="text-purple-300 hover:text-pink-300">
+        <Link to="/dashboard/items/claim" className="text-purple-600 hover:text-pink-600">
           Claim an existing tag →
         </Link>
       </p>
