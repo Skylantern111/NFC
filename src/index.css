@@ -1,0 +1,119 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+
+  /* Signal Glass shadcn/ui semantic tokens (ported from TagBack reference).
+     Values are HSL components (no hsl() wrapper) consumed as hsl(var(--x))
+     by tailwind.config.js so shadcn/Radix primitives render in the same
+     ink-black/charcoal-violet + Signal Mint palette as the rest of the app.
+     This app is dark-first, so :root and .dark share the same values. */
+  --background: 240 38% 6%;
+  --foreground: 253 100% 97%;
+  --card: 240 35% 12%;
+  --card-foreground: 253 100% 97%;
+  --popover: 240 34% 16%;
+  --popover-foreground: 253 100% 97%;
+  --primary: 150 100% 86%;
+  --primary-foreground: 206 49% 8%;
+  --secondary: 256 28% 19%;
+  --secondary-foreground: 255 100% 92%;
+  --muted: 240 34% 11%;
+  --muted-foreground: 243 20% 66%;
+  --accent: 248 100% 83%;
+  --accent-foreground: 244 37% 17%;
+  --destructive: 5 100% 69%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 242 32% 24%;
+  --input: 245 28% 26%;
+  --ring: 150 100% 86%;
+  --radius: 0.65rem;
+  --chart-1: 150 100% 86%;
+  --chart-2: 248 100% 83%;
+  --chart-3: 5 100% 69%;
+  --chart-4: 156 51% 61%;
+  --chart-5: 0 39% 45%;
+  --sidebar: 240 36% 9%;
+  --sidebar-foreground: 253 100% 97%;
+  --sidebar-primary: 150 100% 86%;
+  --sidebar-primary-foreground: 206 49% 8%;
+  --sidebar-accent: 242 35% 16%;
+  --sidebar-accent-foreground: 253 100% 97%;
+  --sidebar-border: 244 26% 21%;
+  --sidebar-ring: 150 100% 86%;
+}
+
+.dark {
+  --background: 240 38% 6%;
+  --foreground: 253 100% 97%;
+  --card: 240 35% 12%;
+  --card-foreground: 253 100% 97%;
+  --popover: 240 34% 16%;
+  --popover-foreground: 253 100% 97%;
+  --primary: 150 100% 86%;
+  --primary-foreground: 206 49% 8%;
+  --secondary: 256 28% 19%;
+  --secondary-foreground: 255 100% 92%;
+  --muted: 240 34% 11%;
+  --muted-foreground: 243 20% 66%;
+  --accent: 248 100% 83%;
+  --accent-foreground: 244 37% 17%;
+  --destructive: 5 100% 69%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 242 32% 24%;
+  --input: 245 28% 26%;
+  --ring: 150 100% 86%;
+  --chart-1: 150 100% 86%;
+  --chart-2: 248 100% 83%;
+  --chart-3: 5 100% 69%;
+  --chart-4: 156 51% 61%;
+  --chart-5: 0 39% 45%;
+  --sidebar: 240 36% 9%;
+  --sidebar-foreground: 253 100% 97%;
+  --sidebar-primary: 150 100% 86%;
+  --sidebar-primary-foreground: 206 49% 8%;
+  --sidebar-accent: 242 35% 16%;
+  --sidebar-accent-foreground: 253 100% 97%;
+  --sidebar-border: 244 26% 21%;
+  --sidebar-ring: 150 100% 86%;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #0d0a1a;
+  color: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Reusable glass surface. Kept as a component class so admin views can opt out. */
+@layer components {
+  .glass {
+    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl;
+  }
+  /* Localized darkening behind text so bright orbs never kill contrast. */
+  .glass-legible {
+    @apply relative before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-black/40 before:to-black/10 before:pointer-events-none;
+  }
+}
+
+/* Respect reduced-motion: freeze ambient orbs. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}
+
+/* Leaflet tiles need explicit sizing inside flex containers. */
+.leaflet-container {
+  background: #130e26;
+}

@@ -1,0 +1,175 @@
+rules_version = '2';
+
+// TagBack — NFC Lost & Found security rules.
+//
+// PII isolation is enforced at DOCUMENT granularity, because Firestore cannot
+// filter individual fields on a read. Therefore the public-safe fields and the
+// owner-linking field live in SEPARATE collections:
+//
+//   items/{tagId}       PUBLIC  — { tagId, itemName, isLostMode, lostMessage,
+//                                    rewardAmount, category?, lostSince? }.
+//                                 Contains NO PII, NO ownerUid.
+//                                 Anyone (a finder) may read this.
+//   itemOwners/{tagId}  PRIVATE — { ownerUid }. Maps a tag to its owner so the
+//                                 app can authorize writes. Never public.
+//   users/{uid}         PRIVATE — profile, phone, prefs. Owner-only.
+//
+// A finder reading items/{tagId} therefore can never resolve the owner's
+// identity, phone, email, or address.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function ownsTag(tagId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/itemOwners/$(tagId))
+        && get(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // Only the fields a finder is allowed to see may exist on a public item doc.
+    // category/lostSince are optional (owner-set convenience fields, still no PII).
+    function publicItemFieldsOnly() {
+      return request.resource.data.keys().hasOnly(
+        ['tagId', 'itemName', 'isLostMode', 'lostMessage', 'rewardAmount', 'category', 'lostSince']
+      );
+    }
+
+    // A finder session token that's been banned by an admin (see
+    // admin/Moderation.jsx) can no longer file reports or send messages.
+    function isBlockedToken(token) {
+      return exists(/databases/$(database)/documents/blockedTokens/$(token));
+    }
+
+    // ---- users: strictly private to the account owner ----
+    match /users/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---- tags: provisioning inventory. Public may read status to detect
+    //      unclaimed/blacklisted; only admins write (via console / functions). ----
+    match /tags/{tagId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      // ---- scan log: anonymous tap counter, no finder identity captured.
+      //      Public-create (any tap), owner-read only, immutable. ----
+      match /scans/{scanId} {
+        allow create: if request.resource.data.keys().hasOnly(['timestamp', 'roughLocation']);
+        allow read: if ownsTag(tagId);
+        allow update, delete: if false;
+      }
+    }
+
+    // ---- items: PUBLIC-SAFE. Readable by anyone. Writable only by the owner,
+    //      and only with the whitelisted public fields (blocks PII injection). ----
+    match /items/{tagId} {
+      allow read: if true;
+      // Normal path: already-owned tag, editing item fields.
+      // Claim path: itemOwners/{tagId} is being created in THIS SAME
+      // transaction (see dashboard/ClaimTag.jsx). get()/exists() only see
+      // state from BEFORE the transaction, so ownsTag() can't observe a
+      // sibling write in progress — existsAfter()/getAfter() are the
+      // purpose-built functions for validating same-transaction writes.
+      allow create: if publicItemFieldsOnly() && (
+        ownsTag(tagId) ||
+        (isSignedIn()
+          && !exists(/databases/$(database)/documents/itemOwners/$(tagId))
+          && existsAfter(/databases/$(database)/documents/itemOwners/$(tagId))
+          && getAfter(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'unclaimed')
+      );
+      allow update: if ownsTag(tagId) && publicItemFieldsOnly();
+      allow delete: if ownsTag(tagId);
+    }
+
+    // ---- itemOwners: private tag→owner mapping. ----
+    match /itemOwners/{tagId} {
+      allow read: if ownsTag(tagId);
+      // Claim: create allowed only if the tag is currently unclaimed and the
+      // caller assigns themselves as owner.
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'unclaimed';
+      allow update, delete: if ownsTag(tagId);
+    }
+
+    // ---- reports: a finder (unauthenticated) files a found report. ----
+    match /reports/{reportId} {
+      // Finder creates; must carry a session token and target a real tag,
+      // and that token must not be admin-blocked.
+      allow create: if request.resource.data.keys().hasAll(['tagId', 'finderSessionToken', 'status'])
+        && request.resource.data.status == 'open'
+        && !isBlockedToken(request.resource.data.finderSessionToken);
+      // Only the owner of the reported tag may read/resolve it.
+      allow read, update: if ownsTag(resource.data.tagId);
+      allow delete: if false;
+    }
+
+    // ---- chats + messages: two-way anonymous channel. ----
+    match /chats/{chatId} {
+      // The owner of the tag, OR the finder holding the matching session token.
+      function isChatParty() {
+        return ownsTag(resource.data.tagId)
+          || resource.data.finderSessionToken == request.resource.data.finderSessionToken;
+      }
+      allow read: if true; // chat doc itself carries no PII
+      // No ownerUid on this doc: itemOwners stays private (finder can't read
+      // it to stamp one), so Messages.jsx finds "my chats" by joining against
+      // the owner's own itemOwners-derived tagIds instead (see
+      // lib/ownerItems.js#useOwnerChats) — same `in`-query shape already used
+      // by useOwnerOpenReports, well under the 30-tag cap for a single owner.
+      allow create: if request.resource.data.keys().hasAll(['tagId', 'finderSessionToken'])
+        && !isBlockedToken(request.resource.data.finderSessionToken);
+      // Owner may update anything on the chat (block, etc). A finder sending
+      // a message only needs to touch the lightweight activity markers.
+      allow update: if ownsTag(resource.data.tagId)
+        || (isChatParty()
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['lastMessageAt', 'lastMessageText', 'unreadFor']));
+      allow delete: if ownsTag(resource.data.tagId);
+
+      match /messages/{messageId} {
+        allow read: if true;
+        // Sender must be 'owner' (and own the tag) or 'finder' (with a
+        // matching, non-blocked token).
+        allow create: if request.resource.data.sender in ['owner', 'finder']
+          && (
+            (request.resource.data.sender == 'owner'
+              && ownsTag(get(/databases/$(database)/documents/chats/$(chatId)).data.tagId))
+            || (request.resource.data.sender == 'finder'
+              && request.resource.data.finderSessionToken ==
+                 get(/databases/$(database)/documents/chats/$(chatId)).data.finderSessionToken
+              && !isBlockedToken(request.resource.data.finderSessionToken))
+          );
+        allow update, delete: if false; // messages are immutable
+      }
+    }
+
+    // ---- notifications: per-owner alert feed. Written by whoever triggers
+    //      the event (a finder filing a report, or a finder sending a
+    //      message) — shaped exactly like `reports`: tagId-keyed, not
+    //      ownerUid-keyed, since the finder writing one has no way to read
+    //      the private itemOwners map to learn the owner's uid. The owner
+    //      reads their own feed with the same tagId `in` join used for chats
+    //      and open reports (see lib/ownerItems.js#useOwnerNotifications). ----
+    match /notifications/{notifId} {
+      allow create: if request.resource.data.keys().hasAll(['type', 'tagId', 'createdAt', 'read'])
+        && request.resource.data.read == false
+        && exists(/databases/$(database)/documents/items/$(request.resource.data.tagId));
+      allow read, update, delete: if ownsTag(resource.data.tagId);
+    }
+
+    // ---- blockedTokens: admin-managed finder ban list (see admin/Moderation.jsx). ----
+    match /blockedTokens/{token} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

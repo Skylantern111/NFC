@@ -1,0 +1,313 @@
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  doc,
+  getDoc,
+  collection,
+  addDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import {
+  ArrowRight,
+  Loader2,
+  LocateFixed,
+  MapPin,
+  MessageSquare,
+  ShieldCheck,
+} from 'lucide-react';
+import { db, firebaseReady } from '../../firebase/config';
+import { captureLocation } from '../../lib/geolocation';
+import { getFinderToken } from '../../lib/finderSession';
+import { notifyOwner } from '../../lib/ownerItems';
+import AmbientBackground from '../../components/AmbientBackground';
+import TopNav from '../../components/nav/TopNav';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+
+// Shared frosted-glass treatment applied over the ported ui/Card primitive so
+// public pages keep the app's existing dark glassmorphism language.
+const GLASS = 'rounded-3xl border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-2xl';
+
+// Public preview of an item. Intentionally only the fields a finder may see —
+// never ownerUid or any `users` data.
+function publicItemMock(tagId) {
+  return {
+    tagId,
+    itemName: 'Black Travel Backpack',
+    isLostMode: true,
+    lostMessage: 'Lost at the airport — reward for safe return!',
+    rewardAmount: 40,
+  };
+}
+
+export default function NfcLanding() {
+  const { tagId } = useParams();
+  const nav = useNavigate();
+  const [item, setItem] = useState(null);
+  const [state, setState] = useState('loading'); // loading | ready | notfound
+  const [note, setNote] = useState('');
+  const [locationNote, setLocationNote] = useState('');
+  const [location, setLocation] = useState(null);
+  const [locStatus, setLocStatus] = useState('idle'); // idle | loading | done | unavailable
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      if (!firebaseReady) {
+        if (live) {
+          setItem(publicItemMock(tagId));
+          setState('ready');
+        }
+        return;
+      }
+      try {
+        // Public read: security rules expose only whitelisted fields.
+        const snap = await getDoc(doc(db, 'items', tagId));
+        if (!live) return;
+        if (snap.exists()) {
+          setItem({ tagId, ...snap.data() });
+          setState('ready');
+        } else {
+          setState('notfound');
+        }
+      } catch {
+        if (live) setState('notfound');
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [tagId]);
+
+  // Real, gracefully-degrading browser geolocation (see lib/geolocation.js —
+  // resolves null on denial/unsupported/timeout rather than throwing). Not a
+  // fake timer: this is an actual GPS read, fired on demand from the toggle.
+  async function handleAttachLocation() {
+    setLocStatus('loading');
+    const loc = await captureLocation();
+    if (loc) {
+      setLocation(loc);
+      setLocStatus('done');
+      setLocationNote((prev) => prev || `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`);
+    } else {
+      setLocStatus('unavailable');
+    }
+  }
+
+  async function submitReport(e) {
+    e.preventDefault();
+    setBusy(true);
+    const finderSessionToken = getFinderToken();
+
+    if (!firebaseReady) {
+      // Preview: skip persistence, go straight to a mock chat.
+      nav(`/chat/preview-${tagId}`);
+      return;
+    }
+    try {
+      const report = await addDoc(collection(db, 'reports'), {
+        tagId,
+        finderSessionToken,
+        initialMessage: note,
+        locationNote: locationNote || null,
+        location,
+        status: 'open',
+        timestamp: serverTimestamp(),
+      });
+      const chat = await addDoc(collection(db, 'chats'), {
+        reportId: report.id,
+        tagId,
+        finderSessionToken,
+        createdAt: serverTimestamp(),
+        // Seeds the Messages.jsx list row immediately, before any reply is
+        // sent in the chat thread itself — unread for the owner from the start.
+        lastMessageAt: serverTimestamp(),
+        lastMessageText: (note || 'New report filed').slice(0, 140),
+        unreadFor: ['owner'],
+      });
+      notifyOwner({ type: 'report', tagId, chatId: chat.id, reportId: report.id }).catch(() => {});
+      nav(`/chat/${chat.id}`);
+    } catch (err) {
+      alert('Could not send report: ' + err.message);
+      setBusy(false);
+    }
+  }
+
+  if (state === 'loading') {
+    return (
+      <div className="flex h-screen items-center justify-center text-slate-400">Loading…</div>
+    );
+  }
+
+  if (state === 'notfound') {
+    return (
+      <>
+        <AmbientBackground />
+        <div className="relative flex min-h-screen flex-col">
+          <TopNav fallback="/" />
+          <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
+            <Card className={GLASS}>
+              <CardContent className="text-white">
+                <h1 className="text-2xl font-bold">Tag not recognized</h1>
+                <p className="mt-2 text-slate-300">
+                  This tag isn't registered yet, or the link is incorrect.
+                </p>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  const lost = item.isLostMode;
+
+  return (
+    <>
+      <AmbientBackground />
+      <div className="relative flex min-h-screen flex-col">
+        <TopNav fallback="/" />
+        <main className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-4 px-4 py-6 sm:px-6">
+        <Card
+          className={cn(
+            GLASS,
+            lost &&
+              'border-2 border-red-500/70 bg-red-950/20 shadow-[0_0_30px_rgba(239,68,68,0.35)] animate-pulseGlow'
+          )}
+        >
+          <CardContent className="text-white">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge variant={lost ? 'destructive' : 'secondary'}>
+                {lost ? 'Reported lost' : 'Found item'}
+              </Badge>
+              {lost && item.rewardAmount > 0 && (
+                <Badge variant="outline" className="border-amber-400/40 bg-amber-500/10 text-amber-300">
+                  ${item.rewardAmount} reward
+                </Badge>
+              )}
+            </div>
+            <h1 className="text-2xl font-extrabold drop-shadow-md sm:text-3xl">
+              You found {item.itemName}
+            </h1>
+
+            {lost && item.lostMessage && (
+              <div className="mt-4 rounded-2xl border border-red-500/25 bg-red-950/30 p-4">
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-300">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Message from the owner
+                </p>
+                <p className="text-red-100">{item.lostMessage}</p>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-xs text-slate-300">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>
+                Your identity stays private — no app, no account, and no contact info is ever
+                exposed to the owner.
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={GLASS}>
+          <CardContent className="text-white">
+            <form onSubmit={submitReport} className="flex flex-col gap-5">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-300">Current location</span>
+                    <span className="text-xs text-slate-500">
+                      {locStatus === 'done'
+                        ? `±${Math.round(location?.accuracy ?? 0)}m accuracy`
+                        : locStatus === 'unavailable'
+                          ? 'Unavailable'
+                          : 'Optional'}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAttachLocation}
+                    disabled={locStatus === 'loading' || locStatus === 'done'}
+                    className="justify-start gap-2 border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                  >
+                    {locStatus === 'loading' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <LocateFixed className="h-4 w-4" />
+                    )}
+                    {locStatus === 'done'
+                      ? 'Location shared'
+                      : locStatus === 'loading'
+                        ? 'Getting your location…'
+                        : 'Share my current location'}
+                  </Button>
+
+                  <Label htmlFor="location-note" className="mt-1 text-sm font-medium text-slate-300">
+                    <MapPin className="h-3.5 w-3.5" />
+                    Location note
+                  </Label>
+                  <Input
+                    id="location-note"
+                    value={locationNote}
+                    onChange={(e) => setLocationNote(e.target.value)}
+                    placeholder="e.g. Left with the concierge at Hotel Blue"
+                    className="border-white/15 bg-white/5 text-white placeholder:text-slate-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="finder-message" className="text-sm font-medium text-slate-300">
+                    Message to the owner
+                  </Label>
+                  <Textarea
+                    id="finder-message"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={3}
+                    placeholder="e.g. Left it at the reception desk of Hotel Blue."
+                    className="flex-1 border-white/15 bg-white/5 text-white placeholder:text-slate-500 focus-visible:ring-purple-500/40"
+                    required
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={busy}
+                className={cn(
+                  'gap-2',
+                  lost
+                    ? 'bg-red-600 text-white hover:bg-red-500'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500'
+                )}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Sending…
+                  </>
+                ) : (
+                  <>
+                    Report found item <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-xs text-slate-500">
+          Your identity stays private. No app or account needed.
+        </p>
+        </main>
+      </div>
+    </>
+  );
+}
