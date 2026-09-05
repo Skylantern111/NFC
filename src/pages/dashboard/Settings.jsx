@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import GlassCard from '../../components/GlassCard';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -13,6 +14,7 @@ const DEFAULT_PREFS = { inApp: true, email: true };
 
 export default function Settings() {
   const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(true);
@@ -64,13 +66,21 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <h1 className="text-2xl font-extrabold text-slate-800">Settings</h1>
+      <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Settings</h1>
 
-      {loading && <p className="text-sm text-slate-500">Loading your settings…</p>}
+      {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Loading your settings…</p>}
 
       <GlassCard>
-        <h2 className="mb-3 font-bold text-slate-800">Contact (private)</h2>
-        <p className="mb-3 text-sm text-slate-500">
+        <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Appearance</h2>
+        <label className="flex items-center justify-between py-2">
+          <span className="text-slate-600 dark:text-slate-300">Dark mode</span>
+          <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
+        </label>
+      </GlassCard>
+
+      <GlassCard>
+        <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Contact (private)</h2>
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
           Only used to reach you. Never shown to finders.
         </p>
         <div className="flex flex-col gap-1.5">
@@ -80,16 +90,24 @@ export default function Settings() {
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-3 font-bold text-slate-800">Notifications</h2>
-        {[
-          ['inApp', 'In-app alerts'],
-          ['email', 'Email alerts'],
-        ].map(([k, label]) => (
-          <label key={k} className="flex items-center justify-between py-2">
-            <span className="text-slate-600">{label}</span>
-            <Switch checked={prefs[k]} onCheckedChange={() => toggle(k)} />
-          </label>
-        ))}
+        <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
+        <label className="flex items-center justify-between py-2">
+          <span className="text-slate-600 dark:text-slate-300">In-app alerts</span>
+          <Switch checked={prefs.inApp} onCheckedChange={() => toggle('inApp')} />
+        </label>
+        {/* No email-sending backend exists in this project (no Cloud
+            Function, no email service — see IMPROVEMENT_PLAN.md Round 10
+            #4). Disabled rather than left toggleable, so turning it "on"
+            can't imply a delivery channel that doesn't exist. The
+            underlying notificationPrefs.email field is untouched — this is
+            copy/UI only, ready to re-enable once a real send path exists. */}
+        <label className="flex items-center justify-between py-2 opacity-60">
+          <span className="text-slate-600 dark:text-slate-300">Email alerts (coming soon)</span>
+          <Switch checked={false} disabled />
+        </label>
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          Email delivery isn't set up yet — for now, alerts only show up in-app.
+        </p>
         {status && (
           <p className={`mt-2 text-sm ${status.kind === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>
             {status.text}

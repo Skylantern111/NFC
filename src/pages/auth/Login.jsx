@@ -68,7 +68,7 @@ export default function Login() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" />
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-8">
-        <h1 className="mb-6 text-center text-3xl font-extrabold text-slate-800">
+        <h1 className="mb-6 text-center text-3xl font-extrabold text-slate-800 dark:text-slate-100">
           Welcome back
         </h1>
         <GlassCard>
@@ -100,7 +100,7 @@ export default function Login() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -116,13 +116,13 @@ export default function Login() {
               type="button"
               onClick={onReset}
               disabled={resetting}
-              className="text-sm text-slate-500 hover:text-slate-800 disabled:opacity-50"
+              className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-50"
             >
               {resetting ? 'Sending reset link…' : 'Forgot password?'}
             </button>
           </form>
         </GlassCard>
-        <p className="mt-5 text-center text-sm text-slate-500">
+        <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
           No account?{' '}
           <Link to="/register" className="font-semibold text-purple-600 hover:text-pink-600">
             Create one

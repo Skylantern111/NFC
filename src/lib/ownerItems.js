@@ -17,6 +17,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db, firebaseReady } from '../firebase/config';
+import { chunk } from './utils';
 
 // Realistic placeholder data so Dashboard/Items still preview when no real
 // Firebase project is configured (mirrors the `*Mock()` convention used in
@@ -124,17 +125,23 @@ export function useOwnerTagIds(user) {
   return { tagIds, loaded };
 }
 
-// Live join: itemOwners (ownerUid == uid) -> items/{tagId}. In placeholder
+// Live join: itemOwners (ownerUid == uid) -> items/{tagId}, plus each tag's
+// own admin-side status (tags/{tagId}.status) folded in as `tagStatus` — the
+// dashboard previously never read `tags` at all, so an admin blacklisting an
+// already-claimed tag was invisible here even though it silently broke the
+// finder flow on that tag (see firestore.rules#isBlacklistedTag). Exposed as
+// `item.tagStatus` so Items.jsx/Dashboard.jsx can flag it. In placeholder
 // mode returns a static mock list, but also exposes `updateMockItem` so
 // pages like Items.jsx can locally preview a toggle without persistence.
 export function useOwnerItems(user) {
   const [mockItems, setMockItems] = useState(ownerItemsMock);
   const { tagIds, loaded: ownersLoaded } = useOwnerTagIds(user);
   const [itemsById, setItemsById] = useState({});
+  const [statusById, setStatusById] = useState({});
 
   useEffect(() => {
     if (!firebaseReady || tagIds.length === 0) return;
-    const unsubs = tagIds.map((tagId) =>
+    const unsubs = tagIds.flatMap((tagId) => [
       onSnapshot(
         doc(db, 'items', tagId),
         (snap) => {
@@ -146,8 +153,11 @@ export function useOwnerItems(user) {
         () => {
           setItemsById((prev) => ({ ...prev, [tagId]: null }));
         }
-      )
-    );
+      ),
+      onSnapshot(doc(db, 'tags', tagId), (snap) => {
+        setStatusById((prev) => ({ ...prev, [tagId]: snap.exists() ? snap.data().status : null }));
+      }),
+    ]);
     return () => unsubs.forEach((u) => u());
     // tagIds is derived data (small, changes rarely) — join for a stable dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,13 +170,19 @@ export function useOwnerItems(user) {
     return { items: mockItems, loading: false, updateMockItem };
   }
 
-  const items = tagIds.map((id) => itemsById[id]).filter(Boolean);
+  const items = tagIds
+    .map((id) => itemsById[id])
+    .filter(Boolean)
+    .map((item) => ({ ...item, tagStatus: statusById[item.tagId] || null }));
   const loading = !ownersLoaded || tagIds.some((id) => itemsById[id] === undefined);
   return { items, loading, updateMockItem: () => {} };
 }
 
-// Live open reports for a set of owner tagIds. Firestore `in` supports up to
-// 30 disjunction values, which comfortably covers a single owner's items.
+// Live open reports for a set of owner tagIds. Firestore `in` caps at 30
+// disjunction values — a "comfortable" fit for a typical owner, but
+// Inventory.jsx supports 50–500-tag batches, so a bulk/fleet owner with 31+
+// tags is a real case, not a hypothetical. Chunked into groups of 30 and
+// merged instead of silently dropping tag #31 onward.
 export function useOwnerOpenReports(tagIds) {
   const key = useMemo(() => tagIds.slice().sort().join(','), [tagIds]);
   const [reports, setReports] = useState([]);
@@ -184,20 +200,24 @@ export function useOwnerOpenReports(tagIds) {
       return;
     }
     setLoading(true);
-    const q = query(
-      collection(db, 'reports'),
-      where('tagId', 'in', tagIds.slice(0, 30)),
-      where('status', '==', 'open')
+    const groups = chunk(tagIds, 30);
+    const partials = groups.map(() => []);
+    let pending = groups.length;
+    const unsubs = groups.map((group, i) =>
+      onSnapshot(
+        query(collection(db, 'reports'), where('tagId', 'in', group), where('status', '==', 'open')),
+        (snap) => {
+          partials[i] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setReports(partials.flat());
+          setLoading(false);
+        },
+        () => {
+          pending -= 1;
+          if (pending <= 0) setLoading(false);
+        }
+      )
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setReports(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
-      },
-      () => setLoading(false)
-    );
-    return unsub;
+    return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
@@ -242,16 +262,21 @@ export function useOwnerChats(user) {
       return;
     }
     setLoading(true);
-    const q = query(collection(db, 'chats'), where('tagId', 'in', tagIds.slice(0, 30)));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setChats(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
-      },
-      () => setLoading(false)
+    // Chunked past the 30-tag `in` cap — see useOwnerOpenReports above.
+    const groups = chunk(tagIds, 30);
+    const partials = groups.map(() => []);
+    const unsubs = groups.map((group, i) =>
+      onSnapshot(
+        query(collection(db, 'chats'), where('tagId', 'in', group)),
+        (snap) => {
+          partials[i] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setChats(partials.flat());
+          setLoading(false);
+        },
+        () => setLoading(false)
+      )
     );
-    return unsub;
+    return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, tagsLoaded]);
 
@@ -286,22 +311,23 @@ export function useOwnerNotifications(user) {
       return;
     }
     setLoading(true);
-    // Capped: an unbounded feed could otherwise load every notification ever
-    // fired for a long-lived account on every dashboard visit.
-    const q = query(
-      collection(db, 'notifications'),
-      where('tagId', 'in', tagIds.slice(0, 30)),
-      limit(200)
+    // Capped per-group: an unbounded feed could otherwise load every
+    // notification ever fired for a long-lived account on every dashboard
+    // visit. Chunked past the 30-tag `in` cap — see useOwnerOpenReports.
+    const groups = chunk(tagIds, 30);
+    const partials = groups.map(() => []);
+    const unsubs = groups.map((group, i) =>
+      onSnapshot(
+        query(collection(db, 'notifications'), where('tagId', 'in', group), limit(200)),
+        (snap) => {
+          partials[i] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setNotifications(partials.flat());
+          setLoading(false);
+        },
+        () => setLoading(false)
+      )
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setNotifications(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
-      },
-      () => setLoading(false)
-    );
-    return unsub;
+    return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, tagsLoaded]);
 
@@ -469,12 +495,18 @@ export function useChatMessages(chatId) {
 
 // Sends one message and stamps the parent chat's activity markers.
 // `sender` matches firestore.rules' messages#create check ('owner'|'finder').
-export async function sendChatMessage(chatId, sender, text) {
+// A finder-sent message MUST carry `finderSessionToken` matching the parent
+// chat's — firestore.rules' messages#create finder branch checks it, and a
+// missing field never equals a stored token string, so this was previously
+// rejecting every finder reply once a real Firestore project was connected
+// (see IMPROVEMENT_PLAN.md Round 10 #1 / Round 11 #2).
+export async function sendChatMessage(chatId, sender, text, finderSessionToken) {
   if (!firebaseReady) return;
   await addDoc(collection(db, 'chats', chatId, 'messages'), {
     sender,
     text,
     timestamp: serverTimestamp(),
+    ...(sender === 'finder' ? { finderSessionToken } : {}),
   });
   await touchChatActivity(chatId, { sender, text });
 }

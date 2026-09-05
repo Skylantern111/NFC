@@ -146,45 +146,49 @@ export default function ClaimTag() {
   return (
     <div className="mx-auto max-w-md">
       <BackButton fallback="/dashboard/items" className="mb-3" />
-      <h1 className="mb-4 text-2xl font-extrabold text-slate-800">Claim this tag</h1>
-      <Card className="rounded-3xl bg-white/70 p-6 backdrop-blur-xl shadow-lg">
-        <CardContent className="flex flex-col gap-4 p-0">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="tagId">Tag id</Label>
-            <Input
-              id="tagId"
-              value={tagId}
-              onChange={(e) => setTagId(e.target.value)}
-              placeholder="Scanned or shared with you as a link"
-              className="font-mono text-xs"
-              required
-            />
-          </div>
-
-          {nfcSupported ? (
-            <Button type="button" variant="outline" onClick={scanNfc} disabled={nfcStatus === 'scanning'}>
-              {nfcStatus === 'scanning' ? 'Hold your tag to the back of your device…' : 'Scan NFC tag'}
-            </Button>
-          ) : (
-            <p className="text-xs text-slate-500">
-              This browser doesn't support NFC scanning — paste the tag id above, or open the link
-              from the tag directly.
-            </p>
-          )}
-          {nfcStatus === 'error' && (
-            <p className="text-xs text-red-500">
-              No tag detected. Make sure NFC is on and try holding the tag against the back of
-              your phone again, or enter the tag id manually.
-            </p>
-          )}
-          {nfcStatus === 'unreadable' && (
-            <p className="text-xs text-red-500">
-              Read a tag, but couldn't find a tag id on it — it may not be a TagBack tag. Enter
-              the tag id manually instead.
-            </p>
-          )}
-
+      <h1 className="mb-4 text-2xl font-extrabold text-slate-800 dark:text-slate-100">Claim this tag</h1>
+      <Card className="rounded-3xl bg-white/70 dark:bg-white/5 p-6 backdrop-blur-xl shadow-lg">
+        <CardContent className="p-0">
+          {/* Whole form, including the tag-id field — it previously sat
+              outside <form>, so `required` was inert and Enter-to-submit
+              did nothing while focused there (see IMPROVEMENT_PLAN.md
+              Round 10 #8 / Round 11 #5). */}
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tagId">Tag id</Label>
+              <Input
+                id="tagId"
+                value={tagId}
+                onChange={(e) => setTagId(e.target.value)}
+                placeholder="Scanned or shared with you as a link"
+                className="font-mono text-xs"
+                required
+              />
+            </div>
+
+            {nfcSupported ? (
+              <Button type="button" variant="outline" onClick={scanNfc} disabled={nfcStatus === 'scanning'}>
+                {nfcStatus === 'scanning' ? 'Hold your tag to the back of your device…' : 'Scan NFC tag'}
+              </Button>
+            ) : (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                This browser doesn't support NFC scanning — paste the tag id above, or open the link
+                from the tag directly.
+              </p>
+            )}
+            {nfcStatus === 'error' && (
+              <p className="text-xs text-red-500">
+                No tag detected. Make sure NFC is on and try holding the tag against the back of
+                your phone again, or enter the tag id manually.
+              </p>
+            )}
+            {nfcStatus === 'unreadable' && (
+              <p className="text-xs text-red-500">
+                Read a tag, but couldn't find a tag id on it — it may not be a TagBack tag. Enter
+                the tag id manually instead.
+              </p>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="itemName">Item name</Label>
               <Input
@@ -207,7 +211,7 @@ export default function ClaimTag() {
                     const Icon = CATEGORY_ICON[c];
                     return (
                       <SelectItem key={c} value={c}>
-                        <Icon className="h-4 w-4 text-slate-500" />
+                        <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                         {c}
                       </SelectItem>
                     );

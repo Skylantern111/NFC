@@ -24,14 +24,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // An admin can soft-disable an owner account (users/{uid}.disabled) —
+    // see admin/Owners.jsx. No Cloud Functions/Admin SDK in this project, so
+    // this can't revoke Firebase Auth sign-in itself; it cuts off every
+    // owner-gated write instead, by folding into ownsTag() below.
+    function isDisabledOwner(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid))
+        && get(/databases/$(database)/documents/users/$(uid)).data.disabled == true;
+    }
+
     function ownsTag(tagId) {
       return isSignedIn()
         && exists(/databases/$(database)/documents/itemOwners/$(tagId))
-        && get(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid;
+        && get(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid
+        && !isDisabledOwner(request.auth.uid);
     }
 
     function isAdmin() {
       return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // A tag an admin has blacklisted (admin/Inventory.jsx) — blocks the
+    // public finder flow (report/chat/message) on it. Tolerant of a
+    // not-yet-provisioned tagId (treated as not blacklisted, not an error).
+    function isBlacklistedTag(tagId) {
+      return exists(/databases/$(database)/documents/tags/$(tagId))
+        && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'blacklisted';
     }
 
     // Only the fields a finder is allowed to see may exist on a public item doc.
@@ -48,9 +66,17 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/blockedTokens/$(token));
     }
 
-    // ---- users: strictly private to the account owner ----
+    // ---- users: private to the account owner, plus admin read/moderation.
+    //      An admin may read any profile (admin/Owners.jsx lookup) and may
+    //      set `disabled` (soft account disable); an owner may update their
+    //      own doc but never touch `disabled` on themselves. ----
     match /users/{uid} {
-      allow read, write: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['disabled']));
+      allow delete: if isSignedIn() && request.auth.uid == uid;
     }
 
     // ---- tags: provisioning inventory. Public may read status to detect
@@ -63,6 +89,7 @@ service cloud.firestore {
       // for themselves in the SAME transaction (see dashboard/ClaimTag.jsx).
       // Mirrors the items#create claim clause below.
       allow update: if isSignedIn()
+        && !isDisabledOwner(request.auth.uid)
         && resource.data.status == 'unclaimed'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && request.resource.data.status == 'claimed'
@@ -91,6 +118,7 @@ service cloud.firestore {
       allow create: if publicItemFieldsOnly() && (
         ownsTag(tagId) ||
         (isSignedIn()
+          && !isDisabledOwner(request.auth.uid)
           && !exists(/databases/$(database)/documents/itemOwners/$(tagId))
           && existsAfter(/databases/$(database)/documents/itemOwners/$(tagId))
           && getAfter(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid
@@ -100,12 +128,15 @@ service cloud.firestore {
       allow delete: if ownsTag(tagId);
     }
 
-    // ---- itemOwners: private tag→owner mapping. ----
+    // ---- itemOwners: private tag→owner mapping. Admin read-only, for the
+    //      Owners lookup page (admin/Owners.jsx) to resolve tag -> owner and
+    //      list an owner's other tags — never admin-writable. ----
     match /itemOwners/{tagId} {
-      allow read: if ownsTag(tagId);
+      allow read: if ownsTag(tagId) || isAdmin();
       // Claim: create allowed only if the tag is currently unclaimed and the
       // caller assigns themselves as owner.
       allow create: if isSignedIn()
+        && !isDisabledOwner(request.auth.uid)
         && request.resource.data.ownerUid == request.auth.uid
         && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'unclaimed';
       allow update, delete: if ownsTag(tagId);
@@ -117,7 +148,8 @@ service cloud.firestore {
       // and that token must not be admin-blocked.
       allow create: if request.resource.data.keys().hasAll(['tagId', 'finderSessionToken', 'status'])
         && request.resource.data.status == 'open'
-        && !isBlockedToken(request.resource.data.finderSessionToken);
+        && !isBlockedToken(request.resource.data.finderSessionToken)
+        && !isBlacklistedTag(request.resource.data.tagId);
       // Only the owner of the reported tag may read/resolve it.
       allow read, update: if ownsTag(resource.data.tagId);
       allow delete: if false;
@@ -137,19 +169,27 @@ service cloud.firestore {
       // lib/ownerItems.js#useOwnerChats) — same `in`-query shape already used
       // by useOwnerOpenReports, well under the 30-tag cap for a single owner.
       allow create: if request.resource.data.keys().hasAll(['tagId', 'finderSessionToken'])
-        && !isBlockedToken(request.resource.data.finderSessionToken);
+        && !isBlockedToken(request.resource.data.finderSessionToken)
+        && !isBlacklistedTag(request.resource.data.tagId);
       // Owner may update anything on the chat (block, etc). A finder sending
-      // a message only needs to touch the lightweight activity markers.
+      // a message only needs to touch the lightweight activity markers. An
+      // admin may only stamp their review of an already-reported chat (see
+      // admin/Moderation.jsx's "mark reviewed") — nothing else.
       allow update: if ownsTag(resource.data.tagId)
         || (isChatParty()
             && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['lastMessageAt', 'lastMessageText', 'unreadFor']));
+               .hasOnly(['lastMessageAt', 'lastMessageText', 'unreadFor']))
+        || (isAdmin()
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['reviewedAt', 'reviewedBy']));
       allow delete: if ownsTag(resource.data.tagId);
 
       match /messages/{messageId} {
         allow read: if true;
         // Sender must be 'owner' (and own the tag) or 'finder' (with a
-        // matching, non-blocked token).
+        // matching, non-blocked token, on a non-blacklisted tag). Repeated
+        // get()s of the same chats/{chatId} path below are served from
+        // Firestore's per-request rules cache, not re-fetched.
         allow create: if request.resource.data.sender in ['owner', 'finder']
           && (
             (request.resource.data.sender == 'owner'
@@ -157,7 +197,8 @@ service cloud.firestore {
             || (request.resource.data.sender == 'finder'
               && request.resource.data.finderSessionToken ==
                  get(/databases/$(database)/documents/chats/$(chatId)).data.finderSessionToken
-              && !isBlockedToken(request.resource.data.finderSessionToken))
+              && !isBlockedToken(request.resource.data.finderSessionToken)
+              && !isBlacklistedTag(get(/databases/$(database)/documents/chats/$(chatId)).data.tagId))
           );
         allow update, delete: if false; // messages are immutable
       }

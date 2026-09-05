@@ -110,9 +110,18 @@ publish.
 
 Re-run `firebase deploy --only firestore:rules` any time `firestore.rules`
 changes — nothing in the app deploys rule changes automatically. If you
-already deployed rules before, `firestore.rules` gained a `tags/{tagId}`
-`update` clause (the claim flow now flips `status: unclaimed → claimed`) —
-redeploy to pick it up, or claiming will fail with a permission error.
+already deployed rules before:
+- `firestore.rules` gained a `tags/{tagId}` `update` clause (the claim flow
+  now flips `status: unclaimed → claimed`) — redeploy to pick it up, or
+  claiming will fail with a permission error.
+- It later gained admin read on `itemOwners`/`users` (for `admin/Owners.jsx`'s
+  lookup), a `users/{uid}.disabled` soft-disable field an admin can set,
+  blacklisted-tag enforcement on `reports`/`chats`/`chats/messages` `create`,
+  and an admin-only `reviewedAt`/`reviewedBy` update on `chats` (for
+  `admin/Moderation.jsx`'s "Mark reviewed"). Redeploy to pick these up too —
+  without them, `admin/Owners.jsx` can't read anything, blacklisting a
+  claimed tag stays purely cosmetic (see below), and "Mark reviewed" fails
+  with a permission error.
 
 ## 8. Composite indexes (only if Firestore asks for one)
 
@@ -145,6 +154,18 @@ provided script:
    ```
 4. Sign out and back in on the site — custom claims only take effect on a
    fresh ID token.
+
+This same claim gates all of `/admin/*` — Inventory, Moderation, and Owners
+(`admin/Owners.jsx`, the tag → owner lookup that can also disable an owner's
+account). There's no Cloud Functions/Admin SDK wired into this project, so
+that "disable account" button is a **soft** disable
+(`users/{uid}.disabled`), not a real Firebase Auth account disable — it
+blocks every owner-gated Firestore read/write app-wide (`firestore.rules`'
+`ownsTag()` checks it) and force-signs-out an already-open session
+client-side (`AuthContext.jsx`), but it can't revoke a still-valid ID token
+server-side the way `scripts/setAdmin.js`'s custom claim can. If you add a
+Cloud Function later, disabling a Firebase Auth user directly (and revoking
+their refresh tokens) is the harder, actually-enforced version of this.
 
 ## 10. Run it for real
 
@@ -179,8 +200,11 @@ Good end-to-end smoke test:
    window — then open the chat and try "Mark as recovered" from the owner
    side.
 
-## 11. Admin claim provisioning tags (optional)
+## 11. Admin console features (optional)
 
 `admin/Inventory.jsx`'s batch-provisioning flow writes directly to
 `tags/{tagId}` from the client, which `firestore.rules` only allows for
-`isAdmin()` — so it only works once you've completed step 9.
+`isAdmin()` — so it only works once you've completed step 9. The same is
+true of `admin/Owners.jsx`'s lookup (needs the admin-read rules on
+`itemOwners`/`users` from step 7) and `admin/Moderation.jsx`'s ban/mark-
+reviewed actions.

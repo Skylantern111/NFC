@@ -63,18 +63,18 @@ export default function Landing() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav variant="landing" />
         <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-5 py-12 text-center">
-          <span className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-base px-3.5 py-1.5 text-xs font-semibold text-slate-600 shadow-neu-flat-sm">
+          <span className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-base px-3.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-neu-flat-sm">
             <Nfc className="h-3.5 w-3.5 text-purple-600" />
             NFC-powered Lost &amp; Found
           </span>
-          <h1 className="mb-4 text-4xl font-extrabold text-slate-800 sm:text-5xl">
+          <h1 className="mb-4 text-4xl font-extrabold text-slate-800 dark:text-slate-100 sm:text-5xl">
             Tap a tag.
             <br />
             <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               Bring it back.
             </span>
           </h1>
-          <p className="mb-8 max-w-md text-slate-600">
+          <p className="mb-8 max-w-md text-slate-600 dark:text-slate-300">
             Stick a tag on anything worth keeping. If it's lost, whoever finds it taps
             their phone and reaches you — no app, no exposed contact info.
           </p>
@@ -90,7 +90,7 @@ export default function Landing() {
               </Link>
             </div>
           </GlassCard>
-          <p className="mt-6 text-xs text-slate-500">
+          <p className="mt-6 text-xs text-slate-500 dark:text-slate-400">
             Found something? Just tap the tag with your phone.
           </p>
         </main>
@@ -98,8 +98,8 @@ export default function Landing() {
         {/* What is TagBack — real README/App copy, no invented functionality. */}
         <section className="mx-auto w-full max-w-4xl px-5 py-10">
           <div className="mb-8 text-center">
-            <h2 className="text-2xl font-extrabold text-slate-800 sm:text-3xl">What is TagBack?</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-slate-600">
+            <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 sm:text-3xl">What is TagBack?</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
               Physical-to-digital lost property recovery. Owners stick an NFC tag on a
               belonging; if it's lost, whoever finds it taps the tag with their phone and
               lands on a privacy-shielded web page — no app install — where they can message
@@ -109,14 +109,14 @@ export default function Landing() {
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             {HIGHLIGHTS.map(({ icon: Icon, title, detail }) => (
-              <Card key={title} className="rounded-2xl bg-white/80 p-5 shadow-lg">
+              <Card key={title} className="rounded-2xl bg-white/80 dark:bg-white/5 p-5 shadow-lg">
                 <CardContent className="space-y-3 p-0 text-left">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300">
                     <Icon className="h-4.5 w-4.5" />
                   </span>
                   <div>
-                    <p className="font-bold text-slate-800">{title}</p>
-                    <p className="mt-1 text-sm text-slate-500">{detail}</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{title}</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{detail}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -128,23 +128,23 @@ export default function Landing() {
             dashboard/NfcSetup.jsx's "How to write & test" card. */}
         <section className="mx-auto w-full max-w-4xl px-5 pb-14">
           <div className="mb-8 text-center">
-            <h2 className="text-2xl font-extrabold text-slate-800 sm:text-3xl">How it works</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-slate-600">
+            <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 sm:text-3xl">How it works</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
               From sticking on a tag to getting your item back.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {HOW_IT_WORKS.map(({ icon: Icon, title, detail }, i) => (
-              <div key={title} className="flex gap-3 rounded-2xl bg-white/80 p-5 shadow-lg text-left">
+              <div key={title} className="flex gap-3 rounded-2xl bg-white/80 dark:bg-white/5 p-5 shadow-lg text-left">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base text-sm font-bold text-purple-600 shadow-neu-flat-sm">
                   {i + 1}
                 </span>
                 <div>
-                  <p className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <p className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-100">
                     <Icon className="h-4 w-4 text-purple-600" />
                     {title}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">{detail}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{detail}</p>
                 </div>
               </div>
             ))}
@@ -152,7 +152,7 @@ export default function Landing() {
         </section>
 
         <footer className="mx-auto w-full max-w-4xl px-5 pb-8 text-center">
-          <Link to="/admin" className="text-xs text-slate-400 hover:text-slate-600">
+          <Link to="/admin" className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
             Admin console →
           </Link>
         </footer>

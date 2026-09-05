@@ -7,6 +7,7 @@ import { daysSinceMs, relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import ReportLocationMap from '../../components/ReportLocationMap';
 
 // §4.5/§5.8: nudge the owner about items that have sat in Lost Mode a long
 // time with nobody currently reporting them found.
@@ -56,18 +57,18 @@ export default function Dashboard() {
   );
 
   const stats = [
-    { label: 'Items tagged', value: items.length, icon: Package, tint: 'bg-purple-100 text-purple-600' },
+    { label: 'Items tagged', value: items.length, icon: Package, tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300' },
     {
       label: 'In lost mode',
       value: items.filter((i) => i.isLostMode).length,
       icon: AlertTriangle,
-      tint: 'bg-red-100 text-red-600',
+      tint: 'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-300',
     },
     {
       label: 'Open reports',
       value: reports.length,
       icon: MessageSquareWarning,
-      tint: 'bg-amber-100 text-amber-600',
+      tint: 'bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300',
     },
   ];
 
@@ -100,14 +101,14 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {stats.map((s) => (
-          <Card key={s.label} className="rounded-2xl bg-white/70 backdrop-blur-xl p-5 shadow-lg">
+          <Card key={s.label} className="rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-xl p-5 shadow-lg">
             <CardContent className="space-y-3 p-0">
               <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
                 <s.icon className="h-4.5 w-4.5" />
               </span>
               <div>
-                <div className="text-2xl font-extrabold text-slate-800">{loading ? '–' : s.value}</div>
-                <div className="mt-0.5 text-xs text-slate-500">{s.label}</div>
+                <div className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{loading ? '–' : s.value}</div>
+                <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{s.label}</div>
               </div>
             </CardContent>
           </Card>
@@ -117,42 +118,44 @@ export default function Dashboard() {
       {incidents.length > 0 ? (
         <div className="space-y-3">
           {incidents.length > 1 && (
-            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Active incidents ({incidents.length})
             </h2>
           )}
           {incidents.map(({ report, item, chat }) => (
             <Card
               key={report.id}
-              className="rounded-3xl border border-red-200 bg-red-50/60 p-6 shadow-lg"
+              className="rounded-3xl border border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-500/10 p-6 shadow-lg"
             >
               <CardContent className="space-y-4 p-0 text-center">
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Badge variant="outline" className="border-red-400 text-red-600 uppercase tracking-wide">
+                  <Badge variant="outline" className="border-red-400 dark:border-red-500/40 text-red-600 dark:text-red-300 uppercase tracking-wide">
                     Report open
                   </Badge>
-                  <Badge className="border-transparent bg-red-100 text-red-600 uppercase tracking-wide">
+                  <Badge className="border-transparent bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300 uppercase tracking-wide">
                     Active found-item report
                   </Badge>
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Lost item</p>
-                  <h2 className="mt-1 text-xl font-extrabold text-slate-800">{item.itemName}</h2>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Lost item</p>
+                  <h2 className="mt-1 text-xl font-extrabold text-slate-800 dark:text-slate-100">{item.itemName}</h2>
                 </div>
 
+                <ReportLocationMap location={report.location} />
+
                 {chat?.lastMessageText && (
-                  <blockquote className="mx-auto max-w-md text-sm italic text-slate-500">
+                  <blockquote className="mx-auto max-w-md text-sm italic text-slate-500 dark:text-slate-400">
                     "{chat.lastMessageText}"
                   </blockquote>
                 )}
 
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-                  <Badge variant="outline" className="text-slate-600 uppercase tracking-wide">
+                  <Badge variant="outline" className="text-slate-600 dark:text-slate-300 uppercase tracking-wide">
                     Lost status
                   </Badge>
                   {chat && (
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-400 dark:text-slate-500">
                       {relativeTimeFromMs(toMillis(chat.lastMessageAt))}
                     </span>
                   )}
@@ -166,21 +169,21 @@ export default function Dashboard() {
                     Open chat →
                   </Link>
                 ) : (
-                  <p className="text-xs text-slate-400">No chat linked yet.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">No chat linked yet.</p>
                 )}
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
-        <Card className="rounded-3xl bg-white/70 backdrop-blur-xl p-6 shadow-lg">
+        <Card className="rounded-3xl bg-white/70 dark:bg-white/5 backdrop-blur-xl p-6 shadow-lg">
           <CardContent className="flex flex-col items-center gap-3 p-0 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
               <ShieldCheck className="h-6 w-6" />
             </span>
             <div>
-              <h2 className="mb-1 text-lg font-bold text-slate-800">No active incidents</h2>
-              <p className="text-sm text-slate-500">
+              <h2 className="mb-1 text-lg font-bold text-slate-800 dark:text-slate-100">No active incidents</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 {items.length === 0
                   ? 'Claim a tag to start protecting your belongings.'
                   : "You're all clear — no open found-item reports right now."}
@@ -196,15 +199,15 @@ export default function Dashboard() {
       )}
 
       {visibleStale.map((item) => (
-        <Card key={item.tagId} className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-lg">
+        <Card key={item.tagId} className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 p-4 shadow-lg">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-0">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100">
-                <Clock className="h-4 w-4 text-amber-600" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20">
+                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-300" />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-800">Still missing — "{item.itemName}"</p>
-                <p className="text-xs text-slate-500">
+                <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">Still missing — "{item.itemName}"</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Lost {daysSinceMs(toMillis(item.lostSince))} days ago. Update your listing or add a reward?
                 </p>
               </div>
@@ -217,7 +220,7 @@ export default function Dashboard() {
                 type="button"
                 onClick={() => dismissNudge(item)}
                 aria-label="Dismiss"
-                className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-900/5 hover:text-slate-700 active:bg-slate-900/10"
+                className="rounded-full p-1.5 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-200 active:bg-slate-900/10 dark:active:bg-white/10"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -226,10 +229,10 @@ export default function Dashboard() {
         </Card>
       ))}
 
-      <Card className="rounded-3xl bg-white/70 backdrop-blur-xl p-6 shadow-lg">
+      <Card className="rounded-3xl bg-white/70 dark:bg-white/5 backdrop-blur-xl p-6 shadow-lg">
         <CardContent className="space-y-2 p-0">
-          <h2 className="text-sm font-bold text-slate-800">How your privacy is protected</h2>
-          <p className="text-sm leading-relaxed text-slate-600">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">How your privacy is protected</h2>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             Your item listings are public-safe only — a finder ever sees the item name, lost
             status, and reward, never your name, email, phone, or address. Identity stays
             separated from item data at the database level, not just hidden in the UI.

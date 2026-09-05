@@ -59,7 +59,7 @@ const Input = React.forwardRef(function Input(
       type={type}
       data-slot="input"
       className={cn(
-        "file:text-foreground placeholder:text-slate-400 selection:bg-purple-200 selection:text-purple-900 h-9 w-full min-w-0 rounded-xl border-none bg-base px-3.5 py-1 text-base text-slate-800 shadow-neu-pressed-sm outline-none transition-shadow file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        "file:text-foreground placeholder:text-slate-400 selection:bg-purple-200 selection:text-purple-900 h-9 w-full min-w-0 rounded-xl border-none bg-base px-3.5 py-1 text-base text-slate-800 dark:text-slate-100 shadow-neu-pressed-sm outline-none transition-shadow file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         "focus-visible:shadow-neu-pressed focus-visible:ring-2 focus-visible:ring-purple-400/40",
         "aria-invalid:ring-destructive/30 aria-invalid:shadow-none aria-invalid:border aria-invalid:border-destructive",
         className

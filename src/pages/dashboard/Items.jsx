@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 
-const glass = 'bg-white/70 backdrop-blur-xl';
+const glass = 'bg-white/70 dark:bg-white/5 backdrop-blur-xl';
 
 export default function Items() {
   const { user } = useAuth();
@@ -110,7 +110,7 @@ export default function Items() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-slate-800">My items</h1>
+        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">My items</h1>
         <Button asChild variant="secondary">
           <Link to="/dashboard/items/claim">+ Claim a tag</Link>
         </Button>
@@ -127,10 +127,10 @@ export default function Items() {
       {!loading && items.length === 0 && (
         <Card className={`${glass} rounded-3xl`}>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5">
-              <PackageSearch className="h-6 w-6 text-slate-500" />
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
+              <PackageSearch className="h-6 w-6 text-slate-500 dark:text-slate-400" />
             </span>
-            <p className="text-sm text-slate-500">No items yet. Claim your first NFC tag to get started.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">No items yet. Claim your first NFC tag to get started.</p>
           </CardContent>
         </Card>
       )}
@@ -147,10 +147,10 @@ export default function Items() {
       {!loading && items.length > 0 && visibleItems.length === 0 && (
         <Card className={`${glass} rounded-3xl`}>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5">
-              <SearchX className="h-6 w-6 text-slate-500" />
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
+              <SearchX className="h-6 w-6 text-slate-500 dark:text-slate-400" />
             </span>
-            <p className="text-sm text-slate-500">No items match "{search}".</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">No items match "{search}".</p>
           </CardContent>
         </Card>
       )}
@@ -160,16 +160,21 @@ export default function Items() {
           key={it.tagId}
           className={
             it.isLostMode
-              ? 'rounded-3xl border-2 border-red-400 bg-red-50/60 p-6 shadow-[0_0_24px_rgba(239,68,68,0.25)]'
+              ? 'rounded-3xl border-2 border-red-400 dark:border-red-500/50 bg-red-50/60 dark:bg-red-500/10 p-6 shadow-[0_0_24px_rgba(239,68,68,0.25)]'
               : `${glass} rounded-3xl p-6`
           }
         >
           <CardContent className="flex items-center justify-between gap-4 p-0">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate font-bold text-slate-800">{it.itemName}</p>
+                <p className="truncate font-bold text-slate-800 dark:text-slate-100">{it.itemName}</p>
                 {it.isLostMode && <Badge variant="destructive">Lost</Badge>}
                 {openTagSet.has(it.tagId) && <Badge variant="outline">Found reported</Badge>}
+                {it.tagStatus === 'blacklisted' && (
+                  <Badge variant="destructive" title="An admin flagged this tag — finders can no longer report or message on it.">
+                    Flagged by admin
+                  </Badge>
+                )}
                 {it.category && (() => {
                   const Icon = CATEGORY_ICON[it.category];
                   return (
@@ -181,16 +186,16 @@ export default function Items() {
                 })()}
               </div>
               {it.isLostMode && (it.lostMessage || it.rewardAmount > 0) && (
-                <p className="mt-1 truncate text-xs font-semibold text-amber-600">
+                <p className="mt-1 truncate text-xs font-semibold text-amber-600 dark:text-amber-300">
                   {it.rewardAmount > 0 ? `$${it.rewardAmount} reward` : ''}
                   {it.rewardAmount > 0 && it.lostMessage ? ' — ' : ''}
                   {it.lostMessage}
                 </p>
               )}
-              <p className="mt-1 truncate text-xs text-slate-500">Tag: {it.tagId}</p>
+              <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">Tag: {it.tagId}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <span className="text-xs text-slate-500">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>
               <Switch checked={it.isLostMode} onCheckedChange={(checked) => onToggle(it, checked)} />
             </div>
           </CardContent>

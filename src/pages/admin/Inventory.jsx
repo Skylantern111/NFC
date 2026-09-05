@@ -5,6 +5,7 @@ import {
   getCountFromServer,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   runTransaction,
@@ -13,14 +14,15 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { generateBatch, batchToCsv, tagUrl } from '../../lib/tags';
+import { db, auth } from '../../firebase/config';
+import { generateBatch, batchToCsv, tagUrl, TAG_STATUS_BADGE } from '../../lib/tags';
 import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -40,6 +42,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { startAfter } from 'firebase/firestore';
+import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2 } from 'lucide-react';
 
 const BATCH_SIZES = [50, 100, 250, 500];
 const CHIP_TYPES = [
@@ -49,17 +52,11 @@ const CHIP_TYPES = [
 ];
 
 const STATUS_TABS = [
-  { value: 'all', label: 'All' },
-  { value: 'unclaimed', label: 'Unclaimed' },
-  { value: 'claimed', label: 'Claimed' },
-  { value: 'blacklisted', label: 'Blacklisted' },
+  { value: 'all', label: 'All', icon: Boxes, tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300' },
+  { value: 'unclaimed', label: 'Unclaimed', icon: CircleDashed, tint: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
+  { value: 'claimed', label: 'Claimed', icon: CheckCircle2, tint: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
+  { value: 'blacklisted', label: 'Blacklisted', icon: ShieldAlert, tint: 'bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300' },
 ];
-
-const STATUS_BADGE = {
-  unclaimed: 'border-slate-200 bg-slate-100 text-slate-600',
-  claimed: 'border-emerald-200 bg-emerald-50/80 text-emerald-600',
-  blacklisted: 'border-rose-200 bg-rose-50/80 text-rose-600',
-};
 
 const ROW_LIMIT = 100;
 
@@ -88,6 +85,10 @@ export default function Inventory() {
   const [rowsError, setRowsError] = useState('');
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(false);
+  // Freezes the live first-page listener below once "Load more" has paged
+  // further, so an incoming write doesn't reorder/duplicate rows the admin
+  // has already paginated past.
+  const [paged, setPaged] = useState(false);
 
   const [confirmGenerate, setConfirmGenerate] = useState(false);
 
@@ -100,27 +101,12 @@ export default function Inventory() {
   const [blacklistBusy, setBlacklistBusy] = useState(false);
   const [copiedTagId, setCopiedTagId] = useState('');
 
-  const loadRows = useCallback(async () => {
-    setRowsLoading(true);
-    setRowsError('');
-    try {
-      const q = query(collection(db, 'tags'), orderBy('createdAt', 'desc'), limit(ROW_LIMIT));
-      const snap = await getDocs(q);
-      setRows(snap.docs.map((d) => d.data()));
-      setLastDoc(snap.docs[snap.docs.length - 1] || null);
-      setHasMore(snap.docs.length === ROW_LIMIT);
-    } catch (err) {
-      setRowsError(err.message || 'Failed to load tags.');
-    } finally {
-      setRowsLoading(false);
-    }
-  }, []);
-
   // Table only shows ROW_LIMIT rows at a time (KPI counts above stay
   // accurate regardless) — "Load more" pages the rest in via a startAfter
   // cursor instead of silently truncating inventory past 100 tags.
   async function loadMoreRows() {
     if (!lastDoc) return;
+    setPaged(true);
     setRowsMoreLoading(true);
     setRowsError('');
     try {
@@ -162,10 +148,32 @@ export default function Inventory() {
     }
   }, []);
 
+  // Live first page: an admin watching the tab sees a batch generated (or a
+  // tag blacklisted) elsewhere without navigating away and back. Pagination
+  // stays a one-shot fetch (loadMoreRows) — see `paged` above.
   useEffect(() => {
-    loadRows();
-    loadCounts();
-  }, [loadRows, loadCounts]);
+    setRowsLoading(true);
+    setRowsError('');
+    const q = query(collection(db, 'tags'), orderBy('createdAt', 'desc'), limit(ROW_LIMIT));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (!paged) {
+          setRows(snap.docs.map((d) => d.data()));
+          setLastDoc(snap.docs[snap.docs.length - 1] || null);
+          setHasMore(snap.docs.length === ROW_LIMIT);
+        }
+        setRowsLoading(false);
+        loadCounts();
+      },
+      (err) => {
+        setRowsError(err.message || 'Failed to load tags.');
+        setRowsLoading(false);
+      }
+    );
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paged]);
 
   // Atomic increment against meta/tagBatchCounter — two admins generating
   // batches at once can no longer land on the same batchNumber, since the
@@ -211,7 +219,9 @@ export default function Inventory() {
       await wb.commit();
 
       setLastBatch(tags);
-      await Promise.all([loadRows(), loadCounts()]);
+      // Rows update on their own via the live first-page listener; counts
+      // are a one-shot aggregation (no live-count API), so refresh explicitly.
+      await loadCounts();
     } catch (err) {
       setGenerateError(err.message || 'Failed to generate batch.');
     } finally {
@@ -254,13 +264,21 @@ export default function Inventory() {
     if (!blacklistTarget) return;
     setBlacklistBusy(true);
     try {
+      // A tag can be blacklisted while `claimed`, not just `unclaimed` —
+      // remember which, so un-blacklisting restores the right state instead
+      // of always dropping back to `unclaimed` (which would wrongly make an
+      // already-owned tag look claimable again).
+      const priorStatus = rows.find((r) => r.tagId === blacklistTarget)?.status || 'unclaimed';
       await updateDoc(doc(db, 'tags', blacklistTarget), {
         status: 'blacklisted',
+        blacklistedFromStatus: priorStatus,
         flagReason: flagReason.trim() || 'No reason given',
+        blacklistedBy: auth.currentUser?.uid || null,
+        blacklistedAt: serverTimestamp(),
       });
       setBlacklistTarget(null);
       setFlagReason('');
-      await Promise.all([loadRows(), loadCounts()]);
+      await loadCounts();
     } catch (err) {
       setRowsError(err.message || 'Failed to blacklist tag.');
     } finally {
@@ -268,22 +286,104 @@ export default function Inventory() {
     }
   }
 
+  // Reverses onConfirmBlacklist — a tag flagged by mistake (or one that
+  // turns out fine) has a way back, mirroring Moderation's symmetric
+  // Ban/Unban pattern instead of leaving blacklisting one-way. Restores
+  // whichever status it was blacklisted from (see blacklistedFromStatus
+  // above), not a hardcoded 'unclaimed'.
+  const [unblacklistBusy, setUnblacklistBusy] = useState('');
+  async function onUnblacklist(tag) {
+    setUnblacklistBusy(tag.tagId);
+    try {
+      await updateDoc(doc(db, 'tags', tag.tagId), {
+        status: tag.blacklistedFromStatus || 'unclaimed',
+        blacklistedFromStatus: null,
+        flagReason: null,
+        blacklistedBy: null,
+        blacklistedAt: null,
+      });
+      await loadCounts();
+    } catch (err) {
+      setRowsError(err.message || 'Failed to unblacklist tag.');
+    } finally {
+      setUnblacklistBusy('');
+    }
+  }
+
+  // The table only ever holds the loaded page(s) (ROW_LIMIT + whatever "Load
+  // more" has paged in) — searching for a tag/batch that hasn't been loaded
+  // yet used to silently read as "doesn't exist." Once the loaded page has
+  // no local match, fall back to a targeted server query (exact tag ID, or
+  // batch number if the term is numeric) covering the whole inventory.
+  const [serverMatches, setServerMatches] = useState([]);
+  const [serverSearching, setServerSearching] = useState(false);
+
+  useEffect(() => {
+    const term = search.trim();
+    if (!term) {
+      setServerMatches([]);
+      return;
+    }
+    const lower = term.toLowerCase();
+    const localHasMatch = rows.some(
+      (t) => t.tagId?.toLowerCase().includes(lower) || String(t.batchNumber ?? '').includes(term)
+    );
+    if (localHasMatch) {
+      setServerMatches([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setServerSearching(true);
+      try {
+        const tagsRef = collection(db, 'tags');
+        const queries = [getDocs(query(tagsRef, where('tagId', '==', term), limit(1)))];
+        if (/^\d+$/.test(term)) {
+          queries.push(getDocs(query(tagsRef, where('batchNumber', '==', Number(term)), limit(ROW_LIMIT))));
+        }
+        const snaps = await Promise.all(queries);
+        if (cancelled) return;
+        const seen = new Set();
+        const found = [];
+        for (const snap of snaps) {
+          for (const d of snap.docs) {
+            if (!seen.has(d.id)) {
+              seen.add(d.id);
+              found.push(d.data());
+            }
+          }
+        }
+        setServerMatches(found);
+      } catch {
+        // Best-effort — the loaded-page search above still stands either way.
+      } finally {
+        if (!cancelled) setServerSearching(false);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [search, rows]);
+
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return rows.filter((t) => {
+    const local = rows.filter((t) => {
       if (statusFilter !== 'all' && t.status !== statusFilter) return false;
       if (!term) return true;
       return (
         t.tagId?.toLowerCase().includes(term) || String(t.batchNumber ?? '').includes(term)
       );
     });
-  }, [rows, statusFilter, search]);
+    if (local.length > 0 || !term) return local;
+    return serverMatches.filter((t) => statusFilter === 'all' || t.status === statusFilter);
+  }, [rows, statusFilter, search, serverMatches]);
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-800">NFC inventory</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">NFC inventory</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Provision NFC tag batches and manage their claim lifecycle.
         </p>
       </div>
@@ -291,28 +391,35 @@ export default function Inventory() {
       {/* KPI strip — real counts from the tags collection */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {STATUS_TABS.map((s) => (
-          <div key={s.value} className="rounded-2xl bg-white/80 p-4 shadow-lg">
-            <div className="text-xs uppercase tracking-wide text-slate-500">{s.label}</div>
-            <div className="mt-1 text-2xl font-bold text-slate-800">
-              {counts[s.value] === null ? '—' : counts[s.value].toLocaleString()}
-            </div>
+          <div key={s.value} className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+            <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
+              <s.icon className="h-4.5 w-4.5" />
+            </span>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{s.label}</div>
+            {counts[s.value] === null ? (
+              <Skeleton className="mt-1 h-7 w-12" />
+            ) : (
+              <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">
+                {counts[s.value].toLocaleString()}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         {/* LEFT: batch provisioning form */}
-        <Card className="rounded-3xl bg-white/80 text-slate-800 shadow-lg xl:col-span-5">
+        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-lg xl:col-span-5">
           <CardHeader>
             <CardTitle>Provision a new batch</CardTitle>
-            <CardDescription className="text-slate-500">
+            <CardDescription className="text-slate-500 dark:text-slate-400">
               Generates unique tag IDs and writes them to the inventory as{' '}
-              <span className="font-mono text-slate-600">unclaimed</span>.
+              <span className="font-mono text-slate-600 dark:text-slate-300">unclaimed</span>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label className="text-slate-600">Batch size</Label>
+              <Label className="text-slate-600 dark:text-slate-300">Batch size</Label>
               <ToggleGroup
                 type="single"
                 variant="outline"
@@ -333,7 +440,7 @@ export default function Inventory() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-600">Chip type</Label>
+              <Label className="text-slate-600 dark:text-slate-300">Chip type</Label>
               <RadioGroup value={chipType} onValueChange={setChipType} className="gap-2">
                 {CHIP_TYPES.map((c) => (
                   <label
@@ -341,15 +448,15 @@ export default function Inventory() {
                     htmlFor={`chip-${c.value}`}
                     className={`flex cursor-pointer items-center justify-between rounded-xl p-3 transition-shadow ${
                       chipType === c.value
-                        ? 'bg-purple-50 shadow-neu-pressed-sm'
+                        ? 'bg-purple-50 dark:bg-purple-500/15 shadow-neu-pressed-sm'
                         : 'bg-base shadow-neu-flat-sm'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <RadioGroupItem value={c.value} id={`chip-${c.value}`} />
-                      <span className="text-sm font-medium text-slate-800">{c.label}</span>
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.label}</span>
                     </div>
-                    <span className="font-mono text-xs text-slate-500">{c.detail}</span>
+                    <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{c.detail}</span>
                   </label>
                 ))}
               </RadioGroup>
@@ -367,7 +474,7 @@ export default function Inventory() {
                 Export CSV
               </Button>
               {lastBatch.length > 0 && (
-                <span className="text-sm text-slate-500">
+                <span className="text-sm text-slate-500 dark:text-slate-400">
                   Last batch: {lastBatch.length} tags (#{lastBatch[0].batchNumber})
                 </span>
               )}
@@ -376,10 +483,10 @@ export default function Inventory() {
         </Card>
 
         {/* RIGHT: lifecycle table */}
-        <Card className="rounded-3xl bg-white/80 text-slate-800 shadow-lg xl:col-span-7">
+        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-lg xl:col-span-7">
           <CardHeader>
             <CardTitle>Tag lifecycle</CardTitle>
-            <CardDescription className="text-slate-500">
+            <CardDescription className="text-slate-500 dark:text-slate-400">
               Most recent {ROW_LIMIT} tags, newest first.
             </CardDescription>
           </CardHeader>
@@ -392,6 +499,16 @@ export default function Inventory() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="sm:max-w-xs"
                 />
+                {serverSearching && (
+                  <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
+                    <Search className="h-3 w-3 animate-pulse" /> Searching full inventory…
+                  </span>
+                )}
+                {!serverSearching && serverMatches.length > 0 && (
+                  <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
+                    <Search className="h-3 w-3" /> Found beyond the loaded {ROW_LIMIT} — showing full-inventory match.
+                  </span>
+                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -410,12 +527,12 @@ export default function Inventory() {
                     onClick={() => setStatusFilter(s.value)}
                     className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
                       statusFilter === s.value
-                        ? 'bg-purple-100 text-purple-700 shadow-neu-pressed-sm'
-                        : 'bg-base text-slate-500 shadow-neu-flat-sm hover:text-slate-800'
+                        ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
+                        : 'bg-base text-slate-500 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
                     }`}
                   >
                     {s.label}
-                    {counts[s.value] !== null && <span className="ml-1 text-slate-400">({counts[s.value]})</span>}
+                    {counts[s.value] !== null && <span className="ml-1 text-slate-400 dark:text-slate-500">({counts[s.value]})</span>}
                   </button>
                 ))}
               </div>
@@ -426,26 +543,29 @@ export default function Inventory() {
             <div className="overflow-x-auto rounded-xl bg-base shadow-neu-pressed-sm">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-slate-200 hover:bg-transparent">
-                    <TableHead className="text-slate-500">Tag ID</TableHead>
-                    <TableHead className="text-slate-500">Batch</TableHead>
-                    <TableHead className="text-slate-500">Chip</TableHead>
-                    <TableHead className="text-slate-500">Status</TableHead>
-                    <TableHead className="text-slate-500">Created</TableHead>
-                    <TableHead className="text-right text-slate-500">Actions</TableHead>
+                  <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                    <TableHead className="text-slate-500 dark:text-slate-400">Tag ID</TableHead>
+                    <TableHead className="text-slate-500 dark:text-slate-400">Batch</TableHead>
+                    <TableHead className="text-slate-500 dark:text-slate-400">Chip</TableHead>
+                    <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
+                    <TableHead className="text-slate-500 dark:text-slate-400">Created</TableHead>
+                    <TableHead className="text-right text-slate-500 dark:text-slate-400">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rowsLoading && (
-                    <TableRow className="border-slate-200 hover:bg-transparent">
-                      <TableCell colSpan={6} className="py-10 text-center text-slate-500">
-                        Loading tags…
-                      </TableCell>
-                    </TableRow>
-                  )}
+                  {rowsLoading &&
+                    [0, 1, 2, 3, 4].map((i) => (
+                      <TableRow key={i} className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                        {[0, 1, 2, 3, 4, 5].map((c) => (
+                          <TableCell key={c}>
+                            <Skeleton className="h-4 w-full max-w-24" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
                   {!rowsLoading && filteredRows.length === 0 && (
-                    <TableRow className="border-slate-200 hover:bg-transparent">
-                      <TableCell colSpan={6} className="py-10 text-center text-slate-500">
+                    <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                      <TableCell colSpan={6} className="py-10 text-center text-slate-500 dark:text-slate-400">
                         No tags match this view. Generate a batch to provision tags.
                       </TableCell>
                     </TableRow>
@@ -453,18 +573,18 @@ export default function Inventory() {
                   {filteredRows.map((t) => {
                     const created = toDate(t.createdAt);
                     return (
-                      <TableRow key={t.tagId} className="border-slate-200/60 hover:bg-slate-900/5">
-                        <TableCell className="font-mono text-xs text-slate-700" title={t.tagId}>
+                      <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
+                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
                           {t.tagId.slice(0, 10)}…
                         </TableCell>
-                        <TableCell className="text-slate-600">{t.batchNumber}</TableCell>
-                        <TableCell className="text-slate-600">{t.chipType || '—'}</TableCell>
+                        <TableCell className="text-slate-600 dark:text-slate-300">{t.batchNumber}</TableCell>
+                        <TableCell className="text-slate-600 dark:text-slate-300">{t.chipType || '—'}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={STATUS_BADGE[t.status] || STATUS_BADGE.unclaimed}>
+                          <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.unclaimed}>
                             {t.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-slate-500" title={created ? created.toLocaleString() : ''}>
+                        <TableCell className="text-slate-500 dark:text-slate-400" title={created ? created.toLocaleString() : ''}>
                           {created ? relativeTimeFromMs(toMillis(created)) : '—'}
                         </TableCell>
                         <TableCell className="text-right">
@@ -472,7 +592,7 @@ export default function Inventory() {
                             <Button variant="outline" size="sm" onClick={() => onCopyUrl(t.tagId)}>
                               {copiedTagId === t.tagId ? 'Copied' : 'Copy URL'}
                             </Button>
-                            {t.status !== 'blacklisted' && (
+                            {t.status !== 'blacklisted' ? (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -483,6 +603,17 @@ export default function Inventory() {
                                 }}
                               >
                                 Blacklist
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-emerald-600"
+                                disabled={unblacklistBusy === t.tagId}
+                                onClick={() => onUnblacklist(t)}
+                              >
+                                <Undo2 className="h-3.5 w-3.5" />
+                                {unblacklistBusy === t.tagId ? 'Restoring…' : 'Unblacklist'}
                               </Button>
                             )}
                           </div>
@@ -531,12 +662,12 @@ export default function Inventory() {
             <DialogDescription>
               This marks the tag as blacklisted so it can no longer be claimed or resolved.
               {blacklistTarget && (
-                <span className="mt-1 block font-mono text-xs text-slate-500">{blacklistTarget}</span>
+                <span className="mt-1 block font-mono text-xs text-slate-500 dark:text-slate-400">{blacklistTarget}</span>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label className="text-slate-600">Reason</Label>
+            <Label className="text-slate-600 dark:text-slate-300">Reason</Label>
             <Input
               autoFocus
               placeholder="e.g. reported tampered / lost stock"

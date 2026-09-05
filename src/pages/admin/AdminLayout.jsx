@@ -38,7 +38,7 @@ function AdminGate({ children }) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500">
+      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500 dark:text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
@@ -51,7 +51,7 @@ function AdminGate({ children }) {
 
   if (checkingClaim) {
     return (
-      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500">
+      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500 dark:text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );

@@ -1,12 +1,21 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
+        // Reserved deep-canvas tokens (index.html's theme-color meta only —
+        // no `bg-void`/`bg-panel` call sites in src/). Left as static hex
+        // since nothing renders them; not part of the light/dark token
+        // system below.
         void: '#0D0A1A',
         panel: '#130E26',
-        base: '#E9EDF5',
+        // The neumorphic canvas color. CSS-var-backed (same var as the
+        // shadcn `background` token) so every `bg-base` surface — nav rails,
+        // buttons, inputs, the ambient background — flips with `.dark`
+        // automatically instead of needing a per-file edit.
+        base: 'hsl(var(--background))',
 
         // shadcn/ui semantic tokens (Signal Glass palette), ported for the
         // shadcn/Radix component kit under src/components/ui. Backed by CSS
@@ -73,11 +82,15 @@ export default {
       },
       boxShadow: {
         // Light source: top-left. Two-layer shadow (light + dark) sells the
-        // "physical extrusion" — a single shadow reads flat.
-        'neu-flat': '8px 8px 16px rgba(163,177,198,0.6), -8px -8px 16px rgba(255,255,255,0.8)',
-        'neu-flat-sm': '4px 4px 8px rgba(163,177,198,0.55), -4px -4px 8px rgba(255,255,255,0.75)',
-        'neu-pressed': 'inset 6px 6px 12px rgba(163,177,198,0.6), inset -6px -6px 12px rgba(255,255,255,0.8)',
-        'neu-pressed-sm': 'inset 3px 3px 6px rgba(163,177,198,0.55), inset -3px -3px 6px rgba(255,255,255,0.75)',
+        // "physical extrusion" — a single shadow reads flat. Colors come
+        // from CSS vars (src/index.css) so `.dark` can swap the grey-shadow/
+        // white-highlight light-mode pair for a black-shadow/faint-highlight
+        // dark-mode pair without editing any of the ~12 files that use
+        // these classes.
+        'neu-flat': '8px 8px 16px var(--neu-shadow-strong), -8px -8px 16px var(--neu-shadow-strong-light)',
+        'neu-flat-sm': '4px 4px 8px var(--neu-shadow-soft), -4px -4px 8px var(--neu-shadow-soft-light)',
+        'neu-pressed': 'inset 6px 6px 12px var(--neu-shadow-strong), inset -6px -6px 12px var(--neu-shadow-strong-light)',
+        'neu-pressed-sm': 'inset 3px 3px 6px var(--neu-shadow-soft), inset -3px -3px 6px var(--neu-shadow-soft-light)',
       },
       keyframes: {
         // Slowly drifting ambient orbs. Small translate range = cheap GPU work.

@@ -24,6 +24,15 @@ export function relativeTimeFromMs(ms) {
   return `${Math.round(diffHr / 24)}d ago`;
 }
 
+// Splits an array into groups of `size` — used to page a Firestore `in`
+// query (capped at 30 disjunction values) past its limit instead of silently
+// truncating to the first 30 (see lib/moderation.js, lib/ownerItems.js).
+export function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export function daysSinceMs(ms) {
   if (!ms) return 0;
   return Math.floor((Date.now() - ms) / (24 * 60 * 60 * 1000));

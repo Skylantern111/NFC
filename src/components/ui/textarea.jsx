@@ -52,7 +52,7 @@ const Textarea = React.forwardRef(function Textarea(
       ref={ref}
       data-slot="textarea"
       className={cn(
-        "placeholder:text-slate-400 aria-invalid:ring-destructive/30 aria-invalid:shadow-none aria-invalid:border aria-invalid:border-destructive flex field-sizing-content min-h-16 w-full rounded-xl border-none bg-base px-3.5 py-2 text-base text-slate-800 shadow-neu-pressed-sm outline-none transition-shadow focus-visible:shadow-neu-pressed focus-visible:ring-2 focus-visible:ring-purple-400/40 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        "placeholder:text-slate-400 aria-invalid:ring-destructive/30 aria-invalid:shadow-none aria-invalid:border aria-invalid:border-destructive flex field-sizing-content min-h-16 w-full rounded-xl border-none bg-base px-3.5 py-2 text-base text-slate-800 dark:text-slate-100 shadow-neu-pressed-sm outline-none transition-shadow focus-visible:shadow-neu-pressed focus-visible:ring-2 focus-visible:ring-purple-400/40 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         className
       )}
       onCompositionStart={handleCompositionStart}

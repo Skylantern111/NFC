@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 // or nav-style change only happens in one place. Desktop keeps the fixed
 // w-56 rail; below `md` that rail is replaced by a top bar + slide-in Sheet,
 // since neither console previously had any mobile/tablet layout at all.
-function NavList({ navItems, onNavigate }) {
+function NavList({ navItems, onNavigate, admin }) {
   return (
     <nav className="flex-1 space-y-1.5 px-3">
       {navItems.map(({ to, label, icon: Icon, end, badge }) => (
@@ -18,8 +18,12 @@ function NavList({ navItems, onNavigate }) {
           end={end}
           onClick={onNavigate}
           className={({ isActive }) =>
-            `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-              isActive ? 'bg-base text-purple-600 shadow-neu-pressed-sm' : 'text-slate-500 hover:text-slate-800'
+            `flex items-center gap-3 rounded-xl border-l-2 px-3 py-2.5 text-sm font-medium transition-all ${
+              isActive
+                ? admin
+                  ? 'border-amber-500 bg-base text-purple-600 shadow-neu-pressed-sm'
+                  : 'border-transparent bg-base text-purple-600 shadow-neu-pressed-sm'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
             }`
           }
         >
@@ -42,18 +46,18 @@ function Footer({ userLabel, settingsHref, onLogout }) {
       {settingsHref ? (
         <Link
           to={settingsHref}
-          className="block truncate rounded-xl px-3 py-2 text-xs text-slate-500 transition-colors hover:text-slate-800"
+          className="block truncate rounded-xl px-3 py-2 text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-slate-800 dark:hover:text-slate-100"
           title="Account settings"
         >
           {userLabel}
         </Link>
       ) : (
-        <p className="truncate rounded-xl px-3 py-2 text-xs text-slate-500">{userLabel}</p>
+        <p className="truncate rounded-xl px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{userLabel}</p>
       )}
       <button
         type="button"
         onClick={onLogout}
-        className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-red-500"
+        className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-red-500"
       >
         <LogOut className="h-4 w-4" />
         Logout
@@ -62,29 +66,42 @@ function Footer({ userLabel, settingsHref, onLogout }) {
   );
 }
 
-function Brand({ to, subtitle }) {
+function Brand({ to, subtitle, admin }) {
   return (
     <Link to={to} className="flex items-center gap-2.5 px-5 py-6">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
         <Tag className="h-5 w-5 text-white" />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-base font-extrabold leading-tight text-slate-800">TagBack</p>
-        <p className="truncate text-xs text-slate-500">{subtitle}</p>
+        <p className="truncate text-base font-extrabold leading-tight text-slate-800 dark:text-slate-100">TagBack</p>
+        {admin ? (
+          <span className="mt-0.5 inline-block truncate rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+            {subtitle}
+          </span>
+        ) : (
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+        )}
       </div>
     </Link>
   );
 }
 
-export default function SidebarShell({ subtitle, homeTo, navItems, userLabel, settingsHref, onLogout }) {
+// `admin` gives the shell a small, deliberate identity distinct from the
+// owner dashboard it's structurally copied from (design system §14 already
+// shares one component for both — this doesn't fork that, just accents it):
+// an amber subtitle pill instead of plain muted text, and an amber left-
+// border on the active nav item instead of the plain purple indicator. Both
+// read as "you're in the admin console, actions here are consequential"
+// without touching the app's brand purple anywhere else.
+export default function SidebarShell({ subtitle, homeTo, navItems, userLabel, settingsHref, onLogout, admin }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       {/* Desktop rail */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-56 shrink-0 flex-col bg-base shadow-neu-flat md:flex">
-        <Brand to={homeTo} subtitle={subtitle} />
-        <NavList navItems={navItems} />
+        <Brand to={homeTo} subtitle={subtitle} admin={admin} />
+        <NavList navItems={navItems} admin={admin} />
         <Footer userLabel={userLabel} settingsHref={settingsHref} onLogout={onLogout} />
       </aside>
 
@@ -94,23 +111,23 @@ export default function SidebarShell({ subtitle, homeTo, navItems, userLabel, se
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
             <Tag className="h-4 w-4 text-white" />
           </span>
-          <span className="text-base font-extrabold text-slate-800">TagBack</span>
+          <span className="text-base font-extrabold text-slate-800 dark:text-slate-100">TagBack</span>
         </Link>
         <Sheet open={open} onOpenChange={setOpen}>
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Open menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-base text-slate-600 shadow-neu-flat-sm"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-base text-slate-600 dark:text-slate-300 shadow-neu-flat-sm"
           >
             <Menu className="h-5 w-5" />
           </button>
           <SheetContent side="left" className="flex w-64 flex-col gap-0 bg-base p-0">
             <SheetHeader className="p-0">
               <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <Brand to={homeTo} subtitle={subtitle} />
+              <Brand to={homeTo} subtitle={subtitle} admin={admin} />
             </SheetHeader>
-            <NavList navItems={navItems} onNavigate={() => setOpen(false)} />
+            <NavList navItems={navItems} onNavigate={() => setOpen(false)} admin={admin} />
             <Footer userLabel={userLabel} settingsHref={settingsHref} onLogout={onLogout} />
           </SheetContent>
         </Sheet>

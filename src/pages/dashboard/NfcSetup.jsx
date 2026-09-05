@@ -16,7 +16,7 @@ import { generateTagId, tagUrl } from '../../lib/tags';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 
-const glass = 'bg-white/70 backdrop-blur-xl rounded-3xl';
+const glass = 'bg-white/70 dark:bg-white/5 backdrop-blur-xl rounded-3xl';
 
 // Web NFC (NDEFReader) is Chrome-on-Android + HTTPS only — no Safari/iOS,
 // no desktop. Feature-detect once; every other browser falls back to the
@@ -123,8 +123,8 @@ export default function NfcSetup() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-800">NFC Setup</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">NFC Setup</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Generate a unique NFC ID, write its URL to a sticker, and test it.
         </p>
       </div>
@@ -137,18 +137,27 @@ export default function NfcSetup() {
                 <Nfc className="h-5 w-5 text-white" />
               </span>
               <div>
-                <p className="font-bold text-slate-800">Generate a new NFC tag</p>
-                <p className="text-xs text-slate-500">Creates a unique ID and a ready-to-write URL.</p>
+                <p className="font-bold text-slate-800 dark:text-slate-100">Generate a new NFC tag</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Creates a unique ID and a ready-to-write URL.</p>
               </div>
             </div>
             <Button onClick={onGenerate}>+ Generate NFC ID</Button>
           </div>
 
           {tagId && (
+            <p className="flex items-start gap-1.5 rounded-xl bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3.5 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+              <TriangleAlert className="h-3.5 w-3.5 shrink-0 translate-y-0.5" />
+              This ID isn't in the provisioned inventory, so it can't be claimed to an account —
+              safe to write and test with, but not to sell or ship on a real sticker. See "Preview
+              the finder page" below before writing to a physical tag.
+            </p>
+          )}
+
+          {tagId && (
             <div className="flex flex-col gap-3 rounded-xl bg-base p-4 shadow-neu-pressed-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="truncate font-mono text-sm font-bold text-slate-800">{tagId}</p>
-                <p className="mt-0.5 truncate font-mono text-xs text-slate-500">{url}</p>
+                <p className="truncate font-mono text-sm font-bold text-slate-800 dark:text-slate-100">{tagId}</p>
+                <p className="mt-0.5 truncate font-mono text-xs text-slate-500 dark:text-slate-400">{url}</p>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={onCopy} className="gap-1.5">
@@ -197,7 +206,7 @@ export default function NfcSetup() {
             </p>
           )}
           {!webNfcSupported && tagId && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               This browser can't write NFC tags directly — use a free NFC-writer app on your phone
               instead (see step 3 below).
             </p>
@@ -207,7 +216,7 @@ export default function NfcSetup() {
 
       <Card className={glass}>
         <CardContent className="p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-600">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
             How to write &amp; test
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -228,8 +237,8 @@ export default function NfcSetup() {
                     <Icon className="h-5 w-5 shrink-0 text-purple-600" />
                   )}
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">{title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{detail}</p>
                   </div>
                 </div>
               );
@@ -240,7 +249,7 @@ export default function NfcSetup() {
 
       <Card className={glass}>
         <CardContent className="p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-600">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
             Troubleshooting
           </h2>
           <div className="space-y-3">
@@ -248,8 +257,8 @@ export default function NfcSetup() {
               <div key={problem} className="flex gap-3 rounded-xl bg-base p-4 shadow-neu-flat-sm">
                 <TriangleAlert className="h-5 w-5 shrink-0 text-amber-500" />
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">{problem}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{fix}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{problem}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{fix}</p>
                 </div>
               </div>
             ))}
@@ -257,15 +266,15 @@ export default function NfcSetup() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-6 shadow-lg">
+      <Card className="rounded-3xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10 p-6 shadow-lg">
         <CardContent className="flex flex-col gap-4 p-0 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-bold text-emerald-700">Preview the finder page</p>
-            <p className="mt-1 text-sm text-emerald-600">
+            <p className="font-bold text-emerald-700 dark:text-emerald-300">Preview the finder page</p>
+            <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-300">
               This opens the page a finder would see after tapping this tag — good for checking
               your write worked. This ID isn't in the provisioned inventory, so it can't be
               claimed to an account yet. To actually claim a tag,{' '}
-              <Link to="/dashboard/items/claim" className="font-semibold underline hover:text-emerald-700">
+              <Link to="/dashboard/items/claim" className="font-semibold underline hover:text-emerald-700 dark:hover:text-emerald-200">
                 use an already-provisioned tag id
               </Link>
               .

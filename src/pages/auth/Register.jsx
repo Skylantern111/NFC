@@ -59,7 +59,7 @@ export default function Register() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" />
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-8">
-          <h1 className="mb-6 text-center text-3xl font-extrabold text-slate-800">
+          <h1 className="mb-6 text-center text-3xl font-extrabold text-slate-800 dark:text-slate-100">
             Create account
           </h1>
           <GlassCard>
@@ -89,7 +89,7 @@ export default function Register() {
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -114,7 +114,7 @@ export default function Register() {
               </Button>
             </form>
           </GlassCard>
-          <p className="mt-5 text-center text-sm text-slate-500">
+          <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
             Have an account?{' '}
             <Link to="/login" className="font-semibold text-purple-600 hover:text-pink-600">
               Sign in

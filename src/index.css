@@ -8,76 +8,124 @@
 
   /* Light Neumorphic/Glassmorphic shadcn/ui semantic tokens (TagBack
      redesign). Values are HSL components (no hsl() wrapper) consumed as
-     hsl(var(--x)) by tailwind.config.js. `.dark` below stays as a fallback/
-     escape hatch (unused unless a theme toggle is reintroduced later). */
-  --background: 220 33% 92%;       /* ~#E9EDF5 */
-  --foreground: 222 20% 24%;       /* ~slate-800 */
-  --card: 0 0% 100%;
-  --card-foreground: 222 20% 24%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 20% 24%;
-  --primary: 273 67% 60%;          /* purple-500 */
+     hsl(var(--x)) by tailwind.config.js.
+
+     Tokens are named by JOB, not by the hue family they happen to swatch-
+     match — the comment on each line says what role it plays in the 60:30:10
+     decorative split, not "purple-500"/"pink-500". `.dark` below is a fully
+     designed second theme (not a fallback) toggled by `ThemeContext` adding
+     `.dark` to <html>; see `--primary`/`--accent` there for how brand/signal
+     get re-tuned (not just re-lit) for a dark canvas.
+
+     Contrast: every foreground/background pair actually used together as
+     text-on-fill was checked against WCAG AA (4.5:1 text / 3:1 large-text
+     & UI) with a relative-luminance script; ratios are noted per pair. */
+
+  /* --- dominant neutral, ~60% of any screen: canvas + surfaces + ink --- */
+  --background: 220 33% 92%;       /* canvas (page bg), ~#E9EDF5 */
+  --foreground: 222 20% 24%;       /* ink (body text) — 9.53:1 on canvas */
+  --card: 0 0% 100%;               /* surface (cards/dialogs) */
+  --card-foreground: 222 20% 24%;  /* ink — 11.67:1 on surface */
+  --popover: 0 0% 100%;            /* surface-raised (menus/popovers) */
+  --popover-foreground: 222 20% 24%; /* ink */
+  --secondary: 220 20% 88%;        /* surface-soft (neutral, not brand) */
+  --secondary-foreground: 222 20% 24%; /* ink — 8.68:1 on surface-soft */
+  --muted: 220 24% 88%;            /* surface-soft */
+  --muted-foreground: 220 9% 40%;  /* ink-muted — 4.93:1 on canvas */
+  --border: 220 20% 82%;           /* line (dividers/outlines) */
+  --input: 220 20% 82%;            /* line */
+
+  /* --- secondary, ~30%: brand (purple), the primary interactive color --- */
+  --primary: 273 67% 52%;          /* brand — 5.88:1 with white text */
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 20% 88%;
-  --secondary-foreground: 222 20% 24%;
-  --muted: 220 24% 88%;
-  --muted-foreground: 220 9% 46%;  /* ~slate-500 */
-  --accent: 328 73% 62%;           /* pink-500 */
+  --ring: 273 67% 52%;             /* brand (focus rings) */
+
+  /* --- accent, ~10%, kept scarce: signal (pink), CTAs/highlights only --- */
+  --accent: 328 73% 50%;           /* signal — 4.53:1 with white text */
   --accent-foreground: 0 0% 100%;
-  --destructive: 0 72% 51%;
+
+  /* --- functional, outside the decorative ratio: state, not brand --- */
+  --destructive: 0 72% 51%;        /* danger — 4.80:1 with white text */
   --destructive-foreground: 0 0% 100%;
-  --border: 220 20% 82%;
-  --input: 220 20% 82%;
-  --ring: 273 67% 60%;
+
   --radius: 0.65rem;
-  --chart-1: 273 67% 60%;
-  --chart-2: 328 73% 62%;
-  --chart-3: 0 72% 51%;
-  --chart-4: 156 51% 45%;
-  --chart-5: 38 92% 50%;
-  --sidebar: 0 0% 100%;
-  --sidebar-foreground: 222 20% 24%;
-  --sidebar-primary: 273 67% 60%;
+  --chart-1: 273 67% 52%;          /* brand */
+  --chart-2: 328 73% 50%;          /* signal */
+  --chart-3: 0 72% 51%;            /* danger */
+  --chart-4: 156 51% 45%;          /* extra categorical (success-ish) */
+  --chart-5: 38 92% 50%;           /* extra categorical (warning-ish) */
+  --sidebar: 0 0% 100%;            /* surface */
+  --sidebar-foreground: 222 20% 24%; /* ink */
+  --sidebar-primary: 273 67% 52%;  /* brand */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 270 60% 96%;
-  --sidebar-accent-foreground: 273 67% 45%;
-  --sidebar-border: 220 20% 90%;
-  --sidebar-ring: 273 67% 60%;
+  --sidebar-accent: 270 60% 96%;   /* brand-soft tint */
+  --sidebar-accent-foreground: 273 67% 40%; /* brand text — 7.56:1 on tint */
+  --sidebar-border: 220 20% 90%;   /* line */
+  --sidebar-ring: 273 67% 52%;     /* brand */
+
+  /* Neumorphic shadow pair (light-source top-left): a "strong" pair for
+     -flat/-pressed, a "soft" pair for the -sm variants. `.dark` redefines
+     both so `shadow-neu-*` (see tailwind.config.js) stays correct without
+     touching any of the ~12 files that use those classes. */
+  --neu-shadow-strong: rgba(163, 177, 198, 0.6);
+  --neu-shadow-strong-light: rgba(255, 255, 255, 0.8);
+  --neu-shadow-soft: rgba(163, 177, 198, 0.55);
+  --neu-shadow-soft-light: rgba(255, 255, 255, 0.75);
 }
 
 .dark {
-  --background: 240 38% 6%;
-  --foreground: 253 100% 97%;
-  --card: 240 35% 12%;
-  --card-foreground: 253 100% 97%;
-  --popover: 240 34% 16%;
+  color-scheme: dark;
+
+  /* --- dominant neutral --- */
+  --background: 240 38% 6%;        /* canvas */
+  --foreground: 253 100% 97%;      /* ink — 17.55:1 on canvas */
+  --card: 240 35% 12%;             /* surface */
+  --card-foreground: 253 100% 97%; /* ink — 16.09:1 on surface */
+  --popover: 240 34% 16%;          /* surface-raised */
   --popover-foreground: 253 100% 97%;
-  --primary: 150 100% 86%;
-  --primary-foreground: 206 49% 8%;
-  --secondary: 256 28% 19%;
-  --secondary-foreground: 255 100% 92%;
-  --muted: 240 34% 11%;
-  --muted-foreground: 243 20% 66%;
-  --accent: 248 100% 83%;
-  --accent-foreground: 244 37% 17%;
+  --secondary: 256 28% 19%;        /* surface-soft */
+  --secondary-foreground: 255 100% 92%; /* ink — 10.84:1 on surface-soft */
+  --muted: 240 34% 11%;            /* surface-soft */
+  --muted-foreground: 243 20% 66%; /* ink-muted — 7.03:1 on canvas */
+  --border: 242 32% 24%;           /* line */
+  --input: 245 28% 26%;            /* line */
+
+  /* --- secondary/accent: same brand purple + signal pink as light mode,
+     re-tuned to pastel-bright fills with dark ink text (not just a lighter
+     shade of the light-mode value) so they stay legible on a near-black
+     canvas — same hue family both themes, same job, different lightness. --- */
+  --primary: 273 80% 74%;          /* brand — 6.65:1 with dark ink */
+  --primary-foreground: 270 35% 13%;
+  --ring: 273 80% 74%;
+  --accent: 328 85% 74%;           /* signal — 6.89:1 with dark ink */
+  --accent-foreground: 328 45% 15%;
+
+  /* --- functional: same red family, dark ink instead of white (the fill is
+     a bright/pastel red on dark canvas, so white text on it fails AA —
+     was 2.74:1, is now 5.50:1) --- */
   --destructive: 5 100% 69%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 242 32% 24%;
-  --input: 245 28% 26%;
-  --ring: 150 100% 86%;
-  --chart-1: 150 100% 86%;
-  --chart-2: 248 100% 83%;
-  --chart-3: 5 100% 69%;
+  --destructive-foreground: 0 0% 15%;
+
+  --chart-1: 273 80% 74%;          /* brand */
+  --chart-2: 328 85% 74%;          /* signal */
+  --chart-3: 5 100% 69%;           /* danger */
   --chart-4: 156 51% 61%;
   --chart-5: 0 39% 45%;
   --sidebar: 240 36% 9%;
   --sidebar-foreground: 253 100% 97%;
-  --sidebar-primary: 150 100% 86%;
-  --sidebar-primary-foreground: 206 49% 8%;
+  --sidebar-primary: 273 80% 74%;
+  --sidebar-primary-foreground: 270 35% 13%;
   --sidebar-accent: 242 35% 16%;
-  --sidebar-accent-foreground: 253 100% 97%;
+  --sidebar-accent-foreground: 253 100% 97%; /* 14.88:1 on tint */
   --sidebar-border: 244 26% 21%;
-  --sidebar-ring: 150 100% 86%;
+  --sidebar-ring: 273 80% 74%;
+
+  /* Dark neumorphism reads as depth via a near-black shadow + a faint
+     highlight, not the light-mode's grey-shadow/white-highlight pair. */
+  --neu-shadow-strong: rgba(0, 0, 0, 0.55);
+  --neu-shadow-strong-light: rgba(255, 255, 255, 0.05);
+  --neu-shadow-soft: rgba(0, 0, 0, 0.5);
+  --neu-shadow-soft-light: rgba(255, 255, 255, 0.04);
 }
 
 html,
@@ -88,10 +136,11 @@ body,
 
 body {
   margin: 0;
-  background-color: #e9edf5;
-  color: #1e293b;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* Surface language rule (design system §15): this app deliberately mixes two
@@ -113,7 +162,7 @@ body {
    component class so admin views can opt out. */
 @layer components {
   .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/60 shadow-lg rounded-3xl;
+    @apply bg-white/70 dark:bg-white/5 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-lg rounded-3xl;
   }
   /* No dark-wash overlay needed on a light bg — contrast comes from the
      slate-800/slate-500 text sweep instead. Kept as a no-op class so call
@@ -132,5 +181,5 @@ body {
 
 /* Leaflet tiles need explicit sizing inside flex containers. */
 .leaflet-container {
-  background: #e9edf5;
+  background: hsl(var(--background));
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
-import { db, firebaseReady } from '../firebase/config';
+import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { db, auth, firebaseReady } from '../firebase/config';
+import { chunk } from './utils';
 
 // Admin moderation queue (§4.13/§5.4). A chat lands here once its owner
 // reports it (public/Chat.jsx writes chats/{id}.blocked = true). Listing it
@@ -67,16 +68,23 @@ export function useModerationQueue() {
 
   const tagKey = useMemo(() => [...new Set(chats.map((c) => c.tagId))].sort().join(','), [chats]);
 
+  // `in` queries cap at 30 disjunction values — past 30 distinct reported
+  // tags, chunk into multiple listeners instead of silently dropping the
+  // rest (they'd otherwise render "Unknown item" with no explanation).
   useEffect(() => {
     if (!firebaseReady || !tagKey) {
       if (firebaseReady) setItems({});
       return;
     }
-    const q = query(collection(db, 'items'), where('tagId', 'in', tagKey.split(',').slice(0, 30)));
-    const unsub = onSnapshot(q, (snap) => {
-      setItems(Object.fromEntries(snap.docs.map((d) => [d.id, d.data()])));
-    });
-    return unsub;
+    const groups = chunk(tagKey.split(','), 30);
+    const partials = groups.map(() => ({}));
+    const unsubs = groups.map((group, i) =>
+      onSnapshot(query(collection(db, 'items'), where('tagId', 'in', group)), (snap) => {
+        partials[i] = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
+        setItems(Object.assign({}, ...partials));
+      })
+    );
+    return () => unsubs.forEach((u) => u());
   }, [tagKey]);
 
   const toggleMockBan = (token) =>
@@ -98,6 +106,7 @@ export async function banToken(token, { tagId, reason } = {}) {
   if (!firebaseReady) return;
   await setDoc(doc(db, 'blockedTokens', token), {
     bannedAt: serverTimestamp(),
+    bannedBy: auth.currentUser?.uid || null,
     tagId: tagId || null,
     reason: reason || null,
   });
@@ -106,4 +115,15 @@ export async function banToken(token, { tagId, reason } = {}) {
 export async function unbanToken(token) {
   if (!firebaseReady) return;
   await deleteDoc(doc(db, 'blockedTokens', token));
+}
+
+// Admin marks a reported chat as reviewed (handled, no ban needed) so it can
+// be filtered out of the default queue view without pretending the report
+// never happened — see Moderation.jsx's "reviewed" filter.
+export async function markChatReviewed(chatId) {
+  if (!firebaseReady) return;
+  await updateDoc(doc(db, 'chats', chatId), {
+    reviewedAt: serverTimestamp(),
+    reviewedBy: auth.currentUser?.uid || null,
+  });
 }

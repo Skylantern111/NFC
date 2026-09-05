@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowDown, Ban, CheckCircle2, Send } from 'lucide-react';
+import { ArrowDown, Ban, CheckCircle2, Send, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useChat,
@@ -11,6 +11,7 @@ import {
   reportChat,
   sendChatMessage,
 } from '../../lib/ownerItems';
+import { getFinderToken } from '../../lib/finderSession';
 import { firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import AmbientBackground from '../../components/AmbientBackground';
@@ -30,7 +31,7 @@ import { cn, relativeTimeFromMs, toMillis } from '@/lib/utils';
 
 // Shared frosted-glass treatment applied over the ported ui/ primitives so
 // this page keeps the app's light glassmorphism language.
-const GLASS = 'rounded-2xl bg-white/70 backdrop-blur-xl shadow-lg';
+const GLASS = 'rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-lg';
 
 // Canned strings only — purely a UX convenience that inserts text into the
 // real message input. Not a separate system, nothing fake is implied.
@@ -48,7 +49,31 @@ function previewItem(tagId) {
 export default function Chat() {
   const { chatId } = useParams();
   const { user } = useAuth();
-  const role = user ? 'owner' : 'finder';
+
+  // An admin clicking "View chat" from Moderation.jsx lands here signed in
+  // but not owning the tag — without this check they'd fall into the
+  // 'owner' branch below (mislabeled bubbles, a composer/Report/Mark-
+  // recovered UI that only fails silently via firestore.rules#ownsTag).
+  // Same admin-claim check as admin/AdminLayout.jsx's AdminGate.
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  useEffect(() => {
+    if (!firebaseReady || !user) {
+      setIsAdminUser(false);
+      return;
+    }
+    let cancelled = false;
+    user
+      .getIdTokenResult()
+      .then((token) => {
+        if (!cancelled) setIsAdminUser(token.claims.admin === true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const role = isAdminUser ? 'admin' : user ? 'owner' : 'finder';
   const previewTagId = !firebaseReady && chatId?.startsWith('preview-') ? chatId.slice(8) : null;
 
   const { chat: liveChat, loading: chatLoading } = useChat(firebaseReady ? chatId : null);
@@ -106,7 +131,7 @@ export default function Chat() {
   // Opening the thread counts as reading it — clears the unread marker for
   // whichever side is viewing (drives the dot in dashboard/Messages.jsx).
   useEffect(() => {
-    if (!chatId || !firebaseReady) return;
+    if (!chatId || !firebaseReady || role === 'admin') return;
     markChatRead(chatId, role).catch(() => {});
   }, [chatId, role]);
 
@@ -117,7 +142,7 @@ export default function Chat() {
     setText('');
     if (firebaseReady) {
       try {
-        await sendChatMessage(chatId, role, body);
+        await sendChatMessage(chatId, role, body, role === 'finder' ? getFinderToken() : undefined);
       } catch (err) {
         // Restore the draft rather than silently losing it (e.g. a banned
         // finder token gets rejected by firestore.rules#isBlockedToken).
@@ -184,17 +209,26 @@ export default function Chat() {
         <div className="flex items-center gap-3">
           <BackButton fallback={role === 'owner' ? '/dashboard' : '/'} />
           <div>
-            <h1 className="font-bold text-slate-800">{item?.itemName || 'Anonymous chat'}</h1>
-            <p className="text-xs text-slate-500">You are the {role}. Contact details stay hidden.</p>
+            <h1 className="font-bold text-slate-800 dark:text-slate-100">{item?.itemName || 'Anonymous chat'}</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {role === 'admin'
+                ? 'Viewing as admin — read-only. Contact details stay hidden.'
+                : `You are the ${role}. Contact details stay hidden.`}
+            </p>
           </div>
         </div>
+        {role === 'admin' && (
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 dark:border-slate-700 bg-base px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <Eye className="h-3.5 w-3.5" /> Admin view
+          </span>
+        )}
         {/* Known scope gap: only the owner can Report a chat here — a finder
             has no reciprocal way to flag an abusive owner. Documented in
             IMPROVEMENT_PLAN.md §10 as a product decision, not fixed here. */}
         {role === 'owner' && (
           <div className="flex shrink-0 items-center gap-2">
             {chat?.blocked ? (
-              <span className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50/80 px-3 py-1.5 text-xs font-semibold text-red-600">
+              <span className="flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-500/30 bg-red-50/80 dark:bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-300">
                 <Ban className="h-3.5 w-3.5" /> Reported
               </span>
             ) : (
@@ -209,7 +243,7 @@ export default function Chat() {
               </Button>
             )}
             {resolved ? (
-              <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-semibold text-emerald-600">
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Recovered
               </span>
             ) : (
@@ -228,7 +262,7 @@ export default function Chat() {
 
       <div className="relative flex-1 overflow-hidden">
         <div ref={scrollRef} onScroll={handleScroll} className="h-full space-y-2 overflow-y-auto px-4 py-4">
-          {loading && <p className="text-center text-sm text-slate-500">Loading conversation…</p>}
+          {loading && <p className="text-center text-sm text-slate-500 dark:text-slate-400">Loading conversation…</p>}
           {messages.map((m) => {
             const mine = m.sender === role;
             const time = relativeTimeFromMs(toMillis(m.timestamp));
@@ -236,12 +270,12 @@ export default function Chat() {
               <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
                 <div
                   className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${
-                    m.sender === 'owner' ? 'bg-purple-600/80 text-white' : 'bg-white/85 text-slate-800'
+                    m.sender === 'owner' ? 'bg-purple-600/80 text-white' : 'bg-white/85 dark:bg-white/5 text-slate-800 dark:text-slate-100'
                   }`}
                 >
                   {m.text}
                 </div>
-                {time && <span className="mt-0.5 px-1 text-[10px] text-slate-400">{time}</span>}
+                {time && <span className="mt-0.5 px-1 text-[10px] text-slate-400 dark:text-slate-500">{time}</span>}
               </div>
             );
           })}
@@ -252,41 +286,45 @@ export default function Chat() {
             type="button"
             onClick={scrollToBottom}
             aria-label="Scroll to latest message"
-            className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-base text-slate-600 shadow-neu-flat transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
+            className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-base text-slate-600 dark:text-slate-300 shadow-neu-flat transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
           >
             <ArrowDown className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      <div className="relative mx-3 mb-2">
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {QUICK_REPLIES.map((reply) => (
-            <button
-              key={reply}
-              type="button"
-              onClick={() => setText(reply)}
-              className="shrink-0 rounded-full bg-base px-3 py-1.5 text-xs text-slate-600 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
-            >
-              {reply}
-            </button>
-          ))}
-        </div>
-        {/* Fade hint that the row scrolls horizontally past the visible edge. */}
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-base to-transparent" />
-      </div>
+      {role !== 'admin' && (
+        <>
+          <div className="relative mx-3 mb-2">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {QUICK_REPLIES.map((reply) => (
+                <button
+                  key={reply}
+                  type="button"
+                  onClick={() => setText(reply)}
+                  className="shrink-0 rounded-full bg-base px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
+                >
+                  {reply}
+                </button>
+              ))}
+            </div>
+            {/* Fade hint that the row scrolls horizontally past the visible edge. */}
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-base to-transparent" />
+          </div>
 
-      <form onSubmit={send} className={cn(GLASS, 'm-3 mt-0 flex gap-2 p-2')}>
-        <Input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message…"
-          className="flex-1"
-        />
-        <Button type="submit" className="gap-1.5 rounded-full">
-          <Send className="h-4 w-4" /> Send
-        </Button>
-      </form>
+          <form onSubmit={send} className={cn(GLASS, 'm-3 mt-0 flex gap-2 p-2')}>
+            <Input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Type a message…"
+              className="flex-1"
+            />
+            <Button type="submit" className="gap-1.5 rounded-full">
+              <Send className="h-4 w-4" /> Send
+            </Button>
+          </form>
+        </>
+      )}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
