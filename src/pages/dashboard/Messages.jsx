@@ -127,7 +127,11 @@ export default function Messages() {
                       {relativeTimeFromMs(toMillis(chat.lastMessageAt))}
                     </span>
                     <div className="flex items-center gap-1.5">
-                      {unread && <span className="h-2 w-2 rounded-full bg-purple-400" />}
+                      {unread && (
+                        <span className="flex h-2 w-2 items-center justify-center rounded-full bg-purple-400">
+                          <span className="sr-only">Unread</span>
+                        </span>
+                      )}
                       {chat.blocked && !resolved && <Badge variant="destructive">Reported</Badge>}
                       <Badge variant={resolved ? 'secondary' : 'outline'}>
                         {resolved ? 'Resolved' : 'Open'}

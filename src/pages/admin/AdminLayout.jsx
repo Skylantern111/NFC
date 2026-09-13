@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import AdminSidebar from '../../components/nav/AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
+import { checkIsAdmin } from '../../lib/adminAuth';
 
 // No AmbientBackground / backdrop-blur here: solid surfaces keep large
 // data tables scrolling at 60fps.
@@ -20,13 +21,9 @@ function AdminGate({ children }) {
     }
     let cancelled = false;
     setCheckingClaim(true);
-    user
-      .getIdTokenResult()
-      .then((token) => {
-        if (!cancelled) setIsAdmin(token.claims.admin === true);
-      })
-      .catch(() => {
-        if (!cancelled) setIsAdmin(false);
+    checkIsAdmin(user)
+      .then((result) => {
+        if (!cancelled) setIsAdmin(result);
       })
       .finally(() => {
         if (!cancelled) setCheckingClaim(false);
@@ -47,7 +44,7 @@ function AdminGate({ children }) {
   // Placeholder mode: no real auth yet, let the admin console render for dev preview.
   if (!firebaseReady) return children;
 
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user) return <Navigate to="/admin/login" state={{ from: location }} replace />;
 
   if (checkingClaim) {
     return (
@@ -57,7 +54,15 @@ function AdminGate({ children }) {
     );
   }
 
-  if (!isAdmin) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!isAdmin) {
+    return (
+      <Navigate
+        to="/admin/login"
+        state={{ from: location, notice: 'Your account does not have admin access.' }}
+        replace
+      />
+    );
+  }
 
   return children;
 }

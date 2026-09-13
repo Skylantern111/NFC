@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import ProtectedRoute from './components/ProtectedRoute';
+import RouteErrorBoundary from './components/RouteErrorBoundary';
 import { Toaster } from './components/ui/sonner';
 
 // Public — kept eager. These are the first-paint/entry routes (Landing is
@@ -32,6 +33,7 @@ const Notifications = lazy(() => import('./pages/dashboard/Notifications'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
 
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const Inventory = lazy(() => import('./pages/admin/Inventory'));
 const Moderation = lazy(() => import('./pages/admin/Moderation'));
 const Owners = lazy(() => import('./pages/admin/Owners'));
@@ -51,6 +53,7 @@ export default function App() {
   return (
     <>
     <Toaster position="top-center" richColors closeButton />
+    <RouteErrorBoundary>
     <Suspense fallback={<RouteFallback />}>
     <Routes>
       {/* Public */}
@@ -78,7 +81,8 @@ export default function App() {
         <Route path="settings" element={<Settings />} />
       </Route>
 
-      {/* Admin (protected) */}
+      {/* Admin */}
+      <Route path="/admin/login" element={<AdminLogin />} />
       <Route
         path="/admin"
         element={
@@ -96,6 +100,7 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
+    </RouteErrorBoundary>
     </>
   );
 }

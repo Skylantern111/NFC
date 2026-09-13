@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   doc,
   getDoc,
@@ -15,9 +15,11 @@ import {
   MessageSquare,
   ShieldAlert,
   ShieldCheck,
+  Tag as TagIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { db, firebaseReady } from '../../firebase/config';
+import { useAuth } from '../../context/AuthContext';
 import { captureLocation } from '../../lib/geolocation';
 import { getFinderToken } from '../../lib/finderSession';
 import { notifyOwner } from '../../lib/ownerItems';
@@ -29,7 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
+import { cn, friendlyFirestoreError } from '@/lib/utils';
 
 // Shared frosted-glass treatment applied over the ported ui/Card primitive so
 // public pages keep the app's light glassmorphism language.
@@ -50,8 +52,9 @@ function publicItemMock(tagId) {
 export default function NfcLanding() {
   const { tagId } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
   const [item, setItem] = useState(null);
-  const [state, setState] = useState('loading'); // loading | ready | notfound | blacklisted
+  const [state, setState] = useState('loading'); // loading | ready | notfound | blacklisted | unclaimed
   const [note, setNote] = useState('');
   const [locationNote, setLocationNote] = useState('');
   const [location, setLocation] = useState(null);
@@ -77,6 +80,14 @@ export default function NfcLanding() {
         if (!live) return;
         if (tagSnap.exists() && tagSnap.data().status === 'blacklisted') {
           setState('blacklisted');
+          return;
+        }
+        // Unclaimed: no items/itemOwners doc exists yet (only created at
+        // claim time — see ClaimTag.jsx), so there's nothing to "find" here.
+        // Tapping the physical sticker on an unclaimed tag should offer to
+        // claim it, not show a dead end.
+        if (tagSnap.exists() && tagSnap.data().status === 'unclaimed') {
+          setState('unclaimed');
           return;
         }
         // Public read: security rules expose only whitelisted fields.
@@ -164,7 +175,7 @@ export default function NfcLanding() {
       const message =
         err.code === 'permission-denied'
           ? "This device can't file reports right now."
-          : 'Could not send report: ' + err.message;
+          : friendlyFirestoreError(err, 'Could not send report. Please try again.');
       toast.error(message);
       setBusy(false);
     }
@@ -172,7 +183,9 @@ export default function NfcLanding() {
 
   if (state === 'loading') {
     return (
-      <div className="flex h-screen items-center justify-center text-slate-500 dark:text-slate-400">Loading…</div>
+      <div className="flex h-screen items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+      </div>
     );
   }
 
@@ -189,6 +202,55 @@ export default function NfcLanding() {
                 <p className="mt-2 text-slate-500 dark:text-slate-400">
                   This tag isn't registered yet, or the link is incorrect.
                 </p>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  if (state === 'unclaimed') {
+    const claimPath = `/dashboard/items/claim?tagId=${encodeURIComponent(tagId)}`;
+    return (
+      <>
+        <AmbientBackground />
+        <div className="relative flex min-h-screen flex-col">
+          <TopNav fallback="/" />
+          <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
+            <Card className={GLASS}>
+              <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
+                <TagIcon className="h-6 w-6 text-purple-600" />
+                <h1 className="text-2xl font-bold">This tag isn't claimed yet</h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {user
+                    ? 'Claim it now to link it to your account.'
+                    : 'Sign in to claim this tag and link it to your account.'}
+                </p>
+                {user ? (
+                  <Button
+                    className="mt-1 w-full gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500"
+                    onClick={() => nav(claimPath)}
+                  >
+                    Claim this tag <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Link
+                    to="/login"
+                    state={{ from: { pathname: '/dashboard/items/claim', search: `?tagId=${encodeURIComponent(tagId)}` } }}
+                    className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2.5 text-sm font-semibold text-white hover:from-purple-500 hover:to-pink-500"
+                  >
+                    Sign in to claim <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
+                {!user && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    No account?{' '}
+                    <Link to="/register" className="font-semibold text-purple-600 hover:text-pink-600">
+                      Create one
+                    </Link>
+                  </p>
+                )}
               </CardContent>
             </Card>
           </main>

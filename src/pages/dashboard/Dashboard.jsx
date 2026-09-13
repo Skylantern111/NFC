@@ -1,32 +1,34 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Clock, MessageSquareWarning, Package, ShieldCheck, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
-import { useOwnerItems, useOwnerTagIds, useOwnerOpenReports, useOwnerChats } from '../../lib/ownerItems';
-import { daysSinceMs, relativeTimeFromMs, toMillis } from '../../lib/utils';
+import {
+  useOwnerItems,
+  useOwnerTagIds,
+  useOwnerOpenReports,
+  useOwnerChats,
+  useStaleNudgeDismissals,
+  dismissStaleNudge,
+} from '../../lib/ownerItems';
+import { firebaseReady } from '../../firebase/config';
+import { daysSinceMs, friendlyFirestoreError, relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import { Skeleton } from '../../components/ui/skeleton';
 import ReportLocationMap from '../../components/ReportLocationMap';
 
 // §4.5/§5.8: nudge the owner about items that have sat in Lost Mode a long
-// time with nobody currently reporting them found.
+// time with nobody currently reporting them found. Dismissal now syncs
+// across an owner's devices via `useStaleNudgeDismissals` (IMPROVEMENT_PLAN.md
+// Round 2 #1 — previously localStorage-only).
 //
-// Known limitations (IMPROVEMENT_PLAN.md §3): dismissal is localStorage-only
-// so it doesn't sync across an owner's devices, and once an incident is
-// marked recovered (see public/Chat.jsx#confirmRecovered) there's no history
-// view — it simply disappears. Both would need a persisted field on the
-// item/chat doc plus a new list view to fix properly; out of scope here.
+// Known limitation (IMPROVEMENT_PLAN.md §3): once an incident is marked
+// recovered (see public/Chat.jsx#confirmRecovered) there's no history view —
+// it simply disappears. Would need a new list view to fix properly; out of
+// scope here.
 const STALE_MS = 14 * 24 * 60 * 60 * 1000;
-const DISMISS_KEY = 'staleNudgeDismissed';
-
-function readDismissed() {
-  try {
-    return JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -82,20 +84,20 @@ export default function Dashboard() {
       }),
     [items, openTagSet]
   );
-  const [dismissed, setDismissed] = useState(readDismissed);
-  const dismissKey = (item) => `${item.tagId}:${toMillis(item.lostSince) || ''}`;
-  function dismissNudge(item) {
-    setDismissed((prev) => {
-      const next = [...prev, dismissKey(item)];
-      try {
-        localStorage.setItem(DISMISS_KEY, JSON.stringify(next));
-      } catch {
-        // Storage blocked (private mode) — dismissal just won't persist across reload.
-      }
-      return next;
-    });
+  const { dismissed, dismissMock } = useStaleNudgeDismissals(user);
+  async function dismissNudge(item) {
+    const lostSinceMillis = toMillis(item.lostSince);
+    if (!firebaseReady) {
+      dismissMock(item.tagId, lostSinceMillis);
+      return;
+    }
+    try {
+      await dismissStaleNudge(user, item.tagId, lostSinceMillis);
+    } catch (err) {
+      toast.error(friendlyFirestoreError(err, 'Could not dismiss this reminder.'));
+    }
   }
-  const visibleStale = staleItems.filter((i) => !dismissed.includes(dismissKey(i)));
+  const visibleStale = staleItems.filter((i) => dismissed[i.tagId] !== toMillis(i.lostSince));
 
   return (
     <div className="space-y-6">
@@ -107,7 +109,11 @@ export default function Dashboard() {
                 <s.icon className="h-4.5 w-4.5" />
               </span>
               <div>
-                <div className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{loading ? '–' : s.value}</div>
+                {loading ? (
+                  <Skeleton className="h-8 w-10" />
+                ) : (
+                  <div className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{s.value}</div>
+                )}
                 <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{s.label}</div>
               </div>
             </CardContent>
@@ -115,7 +121,9 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {incidents.length > 0 ? (
+      {loading ? (
+        <Skeleton className="h-40 rounded-3xl" />
+      ) : incidents.length > 0 ? (
         <div className="space-y-3">
           {incidents.length > 1 && (
             <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">

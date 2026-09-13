@@ -195,16 +195,18 @@ export default function NfcSetup() {
             </div>
           )}
 
-          {writeStatus === 'success' && (
-            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <Check className="h-4 w-4" /> Tag written. Tap it with your phone to confirm.
-            </p>
-          )}
-          {writeStatus === 'error' && (
-            <p className="flex items-center gap-1.5 text-sm font-medium text-red-500">
-              <TriangleAlert className="h-4 w-4" /> {writeError}
-            </p>
-          )}
+          <div aria-live="polite">
+            {writeStatus === 'success' && (
+              <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                <Check className="h-4 w-4" /> Tag written. Tap it with your phone to confirm.
+              </p>
+            )}
+            {writeStatus === 'error' && (
+              <p className="flex items-center gap-1.5 text-sm font-medium text-red-500">
+                <TriangleAlert className="h-4 w-4" /> {writeError}
+              </p>
+            )}
+          </div>
           {!webNfcSupported && tagId && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               This browser can't write NFC tags directly — use a free NFC-writer app on your phone

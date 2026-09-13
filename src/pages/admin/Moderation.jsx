@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Ban, ShieldCheck, CheckCheck, Eye } from 'lucide-react';
+import { Ban, ShieldCheck, CheckCheck, Eye, Flag, ShieldBan } from 'lucide-react';
 import { toast } from 'sonner';
 import { useModerationQueue, banToken, unbanToken, markChatReviewed } from '../../lib/moderation';
 import { notifyOwner } from '../../lib/ownerItems';
@@ -8,6 +8,7 @@ import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -29,6 +30,8 @@ export default function Moderation() {
   const [search, setSearch] = useState('');
   const [showReviewed, setShowReviewed] = useState(false);
   const [reviewingId, setReviewingId] = useState('');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkReviewing, setBulkReviewing] = useState(false);
 
   const visibleChats = useMemo(
     () => (showReviewed ? chats : chats.filter((c) => !c.reviewedAt)),
@@ -49,6 +52,43 @@ export default function Moderation() {
   }, [visibleChats, items, search]);
 
   const reviewedCount = chats.length - visibleChats.length;
+  const reviewedTotal = useMemo(() => chats.filter((c) => c.reviewedAt).length, [chats]);
+  const bannedTotal = bannedTokens.size;
+
+  // Bulk mark-reviewed only ever offers rows that are both currently
+  // filtered into view and not already reviewed.
+  const selectableChats = useMemo(() => filteredChats.filter((c) => !c.reviewedAt), [filteredChats]);
+  const allSelectableChecked = selectableChats.length > 0 && selectableChats.every((c) => selectedIds.has(c.id));
+
+  function toggleSelected(chatId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(chatId)) next.delete(chatId);
+      else next.add(chatId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds(allSelectableChecked ? new Set() : new Set(selectableChats.map((c) => c.id)));
+  }
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [search, showReviewed]);
+
+  async function onBulkMarkReviewed() {
+    setBulkReviewing(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => markChatReviewed(id)));
+      toast.success(`Marked ${selectedIds.size} reviewed.`);
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast.error('Could not mark all reviewed: ' + err.message);
+    } finally {
+      setBulkReviewing(false);
+    }
+  }
 
   async function onToggleBan(chat) {
     const token = chat.finderSessionToken;
@@ -92,6 +132,32 @@ export default function Moderation() {
         </p>
       </div>
 
+      {!loading && chats.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
+              <Flag className="h-4.5 w-4.5" />
+            </span>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Reported</div>
+            <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{chats.length}</div>
+          </div>
+          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+              <CheckCheck className="h-4.5 w-4.5" />
+            </span>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Reviewed</div>
+            <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{reviewedTotal}</div>
+          </div>
+          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300">
+              <ShieldBan className="h-4.5 w-4.5" />
+            </span>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Banned tokens</div>
+            <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{bannedTotal}</div>
+          </div>
+        </div>
+      )}
+
       {loading && (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
@@ -125,6 +191,19 @@ export default function Moderation() {
                 Show reviewed {reviewedCount > 0 && `(${reviewedCount})`}
               </Label>
             </label>
+            {selectedIds.size > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={bulkReviewing}
+                onClick={onBulkMarkReviewed}
+              >
+                <CheckCheck className="h-3.5 w-3.5" />
+                {bulkReviewing ? 'Marking…' : `Mark ${selectedIds.size} reviewed`}
+              </Button>
+            )}
           </div>
           {visibleChats.length === 0 && (
             <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
@@ -142,6 +221,14 @@ export default function Moderation() {
           <Table>
             <TableHeader>
               <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={allSelectableChecked}
+                    onCheckedChange={toggleSelectAll}
+                    disabled={selectableChats.length === 0}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Item</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Finder token</TableHead>
@@ -153,7 +240,7 @@ export default function Moderation() {
             <TableBody>
               {filteredChats.length === 0 && (
                 <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                  <TableCell colSpan={6} className="py-8 text-center text-slate-500 dark:text-slate-400">
+                  <TableCell colSpan={7} className="py-8 text-center text-slate-500 dark:text-slate-400">
                     No reports match this search.
                   </TableCell>
                 </TableRow>
@@ -163,6 +250,14 @@ export default function Moderation() {
                 const reviewed = !!chat.reviewedAt;
                 return (
                   <TableRow key={chat.id} className="border-slate-200 dark:border-slate-700/60">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(chat.id)}
+                        onCheckedChange={() => toggleSelected(chat.id)}
+                        disabled={reviewed}
+                        aria-label={`Select report for ${items[chat.tagId]?.itemName || chat.id}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-slate-700 dark:text-slate-200">{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300">

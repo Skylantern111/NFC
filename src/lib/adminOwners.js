@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
-import { db, firebaseReady } from '../firebase/config';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { db, auth, firebaseReady } from '../firebase/config';
 
 // Admin-only owner lookup (§ Round 6 item 8 — admin/Owners.jsx). Backed by
 // firestore.rules' admin-read allowance on itemOwners/users; nothing here is
@@ -45,7 +45,12 @@ export async function listOwnerTags(ownerUid) {
   return details;
 }
 
-export async function setOwnerDisabled(ownerUid, disabled) {
+export async function setOwnerDisabled(ownerUid, disabled, reason) {
   if (!firebaseReady) return;
-  await updateDoc(doc(db, 'users', ownerUid), { disabled });
+  await updateDoc(doc(db, 'users', ownerUid), {
+    disabled,
+    disabledReason: disabled ? reason || null : null,
+    disabledBy: disabled ? auth.currentUser?.uid || null : null,
+    disabledAt: disabled ? serverTimestamp() : null,
+  });
 }

@@ -48,6 +48,24 @@ is the fast, correct path to taking the app out of mock/preview mode.
    optional here — skip unless you're deploying via Firebase Hosting.
 3. Copy the `firebaseConfig` object it shows you — you'll need every field.
 
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDDg-HLaRDKROVyGaYmd19nOlM_UTaOgfE",
+  authDomain: "nfc-lost-and-found.firebaseapp.com",
+  projectId: "nfc-lost-and-found",
+  storageBucket: "nfc-lost-and-found.firebasestorage.app",
+  messagingSenderId: "794952274469",
+  appId: "1:794952274469:web:14f6baf583dd648a2a65cc"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
 ## 4. Fill in `.env`
 
 ```bash
@@ -65,6 +83,14 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
 VITE_PUBLIC_BASE_URL=http://localhost:5173
 ```
+
+**Common mistake:** the web-app registration screen (step 3) shows a whole
+JS snippet (`import { initializeApp } from "firebase/app"; ...`) — don't
+paste that snippet itself into `.env`. `.env` needs the individual
+`VITE_FIREBASE_*` values pulled out of that snippet's `firebaseConfig`
+object, one per line as `KEY=value` (Vite doesn't parse JS, only
+`KEY=value` pairs) — copy each field across as shown above, not the
+surrounding code.
 
 `src/firebase/config.js` flips `firebaseReady` to `true` the moment
 `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID` are both non-empty —
@@ -122,6 +148,20 @@ already deployed rules before:
   without them, `admin/Owners.jsx` can't read anything, blacklisting a
   claimed tag stays purely cosmetic (see below), and "Mark reviewed" fails
   with a permission error.
+- IMPROVEMENT_PLAN.md Round 12's admin additions (disable-account reason
+  fields, bulk-blacklist, bulk-mark-reviewed) need **no** rules redeploy —
+  `users/{uid}`'s and `tags/{tagId}`'s admin-write clauses are already
+  unconditional for `isAdmin()`, with no field allowlist to update.
+- Round 14's passcode-gated admin signup **does** need a redeploy —
+  `isAdmin()` now also accepts a `users/{uid}.isAdmin` field (not just the
+  custom claim), and the `users/{uid}` self-`update` rule now blocks
+  changing `isAdmin` the same way it already blocked `disabled`. As of this
+  writing that change has **not** been deployed from this environment (no
+  `firebase login`/`.firebaserc` here) — a passcode-registered admin's
+  `/admin/*` reads/writes will get `permission-denied` until it is.
+- Round 15's stale-nudge cross-device sync (`users/{uid}.staleNudgeDismissed`)
+  needs **no** redeploy — self-update on `users/{uid}` is already open to
+  any field except `disabled`/`isAdmin`.
 
 ## 8. Composite indexes (only if Firestore asks for one)
 
@@ -139,6 +179,7 @@ you want the index checked into source control after creating it.
 
 ## 9. Grant yourself admin access
 
+
 `/admin/*` is gated on a Firebase Auth **custom claim** (`admin: true`),
 checked in `AdminLayout.jsx`. It cannot be set from the client — use the
 provided script:
@@ -152,8 +193,14 @@ provided script:
    GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json \
      node scripts/setAdmin.js you@example.com
    ```
-4. Sign out and back in on the site — custom claims only take effect on a
-   fresh ID token.
+4. Sign in at **`/admin/login`** — a dedicated admin lock screen, separate
+   from the owner `/login` — with that account. Custom claims only take
+   effect on a fresh ID token, so if you were already signed in elsewhere,
+   sign out first. `/admin/login` checks the claim immediately after
+   sign-in and signs a non-admin account back out rather than leaving it
+   in a signed-in-but-unauthorized state; visiting any `/admin/*` route
+   while signed in as a non-admin also bounces here, with a notice
+   explaining why.
 
 This same claim gates all of `/admin/*` — Inventory, Moderation, and Owners
 (`admin/Owners.jsx`, the tag → owner lookup that can also disable an owner's

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PackageSearch, SearchX } from 'lucide-react';
+import { Loader2, PackageSearch, SearchX } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { firebaseReady } from '../../firebase/config';
 import {
@@ -11,6 +11,7 @@ import {
   toggleLostMode,
 } from '../../lib/ownerItems';
 import { CATEGORY_ICON } from '../../lib/categories';
+import { friendlyFirestoreError } from '../../lib/utils';
 import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -81,7 +82,7 @@ export default function Items() {
       setDisarmDialog(null);
       toast.success('Lost Mode turned off.');
     } catch (err) {
-      toast.error('Could not update item: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not update item. Try again.'));
     } finally {
       setDisarming(false);
     }
@@ -101,7 +102,7 @@ export default function Items() {
       setArmDialog(null);
       toast.success('Lost Mode armed.');
     } catch (err) {
-      toast.error('Could not update item: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not update item. Try again.'));
     } finally {
       setSaving(false);
     }
@@ -131,6 +132,9 @@ export default function Items() {
               <PackageSearch className="h-6 w-6 text-slate-500 dark:text-slate-400" />
             </span>
             <p className="text-sm text-slate-500 dark:text-slate-400">No items yet. Claim your first NFC tag to get started.</p>
+            <Button asChild variant="secondary">
+              <Link to="/dashboard/items/claim">Claim a tag</Link>
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -194,10 +198,10 @@ export default function Items() {
               )}
               <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">Tag: {it.tagId}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <label className="flex shrink-0 items-center gap-2">
               <span className="text-xs text-slate-500 dark:text-slate-400">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>
               <Switch checked={it.isLostMode} onCheckedChange={(checked) => onToggle(it, checked)} />
-            </div>
+            </label>
           </CardContent>
         </Card>
       ))}
@@ -236,7 +240,8 @@ export default function Items() {
               <Button type="button" variant="ghost" onClick={() => setArmDialog(null)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="destructive" disabled={saving}>
+              <Button type="submit" variant="destructive" disabled={saving} className="gap-1.5">
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {saving ? 'Saving…' : 'Arm lost mode'}
               </Button>
             </DialogFooter>
@@ -257,7 +262,8 @@ export default function Items() {
             <Button type="button" variant="ghost" autoFocus onClick={() => setDisarmDialog(null)}>
               Cancel
             </Button>
-            <Button type="button" onClick={confirmDisarm} disabled={disarming}>
+            <Button type="button" onClick={confirmDisarm} disabled={disarming} className="gap-1.5">
+              {disarming && <Loader2 className="h-4 w-4 animate-spin" />}
               {disarming ? 'Saving…' : 'Turn off Lost Mode'}
             </Button>
           </DialogFooter>

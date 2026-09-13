@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowDown, Ban, CheckCircle2, Send, Eye } from 'lucide-react';
+import { ArrowDown, Ban, CheckCircle2, Loader2, MessagesSquare, Send, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useChat,
@@ -12,6 +12,7 @@ import {
   sendChatMessage,
 } from '../../lib/ownerItems';
 import { getFinderToken } from '../../lib/finderSession';
+import { checkIsAdmin } from '../../lib/adminAuth';
 import { firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import AmbientBackground from '../../components/AmbientBackground';
@@ -27,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { cn, relativeTimeFromMs, toMillis } from '@/lib/utils';
+import { cn, friendlyFirestoreError, relativeTimeFromMs, toMillis } from '@/lib/utils';
 
 // Shared frosted-glass treatment applied over the ported ui/ primitives so
 // this page keeps the app's light glassmorphism language.
@@ -54,7 +55,7 @@ export default function Chat() {
   // but not owning the tag — without this check they'd fall into the
   // 'owner' branch below (mislabeled bubbles, a composer/Report/Mark-
   // recovered UI that only fails silently via firestore.rules#ownsTag).
-  // Same admin-claim check as admin/AdminLayout.jsx's AdminGate.
+  // Same two-path admin check as admin/AdminLayout.jsx's AdminGate.
   const [isAdminUser, setIsAdminUser] = useState(false);
   useEffect(() => {
     if (!firebaseReady || !user) {
@@ -62,12 +63,9 @@ export default function Chat() {
       return;
     }
     let cancelled = false;
-    user
-      .getIdTokenResult()
-      .then((token) => {
-        if (!cancelled) setIsAdminUser(token.claims.admin === true);
-      })
-      .catch(() => {});
+    checkIsAdmin(user).then((result) => {
+      if (!cancelled) setIsAdminUser(result);
+    });
     return () => {
       cancelled = true;
     };
@@ -87,6 +85,7 @@ export default function Chat() {
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockReason, setBlockReason] = useState('');
   const [blocking, setBlocking] = useState(false);
+  const [sending, setSending] = useState(false);
   const endRef = useRef(null);
   const scrollRef = useRef(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -137,10 +136,11 @@ export default function Chat() {
 
   async function send(e) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || sending) return;
     const body = text.trim();
     setText('');
     if (firebaseReady) {
+      setSending(true);
       try {
         await sendChatMessage(chatId, role, body, role === 'finder' ? getFinderToken() : undefined);
       } catch (err) {
@@ -150,8 +150,10 @@ export default function Chat() {
         toast.error(
           err.code === 'permission-denied'
             ? "This device can't send messages right now."
-            : 'Could not send message: ' + err.message
+            : friendlyFirestoreError(err, 'Could not send message. Please try again.')
         );
+      } finally {
+        setSending(false);
       }
     } else {
       setMockMessages((m) => [...m, { id: `mock_${Date.now()}`, sender: role, text: body }]);
@@ -172,7 +174,7 @@ export default function Chat() {
       setConfirmOpen(false);
       toast.success('Marked as recovered.');
     } catch (err) {
-      toast.error('Could not update recovery status: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not update recovery status. Try again.'));
     } finally {
       setResolving(false);
     }
@@ -194,7 +196,7 @@ export default function Chat() {
       setBlockOpen(false);
       toast.success('Chat reported for review.');
     } catch (err) {
-      toast.error('Could not report this chat: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not report this chat. Try again.'));
     } finally {
       setBlocking(false);
     }
@@ -262,7 +264,17 @@ export default function Chat() {
 
       <div className="relative flex-1 overflow-hidden">
         <div ref={scrollRef} onScroll={handleScroll} className="h-full space-y-2 overflow-y-auto px-4 py-4">
-          {loading && <p className="text-center text-sm text-slate-500 dark:text-slate-400">Loading conversation…</p>}
+          {loading && (
+            <p className="flex items-center justify-center gap-2 text-center text-sm text-slate-500 dark:text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading conversation…
+            </p>
+          )}
+          {!loading && messages.length === 0 && (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-slate-500 dark:text-slate-400">
+              <MessagesSquare className="h-6 w-6" />
+              <p className="text-sm">No messages yet. Say hello to get started.</p>
+            </div>
+          )}
           {messages.map((m) => {
             const mine = m.sender === role;
             const time = relativeTimeFromMs(toMillis(m.timestamp));
@@ -319,8 +331,9 @@ export default function Chat() {
               placeholder="Type a message…"
               className="flex-1"
             />
-            <Button type="submit" className="gap-1.5 rounded-full">
-              <Send className="h-4 w-4" /> Send
+            <Button type="submit" className="gap-1.5 rounded-full" disabled={sending || !text.trim()}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Send
             </Button>
           </form>
         </>

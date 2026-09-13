@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -96,10 +97,11 @@ export default function Inventory() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 
-  const [blacklistTarget, setBlacklistTarget] = useState(null); // tagId or null
+  const [blacklistTarget, setBlacklistTarget] = useState(null); // tagId, '__bulk__', or null
   const [flagReason, setFlagReason] = useState('');
   const [blacklistBusy, setBlacklistBusy] = useState(false);
   const [copiedTagId, setCopiedTagId] = useState('');
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   // Table only shows ROW_LIMIT rows at a time (KPI counts above stay
   // accurate regardless) — "Load more" pages the rest in via a startAfter
@@ -261,26 +263,45 @@ export default function Inventory() {
   }
 
   async function onConfirmBlacklist() {
-    if (!blacklistTarget) return;
+    if (!blacklistTarget || !flagReason.trim()) return;
     setBlacklistBusy(true);
     try {
-      // A tag can be blacklisted while `claimed`, not just `unclaimed` —
-      // remember which, so un-blacklisting restores the right state instead
-      // of always dropping back to `unclaimed` (which would wrongly make an
-      // already-owned tag look claimable again).
-      const priorStatus = rows.find((r) => r.tagId === blacklistTarget)?.status || 'unclaimed';
-      await updateDoc(doc(db, 'tags', blacklistTarget), {
-        status: 'blacklisted',
-        blacklistedFromStatus: priorStatus,
-        flagReason: flagReason.trim() || 'No reason given',
-        blacklistedBy: auth.currentUser?.uid || null,
-        blacklistedAt: serverTimestamp(),
-      });
+      const reason = flagReason.trim();
+      if (blacklistTarget === '__bulk__') {
+        // Same batched-write shape as onGenerate — one commit for every
+        // selected tag instead of a round trip per row.
+        const wb = writeBatch(db);
+        for (const tagId of selectedIds) {
+          const priorStatus = rows.find((r) => r.tagId === tagId)?.status || 'unclaimed';
+          wb.update(doc(db, 'tags', tagId), {
+            status: 'blacklisted',
+            blacklistedFromStatus: priorStatus,
+            flagReason: reason,
+            blacklistedBy: auth.currentUser?.uid || null,
+            blacklistedAt: serverTimestamp(),
+          });
+        }
+        await wb.commit();
+        setSelectedIds(new Set());
+      } else {
+        // A tag can be blacklisted while `claimed`, not just `unclaimed` —
+        // remember which, so un-blacklisting restores the right state instead
+        // of always dropping back to `unclaimed` (which would wrongly make an
+        // already-owned tag look claimable again).
+        const priorStatus = rows.find((r) => r.tagId === blacklistTarget)?.status || 'unclaimed';
+        await updateDoc(doc(db, 'tags', blacklistTarget), {
+          status: 'blacklisted',
+          blacklistedFromStatus: priorStatus,
+          flagReason: reason,
+          blacklistedBy: auth.currentUser?.uid || null,
+          blacklistedAt: serverTimestamp(),
+        });
+      }
       setBlacklistTarget(null);
       setFlagReason('');
       await loadCounts();
     } catch (err) {
-      setRowsError(err.message || 'Failed to blacklist tag.');
+      setRowsError(err.message || 'Failed to blacklist tag(s).');
     } finally {
       setBlacklistBusy(false);
     }
@@ -366,6 +387,22 @@ export default function Inventory() {
     };
   }, [search, rows]);
 
+  // Selection is scoped to whatever's currently filtered/loaded — switching
+  // filters or searching while rows are checked would otherwise leave stale
+  // (now-hidden) tag IDs selected with no way to see or clear them.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [statusFilter, search]);
+
+  function toggleSelected(tagId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+  }
+
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
     const local = rows.filter((t) => {
@@ -378,6 +415,18 @@ export default function Inventory() {
     if (local.length > 0 || !term) return local;
     return serverMatches.filter((t) => statusFilter === 'all' || t.status === statusFilter);
   }, [rows, statusFilter, search, serverMatches]);
+
+  // Only non-blacklisted rows are selectable — blacklisting an already-
+  // blacklisted tag is a no-op the bulk action shouldn't offer.
+  const selectableRows = useMemo(() => filteredRows.filter((t) => t.status !== 'blacklisted'), [filteredRows]);
+  const allSelectableChecked = selectableRows.length > 0 && selectableRows.every((t) => selectedIds.has(t.tagId));
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      if (allSelectableChecked) return new Set();
+      return new Set(selectableRows.map((t) => t.tagId));
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -518,6 +567,20 @@ export default function Inventory() {
                 >
                   Export this view
                 </Button>
+                {selectedIds.size > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-rose-600"
+                    onClick={() => {
+                      setBlacklistTarget('__bulk__');
+                      setFlagReason('');
+                    }}
+                  >
+                    Blacklist selected ({selectedIds.size})
+                  </Button>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {STATUS_TABS.map((s) => (
@@ -544,6 +607,14 @@ export default function Inventory() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                    <TableHead className="w-8">
+                      <Checkbox
+                        checked={allSelectableChecked}
+                        onCheckedChange={toggleSelectAll}
+                        disabled={selectableRows.length === 0}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead className="text-slate-500 dark:text-slate-400">Tag ID</TableHead>
                     <TableHead className="text-slate-500 dark:text-slate-400">Batch</TableHead>
                     <TableHead className="text-slate-500 dark:text-slate-400">Chip</TableHead>
@@ -556,7 +627,7 @@ export default function Inventory() {
                   {rowsLoading &&
                     [0, 1, 2, 3, 4].map((i) => (
                       <TableRow key={i} className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                        {[0, 1, 2, 3, 4, 5].map((c) => (
+                        {[0, 1, 2, 3, 4, 5, 6].map((c) => (
                           <TableCell key={c}>
                             <Skeleton className="h-4 w-full max-w-24" />
                           </TableCell>
@@ -565,7 +636,7 @@ export default function Inventory() {
                     ))}
                   {!rowsLoading && filteredRows.length === 0 && (
                     <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                      <TableCell colSpan={6} className="py-10 text-center text-slate-500 dark:text-slate-400">
+                      <TableCell colSpan={7} className="py-10 text-center text-slate-500 dark:text-slate-400">
                         No tags match this view. Generate a batch to provision tags.
                       </TableCell>
                     </TableRow>
@@ -574,6 +645,14 @@ export default function Inventory() {
                     const created = toDate(t.createdAt);
                     return (
                       <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(t.tagId)}
+                            onCheckedChange={() => toggleSelected(t.tagId)}
+                            disabled={t.status === 'blacklisted'}
+                            aria-label={`Select ${t.tagId}`}
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
                           {t.tagId.slice(0, 10)}…
                         </TableCell>
@@ -658,16 +737,18 @@ export default function Inventory() {
       <Dialog open={!!blacklistTarget} onOpenChange={(open) => !open && setBlacklistTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Blacklist tag</DialogTitle>
+            <DialogTitle>{blacklistTarget === '__bulk__' ? `Blacklist ${selectedIds.size} tags` : 'Blacklist tag'}</DialogTitle>
             <DialogDescription>
-              This marks the tag as blacklisted so it can no longer be claimed or resolved.
-              {blacklistTarget && (
+              {blacklistTarget === '__bulk__'
+                ? 'This marks every selected tag as blacklisted so none of them can be claimed or resolved.'
+                : 'This marks the tag as blacklisted so it can no longer be claimed or resolved.'}
+              {blacklistTarget && blacklistTarget !== '__bulk__' && (
                 <span className="mt-1 block font-mono text-xs text-slate-500 dark:text-slate-400">{blacklistTarget}</span>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label className="text-slate-600 dark:text-slate-300">Reason</Label>
+            <Label className="text-slate-600 dark:text-slate-300">Reason (required)</Label>
             <Input
               autoFocus
               placeholder="e.g. reported tampered / lost stock"
@@ -679,8 +760,8 @@ export default function Inventory() {
             <Button variant="outline" onClick={() => setBlacklistTarget(null)} disabled={blacklistBusy}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={onConfirmBlacklist} disabled={blacklistBusy}>
-              {blacklistBusy ? 'Blacklisting…' : 'Blacklist tag'}
+            <Button variant="destructive" onClick={onConfirmBlacklist} disabled={blacklistBusy || !flagReason.trim()}>
+              {blacklistBusy ? 'Blacklisting…' : blacklistTarget === '__bulk__' ? `Blacklist ${selectedIds.size} tags` : 'Blacklist tag'}
             </Button>
           </DialogFooter>
         </DialogContent>

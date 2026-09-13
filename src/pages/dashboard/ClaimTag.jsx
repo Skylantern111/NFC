@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { doc, runTransaction } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
@@ -135,6 +137,7 @@ export default function ClaimTag() {
         // matching claim-path allowance).
         tx.update(tagRef, { status: 'claimed' });
       });
+      toast.success('Tag claimed!');
       nav('/dashboard/items');
     } catch (err) {
       setError(err.message || 'Could not claim this tag.');
@@ -167,7 +170,14 @@ export default function ClaimTag() {
             </div>
 
             {nfcSupported ? (
-              <Button type="button" variant="outline" onClick={scanNfc} disabled={nfcStatus === 'scanning'}>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={scanNfc}
+                disabled={nfcStatus === 'scanning'}
+              >
+                {nfcStatus === 'scanning' && <Loader2 className="h-4 w-4 animate-spin" />}
                 {nfcStatus === 'scanning' ? 'Hold your tag to the back of your device…' : 'Scan NFC tag'}
               </Button>
             ) : (
@@ -176,18 +186,20 @@ export default function ClaimTag() {
                 from the tag directly.
               </p>
             )}
-            {nfcStatus === 'error' && (
-              <p className="text-xs text-red-500">
-                No tag detected. Make sure NFC is on and try holding the tag against the back of
-                your phone again, or enter the tag id manually.
-              </p>
-            )}
-            {nfcStatus === 'unreadable' && (
-              <p className="text-xs text-red-500">
-                Read a tag, but couldn't find a tag id on it — it may not be a TagBack tag. Enter
-                the tag id manually instead.
-              </p>
-            )}
+            <div aria-live="polite">
+              {nfcStatus === 'error' && (
+                <p className="text-xs text-red-500">
+                  No tag detected. Make sure NFC is on and try holding the tag against the back of
+                  your phone again, or enter the tag id manually.
+                </p>
+              )}
+              {nfcStatus === 'unreadable' && (
+                <p className="text-xs text-red-500">
+                  Read a tag, but couldn't find a tag id on it — it may not be a TagBack tag. Enter
+                  the tag id manually instead.
+                </p>
+              )}
+            </div>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="itemName">Item name</Label>
@@ -220,7 +232,11 @@ export default function ClaimTag() {
               </Select>
             </div>
 
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && (
+              <p className="text-sm text-red-500" aria-live="polite">
+                {error}
+              </p>
+            )}
 
             <Button type="submit" disabled={busy}>
               {busy ? 'Claiming…' : 'Claim tag'}

@@ -57,3 +57,47 @@ const AUTH_ERROR_MESSAGES = {
 export function friendlyAuthError(err) {
   return AUTH_ERROR_MESSAGES[err?.code] || err?.message || 'Something went wrong. Try again.';
 }
+
+// Same idea as friendlyAuthError but for Firestore's error codes, which
+// otherwise leak raw strings like "Missing or insufficient permissions" or
+// "FirebaseError: [code=unavailable]: ..." straight into toasts. Unlike auth
+// errors, no built-in message is usable as a fallback here — Firestore's
+// default messages are meant for developers, not end users — so this always
+// falls back to a generic, human sentence instead of err.message.
+const FIRESTORE_ERROR_MESSAGES = {
+  'permission-denied': "You don't have permission to do that.",
+  unavailable: 'Network error — check your connection and try again.',
+  'deadline-exceeded': 'That took too long. Check your connection and try again.',
+  'not-found': "That couldn't be found — it may have been removed.",
+  'resource-exhausted': 'Too many requests right now. Wait a moment and try again.',
+  cancelled: 'That was cancelled. Try again.',
+};
+
+export function friendlyFirestoreError(err, fallback = 'Something went wrong. Try again.') {
+  return FIRESTORE_ERROR_MESSAGES[err?.code] || fallback;
+}
+
+// Live password-requirements checklist (Register.jsx). Each key maps to one
+// visible checklist row; order here is the order they're rendered in.
+export const PASSWORD_REQUIREMENTS = [
+  { key: 'length', label: 'At least 8 characters', test: (pw) => pw.length >= 8 },
+  { key: 'upper', label: 'One uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+  { key: 'lower', label: 'One lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+  { key: 'number', label: 'One number', test: (pw) => /[0-9]/.test(pw) },
+  { key: 'special', label: 'One special character', test: (pw) => /[^A-Za-z0-9]/.test(pw) },
+];
+
+export function passwordRequirementResults(password) {
+  return PASSWORD_REQUIREMENTS.map((r) => ({ ...r, met: r.test(password || '') }));
+}
+
+// Strength is just "how many requirements are met" — simple and matches what
+// the checklist above already shows, rather than a separate scoring scheme
+// the user would have to reconcile against the checklist.
+export function passwordStrength(password) {
+  if (!password) return null;
+  const metCount = PASSWORD_REQUIREMENTS.filter((r) => r.test(password)).length;
+  if (metCount <= 2) return 'weak';
+  if (metCount <= 4) return 'medium';
+  return 'strong';
+}

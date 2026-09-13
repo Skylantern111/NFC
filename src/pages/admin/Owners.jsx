@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -37,6 +38,7 @@ export default function Owners() {
   const [error, setError] = useState('');
   const [confirmDisable, setConfirmDisable] = useState(false);
   const [disableBusy, setDisableBusy] = useState(false);
+  const [disableReason, setDisableReason] = useState('');
 
   async function onSearch(e) {
     e.preventDefault();
@@ -74,9 +76,10 @@ export default function Owners() {
     setDisableBusy(true);
     try {
       const next = !owner.disabled;
-      await setOwnerDisabled(owner.uid, next);
-      setOwner((o) => ({ ...o, disabled: next }));
+      await setOwnerDisabled(owner.uid, next, disableReason.trim());
+      setOwner((o) => ({ ...o, disabled: next, disabledReason: next ? disableReason.trim() : null }));
       setConfirmDisable(false);
+      setDisableReason('');
       toast.success(next ? 'Account disabled.' : 'Account re-enabled.');
     } catch (err) {
       toast.error('Could not update account: ' + err.message);
@@ -155,7 +158,12 @@ export default function Owners() {
 
           <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
             <CardHeader>
-              <CardTitle>Tags owned</CardTitle>
+              <CardTitle>
+                Tags owned
+                {ownerTags.length > 0 && (
+                  <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">({ownerTags.length})</span>
+                )}
+              </CardTitle>
               <CardDescription className="text-slate-500 dark:text-slate-400">
                 Every tag registered to this account.
               </CardDescription>
@@ -225,7 +233,13 @@ export default function Owners() {
         <p className="text-sm text-slate-500 dark:text-slate-400">No result.</p>
       )}
 
-      <Dialog open={confirmDisable} onOpenChange={setConfirmDisable}>
+      <Dialog
+        open={confirmDisable}
+        onOpenChange={(open) => {
+          setConfirmDisable(open);
+          if (!open) setDisableReason('');
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{owner?.disabled ? 'Re-enable this account?' : 'Disable this account?'}</DialogTitle>
@@ -242,8 +256,19 @@ export default function Owners() {
               )}
             </DialogDescription>
           </DialogHeader>
+          {!owner?.disabled && (
+            <div className="space-y-2">
+              <Label className="text-slate-600 dark:text-slate-300">Reason</Label>
+              <Input
+                autoFocus
+                placeholder="e.g. reported for scam messages"
+                value={disableReason}
+                onChange={(e) => setDisableReason(e.target.value)}
+              />
+            </div>
+          )}
           <DialogFooter>
-            <Button type="button" variant="outline" autoFocus onClick={() => setConfirmDisable(false)}>
+            <Button type="button" variant="outline" onClick={() => setConfirmDisable(false)}>
               Cancel
             </Button>
             <Button

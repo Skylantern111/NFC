@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, MessageSquare, PackageSearch, ShieldCheck } from 'lucide-react';
+import { Bell, Loader2, MessageSquare, PackageSearch, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
@@ -50,8 +50,8 @@ export default function Notifications() {
     setMarkingAll(true);
     try {
       await markAllNotificationsRead(notifications.filter((n) => !n.read).map((n) => n.id));
-    } catch {
-      // Best-effort — the feed will just still show unread items to retry.
+    } catch (err) {
+      toast.error('Could not mark all as read: ' + err.message);
     } finally {
       setMarkingAll(false);
     }
@@ -80,12 +80,14 @@ export default function Notifications() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {unreadCount > 0 && (
-            <Button variant="outline" size="sm" onClick={onMarkAllRead} disabled={markingAll}>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={onMarkAllRead} disabled={markingAll}>
+              {markingAll && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {markingAll ? 'Marking…' : 'Mark all as read'}
             </Button>
           )}
           {readCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={onClearRead} disabled={clearing}>
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={onClearRead} disabled={clearing}>
+              {clearing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {clearing ? 'Clearing…' : 'Clear read'}
             </Button>
           )}
@@ -146,7 +148,11 @@ export default function Notifications() {
                     <span className="text-xs text-slate-400 dark:text-slate-500">
                       {relativeTimeFromMs(toMillis(n.createdAt))}
                     </span>
-                    {!n.read && <span className="h-2 w-2 rounded-full bg-purple-400" />}
+                    {!n.read && (
+                      <span className="flex h-2 w-2 items-center justify-center rounded-full bg-purple-400">
+                        <span className="sr-only">Unread</span>
+                      </span>
+                    )}
                   </div>
                 </Link>
               );

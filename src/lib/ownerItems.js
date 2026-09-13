@@ -510,3 +510,56 @@ export async function sendChatMessage(chatId, sender, text, finderSessionToken) 
   });
   await touchChatActivity(chatId, { sender, text });
 }
+
+// Dashboard.jsx's stale-lost nudge dismissal (§4.5 / IMPROVEMENT_PLAN.md
+// Round 2 #1 — previously localStorage-only, so it didn't sync across an
+// owner's devices). Stored as a map on the owner's own `users/{uid}` doc —
+// private, and already freely self-writable (firestore.rules only blocks
+// `disabled`/`isAdmin` on self-update), so this needed no rules change.
+// Keyed by tagId -> the `lostSince` millis it was dismissed *for*, not a
+// bare boolean: if the item goes lost again later with a new `lostSince`,
+// the old dismissal shouldn't carry over and hide a fresh nudge.
+//
+// `dismissMock` mirrors `useModerationQueue`'s `toggleMockBan` — preview
+// mode has no `users/{uid}` doc to write to, so it's a local, localStorage-
+// backed stand-in kept interactive for the same reason.
+export function useStaleNudgeDismissals(user) {
+  const [liveDismissed, setLiveDismissed] = useState({});
+  const [mockDismissed, setMockDismissed] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('staleNudgeDismissed') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    if (!firebaseReady || !user) return;
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+      setLiveDismissed(snap.exists() ? snap.data().staleNudgeDismissed || {} : {});
+    });
+    return unsub;
+  }, [user]);
+
+  function dismissMock(tagId, lostSinceMillis) {
+    setMockDismissed((prev) => {
+      const next = { ...prev, [tagId]: lostSinceMillis };
+      try {
+        localStorage.setItem('staleNudgeDismissed', JSON.stringify(next));
+      } catch {
+        // Storage blocked (private mode) — dismissal just won't persist across reload.
+      }
+      return next;
+    });
+  }
+
+  if (!firebaseReady) return { dismissed: mockDismissed, dismissMock };
+  return { dismissed: liveDismissed, dismissMock: () => {} };
+}
+
+export async function dismissStaleNudge(user, tagId, lostSinceMillis) {
+  if (!firebaseReady) return;
+  await updateDoc(doc(db, 'users', user.uid), {
+    [`staleNudgeDismissed.${tagId}`]: lostSinceMillis,
+  });
+}

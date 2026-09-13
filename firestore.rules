@@ -40,8 +40,21 @@ service cloud.firestore {
         && !isDisabledOwner(request.auth.uid);
     }
 
+    // Two ways to be admin: the real custom claim (scripts/setAdmin.js,
+    // server-side only), or a self-serve `users/{uid}.isAdmin` flag set at
+    // signup via a passcode (Register.jsx) — see IMPROVEMENT_PLAN.md's admin
+    // round for why this second path exists and its known weaknesses (the
+    // passcode ships in the client bundle; this is a deliberate, documented
+    // tradeoff for a low-stakes project, not a secure grant mechanism).
+    // `isAdmin` can only ever be set at document *creation* (see
+    // users/{uid}'s `allow update` below, which blocks changing it later),
+    // so this doesn't let an already-signed-up non-admin self-upgrade.
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && (
+        request.auth.token.admin == true
+        || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+      );
     }
 
     // A tag an admin has blacklisted (admin/Inventory.jsx) — blocks the
@@ -75,7 +88,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == uid;
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid == uid
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['disabled']));
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['disabled', 'isAdmin']));
       allow delete: if isSignedIn() && request.auth.uid == uid;
     }
 
@@ -132,7 +145,11 @@ service cloud.firestore {
     //      Owners lookup page (admin/Owners.jsx) to resolve tag -> owner and
     //      list an owner's other tags — never admin-writable. ----
     match /itemOwners/{tagId} {
-      allow read: if ownsTag(tagId) || isAdmin();
+      // Claim flow (dashboard/ClaimTag.jsx) reads this doc BEFORE the caller
+      // owns it, to check "already claimed?". Non-owner/non-admin read is
+      // only safe while the doc doesn't exist yet — no data to leak — and
+      // this clause self-revokes the instant a claim creates the doc.
+      allow read: if ownsTag(tagId) || isAdmin() || (isSignedIn() && resource == null);
       // Claim: create allowed only if the tag is currently unclaimed and the
       // caller assigns themselves as owner.
       allow create: if isSignedIn()

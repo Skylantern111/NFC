@@ -41,8 +41,20 @@ export function AuthProvider({ children }) {
 
   const logout = () => signOut(auth);
 
+  // Settings.jsx's "I've verified — refresh status" button. `user.reload()`
+  // mutates the Firebase User instance in place (emailVerified included) but
+  // keeps the same object reference, so a plain `setUser(auth.currentUser)`
+  // wouldn't re-render anything reading it. Cloning onto a new object with
+  // the same prototype gives React a changed reference while keeping every
+  // method (getIdTokenResult, etc.) callable via the prototype chain.
+  async function refreshUser() {
+    if (!auth.currentUser) return;
+    await auth.currentUser.reload();
+    setUser(Object.assign(Object.create(Object.getPrototypeOf(auth.currentUser)), auth.currentUser));
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout, firebaseReady }}>
+    <AuthContext.Provider value={{ user, loading, logout, firebaseReady, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
