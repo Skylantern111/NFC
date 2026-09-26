@@ -18,13 +18,13 @@ import { Card, CardContent } from '../components/ui/card';
 const HOW_IT_WORKS = [
   {
     icon: Nfc,
-    title: 'Tag your item',
-    detail: 'Generate an NFC ID and write its link to a physical tag, right from your browser.',
+    title: 'Get a registered tag',
+    detail: 'Every TagBack sticker is registered from its own physical hardware — never a made-up code — and comes with a unique TagBack ID.',
   },
   {
     icon: ShieldCheck,
     title: 'Claim & protect',
-    detail: 'Create an account and claim the tag so only you can manage that item.',
+    detail: 'Create an account and enter your TagBack ID (or tap to scan) so only you can manage that item.',
   },
   {
     icon: AlertTriangle,
