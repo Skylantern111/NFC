@@ -41,7 +41,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2, Nfc } from 'lucide-react';
+import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2, Nfc, RefreshCw } from 'lucide-react';
 
 const STATUS_TABS = [
   { value: 'all', label: 'All', icon: Boxes, tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300' },
@@ -570,10 +570,30 @@ export default function Inventory() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1.5">
+                        <div className="flex flex-wrap justify-end gap-1.5">
                           <Button variant="outline" size="sm" onClick={() => onCopyUrl(t.tagId)}>
                             {copiedTagId === t.tagId ? 'Copied' : 'Copy URL'}
                           </Button>
+                          {t.status !== 'blacklisted' && (t.writeStatus === 'write_failed' || t.writeStatus === 'not_written' || !t.writeStatus) && (
+                            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                              <Link to={`/admin/nfc-register?rewrite=${encodeURIComponent(t.tagId)}`}>
+                                <RefreshCw className="h-3.5 w-3.5" /> Retry write
+                              </Link>
+                            </Button>
+                          )}
+                          {t.status !== 'blacklisted' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              title="Sticker lost, damaged, or swapped — re-point this TagBack ID at a new physical tap"
+                              asChild
+                            >
+                              <Link to={`/admin/nfc-register?reregister=${encodeURIComponent(t.tagId)}`}>
+                                <Nfc className="h-3.5 w-3.5" /> Re-register
+                              </Link>
+                            </Button>
+                          )}
                           {t.status !== 'blacklisted' ? (
                             <Button
                               variant="outline"

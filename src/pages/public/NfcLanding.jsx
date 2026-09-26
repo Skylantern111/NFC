@@ -37,7 +37,7 @@ import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { captureLocation } from '../../lib/geolocation';
 import { getFinderToken } from '../../lib/finderSession';
-import { notifyOwner } from '../../lib/ownerItems';
+import { notifyOwner, recordTagScan } from '../../lib/ownerItems';
 import AmbientBackground from '../../components/AmbientBackground';
 import TopNav from '../../components/nav/TopNav';
 import { Card, CardContent } from '@/components/ui/card';
@@ -117,6 +117,8 @@ export default function NfcLanding() {
           setItem({ tagId, ...snap.data() });
           setTagProfile(profileSnap.exists() ? profileSnap.data() : null);
           setState('ready');
+          // Best-effort tap counter — never blocks or fails the page render.
+          recordTagScan(tagId);
         } else {
           setState('notfound');
         }

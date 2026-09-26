@@ -38,6 +38,19 @@ npm run dev
 Without Firebase keys the app runs in **placeholder mode**: auth is stubbed and
 public/finder pages render mock data, so every screen is previewable.
 
+### Tests
+
+```bash
+npm test
+```
+
+Runs `tests/firestore.rules.test.js` against a local Firestore emulator
+(`firebase emulators:exec --only firestore "vitest run"`) — never touches
+the real project. Covers the claim transaction, admin-only registration,
+tag release, `tagProfiles` validation, and the chat report-direction rules.
+Requires Java (the emulator's runtime) and the Firebase CLI, both already
+needed for `firebase deploy`.
+
 ## Routes
 
 Public: `/`, `/login`, `/register`, `/nfc/:tagId`, `/chat/:chatId`

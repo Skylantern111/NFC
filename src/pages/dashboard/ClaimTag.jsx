@@ -6,7 +6,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { CATEGORIES, CATEGORY_ICON } from '../../lib/categories';
-import { normalizeTagbackId, tagIdFromNdefMessage } from '../../lib/tags';
+import { normalizePhysicalUid, normalizeTagbackId, tagIdFromNdefMessage } from '../../lib/tags';
 import BackButton from '../../components/BackButton';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -33,6 +33,12 @@ export default function ClaimTag() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [nfcStatus, setNfcStatus] = useState('idle'); // idle | scanning | error | unreadable
+  // Optional cross-check (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §2.1): if this
+  // scan's tap also exposed a hardware serial, compare it against the
+  // registered physicalUid after claiming — catches a mislabeled/swapped
+  // sticker. Never blocks the claim; NDEF content stays the primary
+  // tap-to-claim mechanism per NFC_REARCHITECTURE_PLAN.md §4.4.
+  const [scannedUid, setScannedUid] = useState(null);
 
   const nfcSupported = typeof window !== 'undefined' && 'NDEFReader' in window;
 
@@ -49,6 +55,7 @@ export default function ClaimTag() {
       // IMPROVEMENT_PLAN.md Round 4 #5 / the Web NFC spec's own examples).
       reader.onreading = (event) => {
         const scanned = tagIdFromNdefMessage(event.message);
+        setScannedUid(normalizePhysicalUid(event.serialNumber));
         if (scanned) {
           setTagId(scanned);
           setNfcStatus('idle');
@@ -87,6 +94,7 @@ export default function ClaimTag() {
     }
 
     const normalizedTagId = normalizeTagbackId(tagId);
+    let registeredPhysicalUid = null;
 
     setBusy(true);
     try {
@@ -102,6 +110,7 @@ export default function ClaimTag() {
         if (tagSnap.data().status === 'blacklisted') {
           throw new Error('This tag has been blacklisted and cannot be claimed.');
         }
+        registeredPhysicalUid = tagSnap.data().physicalUid || null;
 
         const ownerSnap = await tx.get(ownerRef);
         if (ownerSnap.exists()) {
@@ -125,6 +134,11 @@ export default function ClaimTag() {
         // matching claim-path allowance).
         tx.update(tagRef, { status: 'claimed' });
       });
+      if (scannedUid && registeredPhysicalUid && scannedUid !== registeredPhysicalUid) {
+        toast.warning(
+          "This tag's hardware ID doesn't match what the admin registered — the sticker may have been swapped. Contact the admin if this seems wrong."
+        );
+      }
       toast.success('Tag claimed!');
       nav('/dashboard/items');
     } catch (err) {

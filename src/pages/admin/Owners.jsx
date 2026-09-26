@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, UserX, UserCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { findOwnerByTag, listOwnerTags, setOwnerDisabled } from '../../lib/adminOwners';
@@ -29,7 +30,8 @@ import {
 // firestore.rules#ownsTag folds it in, so a disabled owner loses every
 // owner-gated read/write immediately, everywhere in the app.
 export default function Owners() {
-  const [tagId, setTagId] = useState('');
+  const [searchParams] = useSearchParams();
+  const [tagId, setTagId] = useState(searchParams.get('tagId') || '');
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [owner, setOwner] = useState(null);
@@ -40,9 +42,8 @@ export default function Owners() {
   const [disableBusy, setDisableBusy] = useState(false);
   const [disableReason, setDisableReason] = useState('');
 
-  async function onSearch(e) {
-    e.preventDefault();
-    const term = normalizeTagbackId(tagId);
+  async function runSearch(rawTerm) {
+    const term = normalizeTagbackId(rawTerm);
     if (!term) return;
     setSearching(true);
     setSearched(true);
@@ -70,6 +71,21 @@ export default function Owners() {
       setTagsLoading(false);
     }
   }
+
+  function onSearch(e) {
+    e.preventDefault();
+    runSearch(tagId);
+  }
+
+  // Arriving from admin/Moderation.jsx's "Look up owner" link on a
+  // finder-filed report (?tagId=...) — MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md
+  // §5.1 — auto-runs the same lookup instead of making the admin re-type
+  // the tag id they just clicked through on.
+  useEffect(() => {
+    const fromLink = searchParams.get('tagId');
+    if (fromLink) runSearch(fromLink);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onConfirmDisable() {
     if (!owner) return;

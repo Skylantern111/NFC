@@ -9,6 +9,7 @@ import {
   markChatRead,
   markRecovered,
   reportChat,
+  reportChatAsFinder,
   sendChatMessage,
 } from '../../lib/ownerItems';
 import { getFinderToken } from '../../lib/finderSession';
@@ -180,18 +181,25 @@ export default function Chat() {
     }
   }
 
-  // Owner-only "Report / Block" affordance: flags this chat for the admin
-  // moderation queue. Doesn't block the finder by itself — that only happens
-  // once an admin actually bans the finder's session token — this just gets
-  // it in front of a human.
+  // Report/Block affordance, either direction: flags this chat for the admin
+  // moderation queue. Doesn't block the other party by itself — for an
+  // owner reporting a finder, that only happens once an admin actually bans
+  // the finder's session token; for a finder reporting an owner, admin
+  // review means looking up and possibly disabling the owner's account via
+  // admin/Owners.jsx (see admin/Moderation.jsx's blockedBy handling) — this
+  // just gets it in front of a human either way.
   async function confirmBlock(e) {
     e.preventDefault();
     setBlocking(true);
     try {
       if (firebaseReady) {
-        await reportChat(chatId, blockReason.trim());
+        if (role === 'finder') {
+          await reportChatAsFinder(chatId, blockReason.trim());
+        } else {
+          await reportChat(chatId, blockReason.trim());
+        }
       } else {
-        setMockChat((c) => ({ ...c, blocked: true, blockedReason: blockReason.trim() }));
+        setMockChat((c) => ({ ...c, blocked: true, blockedReason: blockReason.trim(), blockedBy: role }));
       }
       setBlockOpen(false);
       toast.success('Chat reported for review.');
@@ -224,9 +232,6 @@ export default function Chat() {
             <Eye className="h-3.5 w-3.5" /> Admin view
           </span>
         )}
-        {/* Known scope gap: only the owner can Report a chat here — a finder
-            has no reciprocal way to flag an abusive owner. Documented in
-            IMPROVEMENT_PLAN.md §10 as a product decision, not fixed here. */}
         {role === 'owner' && (
           <div className="flex shrink-0 items-center gap-2">
             {chat?.blocked ? (
@@ -256,6 +261,29 @@ export default function Chat() {
                 className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
               >
                 <CheckCircle2 className="h-4 w-4" /> Mark as recovered
+              </Button>
+            )}
+          </div>
+        )}
+        {/* Finder's reciprocal report path (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md
+            §5.1) — previously only the owner could report a chat. No
+            "Mark as recovered" here: that's an owner-only action on their
+            own item's Lost Mode. */}
+        {role === 'finder' && (
+          <div className="flex shrink-0 items-center gap-2">
+            {chat?.blocked ? (
+              <span className="flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-500/30 bg-red-50/80 dark:bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-300">
+                <Ban className="h-3.5 w-3.5" /> Reported
+              </span>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setBlockOpen(true)}
+                className="gap-1.5"
+              >
+                <Ban className="h-3.5 w-3.5" /> Report owner
               </Button>
             )}
           </div>
@@ -369,8 +397,9 @@ export default function Chat() {
           <DialogHeader>
             <DialogTitle>Report this conversation?</DialogTitle>
             <DialogDescription>
-              Flags this chat for admin review — it may lead to this finder's session being
-              blocked from filing further reports or messages. The chat stays open for now.
+              {role === 'finder'
+                ? "Flags this chat for admin review of the item's owner. The chat stays open for now."
+                : "Flags this chat for admin review — it may lead to this finder's session being blocked from filing further reports or messages. The chat stays open for now."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={confirmBlock} className="flex flex-col gap-4">

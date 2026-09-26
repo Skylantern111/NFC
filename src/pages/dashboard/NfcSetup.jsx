@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2, ExternalLink, ShieldCheck, TriangleAlert } from 'lucide-react';
+import {
+  ExternalLink,
+  Facebook,
+  Globe,
+  Instagram,
+  Linkedin,
+  Loader2,
+  ShieldCheck,
+  TriangleAlert,
+  Youtube,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { firebaseReady, db } from '../../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
@@ -16,12 +26,12 @@ import { Switch } from '../../components/ui/switch';
 const glass = 'bg-white/70 dark:bg-white/5 backdrop-blur-xl rounded-3xl';
 
 const LINK_FIELDS = [
-  { key: 'website', label: 'Website' },
-  { key: 'instagram', label: 'Instagram' },
-  { key: 'facebook', label: 'Facebook' },
-  { key: 'tiktok', label: 'TikTok' },
-  { key: 'linkedin', label: 'LinkedIn' },
-  { key: 'youtube', label: 'YouTube' },
+  { key: 'website', label: 'Website', icon: Globe },
+  { key: 'instagram', label: 'Instagram', icon: Instagram },
+  { key: 'facebook', label: 'Facebook', icon: Facebook },
+  { key: 'tiktok', label: 'TikTok', icon: Globe },
+  { key: 'linkedin', label: 'LinkedIn', icon: Linkedin },
+  { key: 'youtube', label: 'YouTube', icon: Youtube },
 ];
 
 const EMPTY_PROFILE = {
@@ -233,7 +243,7 @@ export default function NfcSetup() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {LINK_FIELDS.map(({ key, label }) => (
+              {LINK_FIELDS.map(({ key, label, icon: Icon }) => (
                 <div key={key} className="flex flex-col gap-1.5">
                   <Label htmlFor={key}>{label}</Label>
                   <Input
@@ -246,6 +256,28 @@ export default function NfcSetup() {
                 </div>
               ))}
             </div>
+
+            {/* Live preview, from current form state — matches how these
+                pills render on public/NfcLanding.jsx, so an owner sees the
+                effect of a link before saving instead of save-then-check
+                (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §3.1). */}
+            {LINK_FIELDS.some(({ key }) => isHttpsUrl(profile[key]?.trim() || '')) && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Preview — what a finder sees on your tag's page
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {LINK_FIELDS.filter(({ key }) => isHttpsUrl(profile[key]?.trim() || '')).map(({ key, label, icon: Icon }) => (
+                    <span
+                      key={key}
+                      className="flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-neu-flat-sm"
+                    >
+                      <Icon className="h-3.5 w-3.5" /> {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-2 rounded-xl bg-base px-3.5 py-2.5 text-xs text-slate-600 dark:text-slate-300 shadow-neu-pressed-sm">
               <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />

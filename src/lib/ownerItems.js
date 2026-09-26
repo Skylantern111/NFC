@@ -6,12 +6,14 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -434,7 +436,18 @@ export async function markRecovered(tagId, chatId) {
 // Owner flags a chat for the admin moderation queue (see admin/Moderation.jsx).
 export async function reportChat(chatId, reason) {
   if (!firebaseReady) return;
-  await updateDoc(doc(db, 'chats', chatId), { blocked: true, blockedReason: reason || null });
+  await updateDoc(doc(db, 'chats', chatId), { blocked: true, blockedReason: reason || null, blockedBy: 'owner' });
+}
+
+// Finder's reciprocal report path (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §5.1)
+// — previously only an owner could report a chat. blockedBy: 'finder' lets
+// admin/Moderation.jsx tell the two directions apart: banning a finder's
+// session token is the wrong remedy for a finder-filed report (that bans
+// the person who complained), so that row needs different admin handling.
+// See firestore.rules chats#update's dedicated finder-report clause.
+export async function reportChatAsFinder(chatId, reason) {
+  if (!firebaseReady) return;
+  await updateDoc(doc(db, 'chats', chatId), { blocked: true, blockedReason: reason || null, blockedBy: 'finder' });
 }
 
 // One-time public-safe item read by tag id — same shape/rule as
@@ -457,6 +470,51 @@ export async function getTagProfile(tagId) {
 export async function saveTagProfile(tagId, profile) {
   if (!firebaseReady) return;
   await setDoc(doc(db, 'tagProfiles', tagId), profile, { merge: true });
+}
+
+// Owner-initiated release (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §3.2) — the
+// inverse of dashboard/ClaimTag.jsx's claim transaction. Deletes the
+// owner's itemOwners/items/tagProfiles docs for this tag and flips
+// tags/{tagId}.status back to 'registered' so the tag can be re-claimed
+// (by this owner again, or handed to someone else) or re-provisioned by an
+// admin. See firestore.rules tags#update's release clause for the
+// same-transaction ownership check this mirrors.
+export async function releaseTag(tagId) {
+  if (!firebaseReady) return;
+  await runTransaction(db, async (tx) => {
+    const tagRef = doc(db, 'tags', tagId);
+    const ownerRef = doc(db, 'itemOwners', tagId);
+    const itemRef = doc(db, 'items', tagId);
+    const profileRef = doc(db, 'tagProfiles', tagId);
+    tx.delete(ownerRef);
+    tx.delete(itemRef);
+    tx.delete(profileRef);
+    tx.update(tagRef, { status: 'registered' });
+  });
+}
+
+// Anonymous tap counter (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §4.1) — the
+// firestore.rules support for tags/{tagId}/scans already existed
+// (public-create, owner-read, immutable) but nothing wrote to it. Recorded
+// best-effort, non-blocking: a finder's public page loading successfully
+// shouldn't ever fail or stall because this write failed.
+export async function recordTagScan(tagId) {
+  if (!firebaseReady || !tagId) return;
+  try {
+    await addDoc(collection(db, 'tags', tagId, 'scans'), { timestamp: serverTimestamp() });
+  } catch {
+    // Best-effort — a finder's page load must never depend on this succeeding.
+  }
+}
+
+export async function getTagScanCount(tagId) {
+  if (!firebaseReady || !tagId) return 0;
+  try {
+    const snap = await getCountFromServer(collection(db, 'tags', tagId, 'scans'));
+    return snap.data().count;
+  } catch {
+    return 0;
+  }
 }
 
 // Live single chat doc, for Chat.jsx (owner or finder view).

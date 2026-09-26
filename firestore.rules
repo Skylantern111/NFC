@@ -145,6 +145,22 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/itemOwners/$(tagId))
         && getAfter(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid;
 
+      // Release path: the mirror image of the claim clause above — an owner
+      // may flip status claimed -> registered for a tag they currently own,
+      // only alongside DELETING itemOwners/{tagId} in the SAME transaction
+      // (see lib/ownerItems.js#releaseTag / MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md
+      // §3.2). get() (not ownsTag()) checks ownership from BEFORE the
+      // transaction, since ownsTag() would already see the sibling delete;
+      // existsAfter() confirms that delete actually happened in this write.
+      allow update: if isSignedIn()
+        && !isDisabledOwner(request.auth.uid)
+        && resource.data.status == 'claimed'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'registered'
+        && exists(/databases/$(database)/documents/itemOwners/$(tagId))
+        && get(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid
+        && !existsAfter(/databases/$(database)/documents/itemOwners/$(tagId));
+
       // ---- scan log: anonymous tap counter, no finder identity captured.
       //      Public-create (any tap), owner-read only, immutable. ----
       match /scans/{scanId} {
@@ -236,13 +252,27 @@ service cloud.firestore {
         && !isBlockedToken(request.resource.data.finderSessionToken)
         && !isBlacklistedTag(request.resource.data.tagId);
       // Owner may update anything on the chat (block, etc). A finder sending
-      // a message only needs to touch the lightweight activity markers. An
-      // admin may only stamp their review of an already-reported chat (see
-      // admin/Moderation.jsx's "mark reviewed") — nothing else.
+      // a message only needs to touch the lightweight activity markers, or —
+      // MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §5.1 — report the owner the same
+      // way an owner can report a finder. An admin may only stamp their
+      // review of an already-reported chat (see admin/Moderation.jsx's "mark
+      // reviewed") — nothing else.
+      //
+      // The finder branches below inherit the same known weakness already
+      // documented for isChatParty()/finder identity elsewhere (Moderation.jsx,
+      // lib/finderSession.js): finderSessionToken is stored on this
+      // publicly-readable chat doc, so it isn't a real secret against anyone
+      // who already has the chatId. The backstop is admin review afterward,
+      // not this check — consistent with this project's existing, documented
+      // risk tolerance for the finder-identity model.
       allow update: if ownsTag(resource.data.tagId)
         || (isChatParty()
             && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['lastMessageAt', 'lastMessageText', 'unreadFor']))
+        || (isChatParty() && !ownsTag(resource.data.tagId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['blocked', 'blockedReason', 'blockedBy'])
+            && request.resource.data.blockedBy == 'finder')
         || (isAdmin()
             && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['reviewedAt', 'reviewedBy']));

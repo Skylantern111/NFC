@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Ban, ShieldCheck, CheckCheck, Eye, Flag, ShieldBan } from 'lucide-react';
+import { Ban, ShieldCheck, CheckCheck, Eye, Flag, ShieldBan, UserSearch } from 'lucide-react';
 import { toast } from 'sonner';
 import { useModerationQueue, banToken, unbanToken, markChatReviewed } from '../../lib/moderation';
 import { notifyOwner } from '../../lib/ownerItems';
@@ -272,6 +272,20 @@ export default function Moderation() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
+                        {/* Direction matters for which admin action is the
+                            right remedy — banning a finder's token is the
+                            WRONG fix for a finder-filed report (that bans
+                            the person who complained). blockedBy is absent
+                            on chats reported before this field existed;
+                            those default to 'owner' (the only direction
+                            possible at the time). */}
+                        {chat.blockedBy === 'finder' ? (
+                          <Badge variant="outline" className="border-sky-200 dark:border-sky-500/30 bg-sky-50/80 dark:bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                            Reported by finder
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Reported by owner</Badge>
+                        )}
                         {banned ? (
                           <Badge variant="destructive">Banned</Badge>
                         ) : (
@@ -304,16 +318,27 @@ export default function Moderation() {
                             <CheckCheck className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={banned ? 'outline' : 'destructive'}
-                          className="gap-1.5"
-                          onClick={() => onToggleBan(chat)}
-                        >
-                          <Ban className="h-3.5 w-3.5" />
-                          {banned ? 'Unban' : 'Ban token'}
-                        </Button>
+                        {chat.blockedBy === 'finder' ? (
+                          // Banning this chat's finder token would punish the
+                          // reporter, not the reported owner — the remedy is
+                          // reviewing/disabling the OWNER's account instead.
+                          <Button type="button" size="sm" variant="outline" className="gap-1.5" asChild>
+                            <Link to={`/admin/owners?tagId=${encodeURIComponent(chat.tagId)}`}>
+                              <UserSearch className="h-3.5 w-3.5" /> Look up owner
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={banned ? 'outline' : 'destructive'}
+                            className="gap-1.5"
+                            onClick={() => onToggleBan(chat)}
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                            {banned ? 'Unban' : 'Ban token'}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

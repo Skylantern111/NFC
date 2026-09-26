@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2, PackageSearch, SearchX } from 'lucide-react';
+import { Eye, Loader2, PackageSearch, SearchX, Unlink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { firebaseReady } from '../../firebase/config';
 import {
@@ -9,6 +9,8 @@ import {
   useOwnerTagIds,
   useOwnerOpenReports,
   toggleLostMode,
+  releaseTag,
+  getTagScanCount,
 } from '../../lib/ownerItems';
 import { CATEGORY_ICON } from '../../lib/categories';
 import { friendlyFirestoreError } from '../../lib/utils';
@@ -51,8 +53,43 @@ export default function Items() {
   const [armDialog, setArmDialog] = useState(null);
   // { tagId, name } while the "turn off lost mode" confirm dialog is open, else null.
   const [disarmDialog, setDisarmDialog] = useState(null);
+  // { tagId, name } while the "release tag" confirm dialog is open, else null.
+  const [releaseDialog, setReleaseDialog] = useState(null);
   const [saving, setSaving] = useState(false);
   const [disarming, setDisarming] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+
+  // Best-effort tap counts (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §4.1) — one
+  // read per visible item, small owner-scale list, not live/real-time.
+  const [scanCounts, setScanCounts] = useState({});
+  useEffect(() => {
+    if (!firebaseReady) return;
+    let live = true;
+    visibleItems.forEach((it) => {
+      if (scanCounts[it.tagId] !== undefined) return;
+      getTagScanCount(it.tagId).then((count) => {
+        if (live) setScanCounts((prev) => ({ ...prev, [it.tagId]: count }));
+      });
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleItems.map((it) => it.tagId).join(',')]);
+
+  async function confirmRelease() {
+    if (!releaseDialog) return;
+    setReleasing(true);
+    try {
+      await releaseTag(releaseDialog.tagId);
+      setReleaseDialog(null);
+      toast.success('Tag released — it can be re-claimed or re-provisioned now.');
+    } catch (err) {
+      toast.error(friendlyFirestoreError(err, 'Could not release this tag. Try again.'));
+    } finally {
+      setReleasing(false);
+    }
+  }
 
   function onToggle(item, checked) {
     if (checked) {
@@ -196,13 +233,29 @@ export default function Items() {
                   {it.lostMessage}
                 </p>
               )}
-              <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">Tag: {it.tagId}</p>
-              <Link
-                to={`/dashboard/nfc-setup?tagId=${encodeURIComponent(it.tagId)}`}
-                className="mt-1 inline-block text-xs font-semibold text-purple-600 hover:text-pink-600"
-              >
-                NFC profile
-              </Link>
+              <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                Tag: {it.tagId}
+                {scanCounts[it.tagId] > 0 && (
+                  <span className="inline-flex items-center gap-1" title="Times this tag's public page has been opened">
+                    <Eye className="h-3 w-3" /> {scanCounts[it.tagId]}
+                  </span>
+                )}
+              </p>
+              <div className="mt-1 flex items-center gap-3">
+                <Link
+                  to={`/dashboard/nfc-setup?tagId=${encodeURIComponent(it.tagId)}`}
+                  className="text-xs font-semibold text-purple-600 hover:text-pink-600"
+                >
+                  NFC profile
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setReleaseDialog({ tagId: it.tagId, name: it.itemName })}
+                  className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400"
+                >
+                  <Unlink className="h-3 w-3" /> Release tag
+                </button>
+              </div>
             </div>
             <label className="flex shrink-0 items-center gap-2">
               <span className="text-xs text-slate-500 dark:text-slate-400">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>
@@ -271,6 +324,29 @@ export default function Items() {
             <Button type="button" onClick={confirmDisarm} disabled={disarming} className="gap-1.5">
               {disarming && <Loader2 className="h-4 w-4 animate-spin" />}
               {disarming ? 'Saving…' : 'Turn off Lost Mode'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!releaseDialog} onOpenChange={(open) => !open && setReleaseDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Release "{releaseDialog?.name}"?</DialogTitle>
+            <DialogDescription>
+              This unlinks the tag from your account — your item name, profile links, and lost-mode
+              message for it are deleted. The physical sticker itself is unaffected and can be
+              re-claimed (by you or someone else) or re-provisioned by an admin. This can't be
+              undone from here.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" autoFocus onClick={() => setReleaseDialog(null)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmRelease} disabled={releasing} className="gap-1.5">
+              {releasing && <Loader2 className="h-4 w-4 animate-spin" />}
+              {releasing ? 'Releasing…' : 'Release tag'}
             </Button>
           </DialogFooter>
         </DialogContent>
