@@ -36,18 +36,26 @@ import {
 
 const CHIP_TYPES = ['NTAG213', 'NTAG215', 'NTAG216'];
 
-// What the admin can choose to write. TagBack Lost & Found is the primary/
-// core function (NFC_REARCHITECTURE_PLAN.md §5) — everything else writes an
-// admin-supplied URL instead of the tap URL.
+// What the admin can choose to write. Only one NDEF URI record fits on the
+// tag, so this is an either/or choice, not additive:
+//   - 'lostfound' writes the TagBack tap URL — the finder lands on the
+//     TagBack public page (report/chat/social-links-from-tagProfiles all
+//     live there). This is the only option that provisions a TagBack asset.
+//   - every other option writes the admin-typed URL directly and REPLACES
+//     the TagBack URL — the sticker no longer opens TagBack at all, it
+//     opens that link straight from the phone's OS-level NFC handling.
+//     These exist for provisioning a non-TagBack sticker (e.g. a plain
+//     company-page tag), NOT for adding a social link to a TagBack tag —
+//     that's what tagProfiles/{tagId} (owner's NFC profile page) is for.
 const WRITE_OPTIONS = [
-  { value: 'lostfound', label: 'TagBack Lost & Found (recommended)' },
-  { value: 'website', label: 'Website URL' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'facebook', label: 'Facebook' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'linkedin', label: 'LinkedIn' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'custom', label: 'Custom URL' },
+  { value: 'lostfound', label: 'TagBack Lost & Found (recommended)', bypasses: false },
+  { value: 'website', label: 'Website URL — bypasses TagBack', bypasses: true },
+  { value: 'instagram', label: 'Instagram — bypasses TagBack', bypasses: true },
+  { value: 'facebook', label: 'Facebook — bypasses TagBack', bypasses: true },
+  { value: 'tiktok', label: 'TikTok — bypasses TagBack', bypasses: true },
+  { value: 'linkedin', label: 'LinkedIn — bypasses TagBack', bypasses: true },
+  { value: 'youtube', label: 'YouTube — bypasses TagBack', bypasses: true },
+  { value: 'custom', label: 'Custom URL — bypasses TagBack', bypasses: true },
 ];
 
 const nfcSupported = typeof window !== 'undefined' && 'NDEFReader' in window;
@@ -369,6 +377,11 @@ export default function NfcRegister() {
 
               <div className="space-y-2">
                 <Label>What do you want to write to this tag?</Label>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Only one link fits on the tag. TagBack Lost &amp; Found opens the TagBack page
+                  (report/chat and the owner's social links live there). Every other option
+                  replaces that with a plain link and the sticker stops opening TagBack.
+                </p>
                 <RadioGroup value={writeOption} onValueChange={setWriteOption} className="gap-2">
                   {WRITE_OPTIONS.map((o) => (
                     <label key={o.value} className="flex items-center gap-2 rounded-xl bg-base p-2.5 text-sm shadow-neu-flat-sm">
@@ -377,6 +390,14 @@ export default function NfcRegister() {
                   ))}
                 </RadioGroup>
               </div>
+
+              {WRITE_OPTIONS.find((o) => o.value === writeOption)?.bypasses && (
+                <p className="flex items-start gap-1.5 rounded-xl bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3.5 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0 translate-y-0.5" />
+                  This tag will no longer open the TagBack page — Lost &amp; Found, found-item
+                  reports, and anonymous chat won't be reachable from this sticker anymore.
+                </p>
+              )}
 
               {writeOption === 'lostfound' ? (
                 <div className="rounded-xl bg-base p-3 font-mono text-xs text-slate-600 dark:text-slate-300 shadow-neu-pressed-sm">
