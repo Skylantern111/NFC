@@ -199,11 +199,11 @@ export default function Owners() {
                     {ownerTags.map((t) => (
                       <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60">
                         <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
-                          {t.tagId.slice(0, 10)}…
+                          {t.tagId}
                         </TableCell>
                         <TableCell className="text-slate-600 dark:text-slate-300">{t.itemName || '—'}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.unclaimed}>
+                          <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.registered}>
                             {t.status || 'unknown'}
                           </Badge>
                         </TableCell>

@@ -8,15 +8,16 @@ import {
   onSnapshot,
   orderBy,
   query,
-  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
-  writeBatch,
+  startAfter,
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase/config';
-import { generateBatch, batchToCsv, tagUrl, TAG_STATUS_BADGE } from '../../lib/tags';
+import { inventoryToCsv, tagUrl, TAG_STATUS_BADGE } from '../../lib/tags';
+import { findOwnerByTag } from '../../lib/adminOwners';
 import { relativeTimeFromMs, toMillis } from '../../lib/utils';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -24,8 +25,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Table,
   TableHeader,
@@ -42,44 +41,38 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { startAfter } from 'firebase/firestore';
-import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2 } from 'lucide-react';
-
-const BATCH_SIZES = [50, 100, 250, 500];
-const CHIP_TYPES = [
-  { value: 'NTAG213', label: 'NTAG213', detail: '144 user bytes' },
-  { value: 'NTAG215', label: 'NTAG215', detail: '504 user bytes' },
-  { value: 'NTAG216', label: 'NTAG216', detail: '888 user bytes' },
-];
+import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2, Nfc } from 'lucide-react';
 
 const STATUS_TABS = [
   { value: 'all', label: 'All', icon: Boxes, tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300' },
-  { value: 'unclaimed', label: 'Unclaimed', icon: CircleDashed, tint: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
+  { value: 'registered', label: 'Registered', icon: CircleDashed, tint: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
   { value: 'claimed', label: 'Claimed', icon: CheckCircle2, tint: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
   { value: 'blacklisted', label: 'Blacklisted', icon: ShieldAlert, tint: 'bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300' },
 ];
+
+const WRITE_STATUS_LABEL = {
+  not_written: 'Not written',
+  writing: 'Writing…',
+  written: 'Written',
+  write_failed: 'Write failed',
+};
 
 const ROW_LIMIT = 100;
 
 function toDate(createdAt) {
   // Firestore Timestamp has toDate(); tolerate a raw number too (shouldn't
-  // occur for freshly-provisioned tags, but old/manually-seeded docs might).
+  // occur for freshly-registered tags, but old/manually-seeded docs might).
   if (!createdAt) return null;
   if (typeof createdAt.toDate === 'function') return createdAt.toDate();
   if (typeof createdAt === 'number') return new Date(createdAt);
   return null;
 }
 
-// Batch provisioning + live lifecycle table for the tags inventory.
-// Batches are persisted for real via a Firestore batched write (admin-only
-// per firestore.rules); the lifecycle table reads live from `tags`.
+// Live lifecycle table over the `tags` registry. Every row here originates
+// from a real physical tap registered at /admin/nfc-register
+// (NFC_REARCHITECTURE_PLAN.md §5) — this page no longer mints tag
+// identities itself.
 export default function Inventory() {
-  const [batchSize, setBatchSize] = useState('50');
-  const [chipType, setChipType] = useState('NTAG215');
-  const [generating, setGenerating] = useState(false);
-  const [generateError, setGenerateError] = useState('');
-  const [lastBatch, setLastBatch] = useState([]);
-
   const [rows, setRows] = useState([]);
   const [rowsLoading, setRowsLoading] = useState(true);
   const [rowsMoreLoading, setRowsMoreLoading] = useState(false);
@@ -91,9 +84,7 @@ export default function Inventory() {
   // has already paginated past.
   const [paged, setPaged] = useState(false);
 
-  const [confirmGenerate, setConfirmGenerate] = useState(false);
-
-  const [counts, setCounts] = useState({ all: null, unclaimed: null, claimed: null, blacklisted: null });
+  const [counts, setCounts] = useState({ all: null, registered: null, claimed: null, blacklisted: null });
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -102,6 +93,7 @@ export default function Inventory() {
   const [blacklistBusy, setBlacklistBusy] = useState(false);
   const [copiedTagId, setCopiedTagId] = useState('');
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [ownerLookup, setOwnerLookup] = useState({}); // tagId -> { loading, owner }
 
   // Table only shows ROW_LIMIT rows at a time (KPI counts above stay
   // accurate regardless) — "Load more" pages the rest in via a startAfter
@@ -114,7 +106,7 @@ export default function Inventory() {
     try {
       const q = query(
         collection(db, 'tags'),
-        orderBy('createdAt', 'desc'),
+        orderBy('registeredAt', 'desc'),
         startAfter(lastDoc),
         limit(ROW_LIMIT)
       );
@@ -132,15 +124,15 @@ export default function Inventory() {
   const loadCounts = useCallback(async () => {
     try {
       const tagsRef = collection(db, 'tags');
-      const [all, unclaimed, claimed, blacklisted] = await Promise.all([
+      const [all, registered, claimed, blacklisted] = await Promise.all([
         getCountFromServer(tagsRef),
-        getCountFromServer(query(tagsRef, where('status', '==', 'unclaimed'))),
+        getCountFromServer(query(tagsRef, where('status', '==', 'registered'))),
         getCountFromServer(query(tagsRef, where('status', '==', 'claimed'))),
         getCountFromServer(query(tagsRef, where('status', '==', 'blacklisted'))),
       ]);
       setCounts({
         all: all.data().count,
-        unclaimed: unclaimed.data().count,
+        registered: registered.data().count,
         claimed: claimed.data().count,
         blacklisted: blacklisted.data().count,
       });
@@ -150,13 +142,13 @@ export default function Inventory() {
     }
   }, []);
 
-  // Live first page: an admin watching the tab sees a batch generated (or a
-  // tag blacklisted) elsewhere without navigating away and back. Pagination
+  // Live first page: an admin watching the tab sees a tag registered (or
+  // blacklisted) elsewhere without navigating away and back. Pagination
   // stays a one-shot fetch (loadMoreRows) — see `paged` above.
   useEffect(() => {
     setRowsLoading(true);
     setRowsError('');
-    const q = query(collection(db, 'tags'), orderBy('createdAt', 'desc'), limit(ROW_LIMIT));
+    const q = query(collection(db, 'tags'), orderBy('registeredAt', 'desc'), limit(ROW_LIMIT));
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -177,81 +169,6 @@ export default function Inventory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paged]);
 
-  // Atomic increment against meta/tagBatchCounter — two admins generating
-  // batches at once can no longer land on the same batchNumber, since the
-  // read+write happens inside one Firestore transaction. Cold start (no
-  // counter doc yet) seeds it from the highest batchNumber already in `tags`
-  // so numbering stays continuous for inventories provisioned before this fix.
-  async function nextBatchNumber() {
-    const counterRef = doc(db, 'meta', 'tagBatchCounter');
-    return runTransaction(db, async (tx) => {
-      const snap = await tx.get(counterRef);
-      if (snap.exists()) {
-        const next = (snap.data().value || 0) + 1;
-        tx.update(counterRef, { value: next });
-        return next;
-      }
-      const q = query(collection(db, 'tags'), orderBy('batchNumber', 'desc'), limit(1));
-      const existing = await getDocs(q);
-      const next = existing.empty ? 1 : (existing.docs[0].data().batchNumber || 0) + 1;
-      tx.set(counterRef, { value: next });
-      return next;
-    });
-  }
-
-  async function onGenerate() {
-    setConfirmGenerate(false);
-    setGenerating(true);
-    setGenerateError('');
-    try {
-      const clamped = Math.max(50, Math.min(500, Number(batchSize) || 50));
-      const batchNumber = await nextBatchNumber();
-      const tags = generateBatch(clamped, batchNumber).map((t) => ({ ...t, chipType }));
-
-      const wb = writeBatch(db);
-      for (const t of tags) {
-        wb.set(doc(db, 'tags', t.tagId), {
-          tagId: t.tagId,
-          batchNumber: t.batchNumber,
-          status: 'unclaimed',
-          chipType,
-          createdAt: serverTimestamp(),
-        });
-      }
-      await wb.commit();
-
-      setLastBatch(tags);
-      // Rows update on their own via the live first-page listener; counts
-      // are a one-shot aggregation (no live-count API), so refresh explicitly.
-      await loadCounts();
-    } catch (err) {
-      setGenerateError(err.message || 'Failed to generate batch.');
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  function downloadCsv(tags, filename) {
-    if (!tags.length) return;
-    const blob = new Blob([batchToCsv(tags)], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function onExport() {
-    downloadCsv(lastBatch, `nfc-batch-${lastBatch[0]?.batchNumber ?? 'export'}.csv`);
-  }
-
-  // Exports whatever's currently loaded + filtered in the table below, not
-  // just the batch that was just generated in this session.
-  function onExportView() {
-    downloadCsv(filteredRows, `nfc-inventory-${statusFilter}-${Date.now()}.csv`);
-  }
-
   async function onCopyUrl(tagId) {
     try {
       await navigator.clipboard.writeText(tagUrl(tagId));
@@ -262,17 +179,32 @@ export default function Inventory() {
     }
   }
 
+  // On-demand admin-only owner reveal — resolved via the existing
+  // itemOwners -> users join (lib/adminOwners.js#findOwnerByTag), never
+  // denormalized onto the public tags doc (firestore.rules keeps tags
+  // public-read; see NFC_REARCHITECTURE_PLAN.md §1.6/§7).
+  async function onRevealOwner(tagId) {
+    setOwnerLookup((prev) => ({ ...prev, [tagId]: { loading: true } }));
+    try {
+      const { owner } = await findOwnerByTag(tagId);
+      setOwnerLookup((prev) => ({ ...prev, [tagId]: { loading: false, owner } }));
+    } catch (err) {
+      setOwnerLookup((prev) => ({ ...prev, [tagId]: { loading: false, error: err.message } }));
+    }
+  }
+
   async function onConfirmBlacklist() {
     if (!blacklistTarget || !flagReason.trim()) return;
     setBlacklistBusy(true);
     try {
       const reason = flagReason.trim();
       if (blacklistTarget === '__bulk__') {
-        // Same batched-write shape as onGenerate — one commit for every
+        // Same batched-write shape as before — one commit for every
         // selected tag instead of a round trip per row.
+        const { writeBatch } = await import('firebase/firestore');
         const wb = writeBatch(db);
         for (const tagId of selectedIds) {
-          const priorStatus = rows.find((r) => r.tagId === tagId)?.status || 'unclaimed';
+          const priorStatus = rows.find((r) => r.tagId === tagId)?.status || 'registered';
           wb.update(doc(db, 'tags', tagId), {
             status: 'blacklisted',
             blacklistedFromStatus: priorStatus,
@@ -284,11 +216,11 @@ export default function Inventory() {
         await wb.commit();
         setSelectedIds(new Set());
       } else {
-        // A tag can be blacklisted while `claimed`, not just `unclaimed` —
+        // A tag can be blacklisted while `claimed`, not just `registered` —
         // remember which, so un-blacklisting restores the right state instead
-        // of always dropping back to `unclaimed` (which would wrongly make an
-        // already-owned tag look claimable again).
-        const priorStatus = rows.find((r) => r.tagId === blacklistTarget)?.status || 'unclaimed';
+        // of always dropping back to `registered` (which would wrongly make
+        // an already-owned tag look claimable again).
+        const priorStatus = rows.find((r) => r.tagId === blacklistTarget)?.status || 'registered';
         await updateDoc(doc(db, 'tags', blacklistTarget), {
           status: 'blacklisted',
           blacklistedFromStatus: priorStatus,
@@ -311,13 +243,13 @@ export default function Inventory() {
   // turns out fine) has a way back, mirroring Moderation's symmetric
   // Ban/Unban pattern instead of leaving blacklisting one-way. Restores
   // whichever status it was blacklisted from (see blacklistedFromStatus
-  // above), not a hardcoded 'unclaimed'.
+  // above), not a hardcoded 'registered'.
   const [unblacklistBusy, setUnblacklistBusy] = useState('');
   async function onUnblacklist(tag) {
     setUnblacklistBusy(tag.tagId);
     try {
       await updateDoc(doc(db, 'tags', tag.tagId), {
-        status: tag.blacklistedFromStatus || 'unclaimed',
+        status: tag.blacklistedFromStatus || 'registered',
         blacklistedFromStatus: null,
         flagReason: null,
         blacklistedBy: null,
@@ -332,10 +264,10 @@ export default function Inventory() {
   }
 
   // The table only ever holds the loaded page(s) (ROW_LIMIT + whatever "Load
-  // more" has paged in) — searching for a tag/batch that hasn't been loaded
-  // yet used to silently read as "doesn't exist." Once the loaded page has
-  // no local match, fall back to a targeted server query (exact tag ID, or
-  // batch number if the term is numeric) covering the whole inventory.
+  // more" has paged in) — searching for a tag that hasn't been loaded yet
+  // used to silently read as "doesn't exist." Once the loaded page has no
+  // local match, fall back to a targeted server query (exact tag id or
+  // physical UID) covering the whole inventory.
   const [serverMatches, setServerMatches] = useState([]);
   const [serverSearching, setServerSearching] = useState(false);
 
@@ -347,7 +279,7 @@ export default function Inventory() {
     }
     const lower = term.toLowerCase();
     const localHasMatch = rows.some(
-      (t) => t.tagId?.toLowerCase().includes(lower) || String(t.batchNumber ?? '').includes(term)
+      (t) => t.tagId?.toLowerCase().includes(lower) || t.physicalUid?.toLowerCase().includes(lower)
     );
     if (localHasMatch) {
       setServerMatches([]);
@@ -358,10 +290,10 @@ export default function Inventory() {
       setServerSearching(true);
       try {
         const tagsRef = collection(db, 'tags');
-        const queries = [getDocs(query(tagsRef, where('tagId', '==', term), limit(1)))];
-        if (/^\d+$/.test(term)) {
-          queries.push(getDocs(query(tagsRef, where('batchNumber', '==', Number(term)), limit(ROW_LIMIT))));
-        }
+        const queries = [
+          getDocs(query(tagsRef, where('tagId', '==', term.toUpperCase()), limit(1))),
+          getDocs(query(tagsRef, where('physicalUid', '==', term.toUpperCase().replace(/:/g, '')), limit(1))),
+        ];
         const snaps = await Promise.all(queries);
         if (cancelled) return;
         const seen = new Set();
@@ -408,9 +340,7 @@ export default function Inventory() {
     const local = rows.filter((t) => {
       if (statusFilter !== 'all' && t.status !== statusFilter) return false;
       if (!term) return true;
-      return (
-        t.tagId?.toLowerCase().includes(term) || String(t.batchNumber ?? '').includes(term)
-      );
+      return t.tagId?.toLowerCase().includes(term) || t.physicalUid?.toLowerCase().includes(term);
     });
     if (local.length > 0 || !term) return local;
     return serverMatches.filter((t) => statusFilter === 'all' || t.status === statusFilter);
@@ -430,11 +360,18 @@ export default function Inventory() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">NFC inventory</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Provision NFC tag batches and manage their claim lifecycle.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">NFC inventory</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Registered physical NFC tags and their claim lifecycle.
+          </p>
+        </div>
+        <Button asChild className="gap-2">
+          <Link to="/admin/nfc-register">
+            <Nfc className="h-4 w-4" /> Register a tag
+          </Link>
+        </Button>
       </div>
 
       {/* KPI strip — real counts from the tags collection */}
@@ -456,283 +393,228 @@ export default function Inventory() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        {/* LEFT: batch provisioning form */}
-        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-lg xl:col-span-5">
-          <CardHeader>
-            <CardTitle>Provision a new batch</CardTitle>
-            <CardDescription className="text-slate-500 dark:text-slate-400">
-              Generates unique tag IDs and writes them to the inventory as{' '}
-              <span className="font-mono text-slate-600 dark:text-slate-300">unclaimed</span>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label className="text-slate-600 dark:text-slate-300">Batch size</Label>
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                value={batchSize}
-                onValueChange={(v) => v && setBatchSize(v)}
-                className="w-full"
-              >
-                {BATCH_SIZES.map((n) => (
-                  <ToggleGroupItem
-                    key={n}
-                    value={String(n)}
-                    className="data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-600 data-[state=on]:to-pink-600 data-[state=on]:text-white"
-                  >
-                    {n}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-slate-600 dark:text-slate-300">Chip type</Label>
-              <RadioGroup value={chipType} onValueChange={setChipType} className="gap-2">
-                {CHIP_TYPES.map((c) => (
-                  <label
-                    key={c.value}
-                    htmlFor={`chip-${c.value}`}
-                    className={`flex cursor-pointer items-center justify-between rounded-xl p-3 transition-shadow ${
-                      chipType === c.value
-                        ? 'bg-purple-50 dark:bg-purple-500/15 shadow-neu-pressed-sm'
-                        : 'bg-base shadow-neu-flat-sm'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <RadioGroupItem value={c.value} id={`chip-${c.value}`} />
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.label}</span>
-                    </div>
-                    <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{c.detail}</span>
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
-
-            {generateError && (
-              <p className="text-sm text-rose-600">{generateError}</p>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Button onClick={() => setConfirmGenerate(true)} disabled={generating}>
-                {generating ? 'Generating…' : 'Generate batch'}
-              </Button>
-              <Button variant="outline" onClick={onExport} disabled={!lastBatch.length}>
-                Export CSV
-              </Button>
-              {lastBatch.length > 0 && (
-                <span className="text-sm text-slate-500 dark:text-slate-400">
-                  Last batch: {lastBatch.length} tags (#{lastBatch[0].batchNumber})
+      <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-lg">
+        <CardHeader>
+          <CardTitle>Tag lifecycle</CardTitle>
+          <CardDescription className="text-slate-500 dark:text-slate-400">
+            Most recent {ROW_LIMIT} tags, newest registration first. New rows only ever come from{' '}
+            <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
+              registering a physical tap
+            </Link>
+            .
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <Input
+                placeholder="Search TagBack ID or physical UID…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="sm:max-w-xs"
+              />
+              {serverSearching && (
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
+                  <Search className="h-3 w-3 animate-pulse" /> Searching full inventory…
                 </span>
               )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* RIGHT: lifecycle table */}
-        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-lg xl:col-span-7">
-          <CardHeader>
-            <CardTitle>Tag lifecycle</CardTitle>
-            <CardDescription className="text-slate-500 dark:text-slate-400">
-              Most recent {ROW_LIMIT} tags, newest first.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-1 flex-wrap items-center gap-2">
-                <Input
-                  placeholder="Search tag ID or batch number…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="sm:max-w-xs"
-                />
-                {serverSearching && (
-                  <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
-                    <Search className="h-3 w-3 animate-pulse" /> Searching full inventory…
-                  </span>
-                )}
-                {!serverSearching && serverMatches.length > 0 && (
-                  <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
-                    <Search className="h-3 w-3" /> Found beyond the loaded {ROW_LIMIT} — showing full-inventory match.
-                  </span>
-                )}
+              {!serverSearching && serverMatches.length > 0 && (
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
+                  <Search className="h-3 w-3" /> Found beyond the loaded {ROW_LIMIT} — showing full-inventory match.
+                </span>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (!filteredRows.length) return;
+                  const blob = new Blob([inventoryToCsv(filteredRows)], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `nfc-inventory-${statusFilter}-${Date.now()}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                disabled={!filteredRows.length}
+              >
+                Export this view
+              </Button>
+              {selectedIds.size > 0 && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={onExportView}
-                  disabled={!filteredRows.length}
+                  className="text-rose-600"
+                  onClick={() => {
+                    setBlacklistTarget('__bulk__');
+                    setFlagReason('');
+                  }}
                 >
-                  Export this view
+                  Blacklist selected ({selectedIds.size})
                 </Button>
-                {selectedIds.size > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-rose-600"
-                    onClick={() => {
-                      setBlacklistTarget('__bulk__');
-                      setFlagReason('');
-                    }}
-                  >
-                    Blacklist selected ({selectedIds.size})
-                  </Button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {STATUS_TABS.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => setStatusFilter(s.value)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
-                      statusFilter === s.value
-                        ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
-                        : 'bg-base text-slate-500 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
-                    }`}
-                  >
-                    {s.label}
-                    {counts[s.value] !== null && <span className="ml-1 text-slate-400 dark:text-slate-500">({counts[s.value]})</span>}
-                  </button>
-                ))}
-              </div>
+              )}
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_TABS.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setStatusFilter(s.value)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
+                    statusFilter === s.value
+                      ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
+                      : 'bg-base text-slate-500 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
+                  }`}
+                >
+                  {s.label}
+                  {counts[s.value] !== null && <span className="ml-1 text-slate-400 dark:text-slate-500">({counts[s.value]})</span>}
+                </button>
+              ))}
+            </div>
+          </div>
 
-            {rowsError && <p className="text-sm text-rose-600">{rowsError}</p>}
+          {rowsError && <p className="text-sm text-rose-600">{rowsError}</p>}
 
-            <div className="overflow-x-auto rounded-xl bg-base shadow-neu-pressed-sm">
-              <Table>
-                <TableHeader>
+          <div className="overflow-x-auto rounded-xl bg-base shadow-neu-pressed-sm">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                  <TableHead className="w-8">
+                    <Checkbox
+                      checked={allSelectableChecked}
+                      onCheckedChange={toggleSelectAll}
+                      disabled={selectableRows.length === 0}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">TagBack ID</TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">Physical UID</TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">Chip</TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">Write status</TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">Registered</TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">Owner</TableHead>
+                  <TableHead className="text-right text-slate-500 dark:text-slate-400">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowsLoading &&
+                  [0, 1, 2, 3, 4].map((i) => (
+                    <TableRow key={i} className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+                        <TableCell key={c}>
+                          <Skeleton className="h-4 w-full max-w-24" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                {!rowsLoading && filteredRows.length === 0 && (
                   <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                    <TableHead className="w-8">
-                      <Checkbox
-                        checked={allSelectableChecked}
-                        onCheckedChange={toggleSelectAll}
-                        disabled={selectableRows.length === 0}
-                        aria-label="Select all"
-                      />
-                    </TableHead>
-                    <TableHead className="text-slate-500 dark:text-slate-400">Tag ID</TableHead>
-                    <TableHead className="text-slate-500 dark:text-slate-400">Batch</TableHead>
-                    <TableHead className="text-slate-500 dark:text-slate-400">Chip</TableHead>
-                    <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
-                    <TableHead className="text-slate-500 dark:text-slate-400">Created</TableHead>
-                    <TableHead className="text-right text-slate-500 dark:text-slate-400">Actions</TableHead>
+                    <TableCell colSpan={9} className="py-10 text-center text-slate-500 dark:text-slate-400">
+                      No tags match this view.{' '}
+                      <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
+                        Register a physical tap
+                      </Link>{' '}
+                      to add inventory.
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rowsLoading &&
-                    [0, 1, 2, 3, 4].map((i) => (
-                      <TableRow key={i} className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                        {[0, 1, 2, 3, 4, 5, 6].map((c) => (
-                          <TableCell key={c}>
-                            <Skeleton className="h-4 w-full max-w-24" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  {!rowsLoading && filteredRows.length === 0 && (
-                    <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                      <TableCell colSpan={7} className="py-10 text-center text-slate-500 dark:text-slate-400">
-                        No tags match this view. Generate a batch to provision tags.
+                )}
+                {filteredRows.map((t) => {
+                  const created = toDate(t.registeredAt);
+                  const lookup = ownerLookup[t.tagId];
+                  return (
+                    <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(t.tagId)}
+                          onCheckedChange={() => toggleSelected(t.tagId)}
+                          disabled={t.status === 'blacklisted'}
+                          aria-label={`Select ${t.tagId}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
+                        {t.tagId}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-300" title={t.physicalUid || ''}>
+                        {t.physicalUid || '—'}
+                      </TableCell>
+                      <TableCell className="text-slate-600 dark:text-slate-300">{t.chipType || '—'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.registered}>
+                          {t.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-slate-600 dark:text-slate-300">
+                        {WRITE_STATUS_LABEL[t.writeStatus] || WRITE_STATUS_LABEL.not_written}
+                      </TableCell>
+                      <TableCell className="text-slate-500 dark:text-slate-400" title={created ? created.toLocaleString() : ''}>
+                        {created ? relativeTimeFromMs(toMillis(created)) : '—'}
+                      </TableCell>
+                      <TableCell className="text-slate-600 dark:text-slate-300">
+                        {t.status !== 'claimed' ? (
+                          '—'
+                        ) : lookup?.owner ? (
+                          <span className="text-xs">{lookup.owner.email || lookup.owner.uid}</span>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto px-1.5 py-0.5 text-xs"
+                            disabled={lookup?.loading}
+                            onClick={() => onRevealOwner(t.tagId)}
+                          >
+                            {lookup?.loading ? 'Loading…' : 'Reveal owner'}
+                          </Button>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1.5">
+                          <Button variant="outline" size="sm" onClick={() => onCopyUrl(t.tagId)}>
+                            {copiedTagId === t.tagId ? 'Copied' : 'Copy URL'}
+                          </Button>
+                          {t.status !== 'blacklisted' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-rose-600"
+                              onClick={() => {
+                                setBlacklistTarget(t.tagId);
+                                setFlagReason('');
+                              }}
+                            >
+                              Blacklist
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 text-emerald-600"
+                              disabled={unblacklistBusy === t.tagId}
+                              onClick={() => onUnblacklist(t)}
+                            >
+                              <Undo2 className="h-3.5 w-3.5" />
+                              {unblacklistBusy === t.tagId ? 'Restoring…' : 'Unblacklist'}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
-                  )}
-                  {filteredRows.map((t) => {
-                    const created = toDate(t.createdAt);
-                    return (
-                      <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedIds.has(t.tagId)}
-                            onCheckedChange={() => toggleSelected(t.tagId)}
-                            disabled={t.status === 'blacklisted'}
-                            aria-label={`Select ${t.tagId}`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
-                          {t.tagId.slice(0, 10)}…
-                        </TableCell>
-                        <TableCell className="text-slate-600 dark:text-slate-300">{t.batchNumber}</TableCell>
-                        <TableCell className="text-slate-600 dark:text-slate-300">{t.chipType || '—'}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.unclaimed}>
-                            {t.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-slate-500 dark:text-slate-400" title={created ? created.toLocaleString() : ''}>
-                          {created ? relativeTimeFromMs(toMillis(created)) : '—'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1.5">
-                            <Button variant="outline" size="sm" onClick={() => onCopyUrl(t.tagId)}>
-                              {copiedTagId === t.tagId ? 'Copied' : 'Copy URL'}
-                            </Button>
-                            {t.status !== 'blacklisted' ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-rose-600"
-                                onClick={() => {
-                                  setBlacklistTarget(t.tagId);
-                                  setFlagReason('');
-                                }}
-                              >
-                                Blacklist
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5 text-emerald-600"
-                                disabled={unblacklistBusy === t.tagId}
-                                onClick={() => onUnblacklist(t)}
-                              >
-                                <Undo2 className="h-3.5 w-3.5" />
-                                {unblacklistBusy === t.tagId ? 'Restoring…' : 'Unblacklist'}
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+          {hasMore && !rowsLoading && (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" onClick={loadMoreRows} disabled={rowsMoreLoading}>
+                {rowsMoreLoading ? 'Loading…' : 'Load more'}
+              </Button>
             </div>
-            {hasMore && !rowsLoading && (
-              <div className="flex justify-center">
-                <Button variant="outline" size="sm" onClick={loadMoreRows} disabled={rowsMoreLoading}>
-                  {rowsMoreLoading ? 'Loading…' : 'Load more'}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Dialog open={confirmGenerate} onOpenChange={setConfirmGenerate}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate {batchSize} tags?</DialogTitle>
-            <DialogDescription>
-              This writes {batchSize} new <span className="font-mono">unclaimed</span> {chipType} tags to
-              the inventory right away — it can't be undone from here.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" autoFocus onClick={() => setConfirmGenerate(false)}>
-              Cancel
-            </Button>
-            <Button onClick={onGenerate} disabled={generating}>
-              {generating ? 'Generating…' : `Generate ${batchSize} tags`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={!!blacklistTarget} onOpenChange={(open) => !open && setBlacklistTarget(null)}>
         <DialogContent>

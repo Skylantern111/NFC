@@ -17,13 +17,13 @@ security rules, NFC write flow) see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 **Core (implemented):**
 - Owner account (email/password via Firebase Auth).
-- Claim an NFC tag to an item (name, category) via NFC tap or manual tag-ID entry.
+- Claim a registered NFC tag to an item (name, category) via NFC tap or by entering its TagBack ID.
 - Arm / disarm "Lost Mode" on an item, with a message to the finder and an optional reward.
-- Public tap page: anyone who taps a tag sees item status and can file a "found it" report with a message and optional GPS location.
-- NFC Setup page: generate a tag ID and write its tap URL straight from the browser via Web NFC (Chrome/Android), with a free-app fallback for other browsers.
+- Public tap page: anyone who taps a tag sees item status, the owner's enabled social links, and can file a "found it" report with a message and optional GPS location.
+- My NFC Profile page: configure social links/contact/lost-found visibility for a claimed tag (`tagProfiles/{tagId}`) — the physical tag identity itself is admin-registered, not owner-editable.
 - Anonymous two-way chat between owner and finder, keyed by a private session token (finder) / Firebase Auth (owner) — never by contact info.
 - Mark an item "Recovered" from chat, closing the report and clearing Lost Mode.
-- Admin: batch-provision NFC tag inventory, track claim lifecycle, blacklist compromised/lost tags.
+- Admin: register physical NFC stickers by tapping them (reads the chip's hardware UID when the browser exposes one, mints a stable TagBack ID either way — see [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md)), write their TagBack URL, track claim lifecycle, blacklist compromised/lost tags.
 
 **Planned** (see [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md) for the full spec — self-serve NFC Setup, Messages hub, Notifications hub, sidebar owner nav, scan/tap log, real moderation, admin analytics, tag grouping, data export/deletion, theme toggle, and more). Nothing in that plan is implemented yet beyond the design-system pass logged in [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md).
 
@@ -60,8 +60,9 @@ on read), so public-safe data and owner-linking data live in separate collection
 | Collection | Visibility | Fields |
 |---|---|---|
 | `users/{uid}` | private (owner) | email, displayName, phone, notificationPrefs |
-| `tags/{tagId}` | public read, **admin write** | batchNumber, status (`unclaimed`/`claimed`/`blacklisted`), `chipType` (optional, `'NTAG213'\|'NTAG215'\|'NTAG216'`, set at batch-generation time), `flagReason` (optional string, set by admin when blacklisting) |
+| `tags/{tagId}` | public read, **admin write** | `tagId` is the TagBack ID minted at registration (not the physical chip UID); `physicalUid` (optional, only if the registering device's browser exposed one), status (`registered`/`claimed`/`blacklisted`), `chipType`, `writeStatus` (`not_written`/`writing`/`written`/`write_failed`), `flagReason` (optional string, set by admin when blacklisting) |
 | `items/{tagId}` | **public read** | tagId, itemName, isLostMode, lostMessage, rewardAmount — **no PII, no ownerUid** |
+| `tagProfiles/{tagId}` | **public read**, owner write | website/instagram/facebook/tiktok/linkedin/youtube, contactEnabled, lostFoundEnabled — **no PII, no ownerUid** |
 | `itemOwners/{tagId}` | private (owner) | ownerUid — the tag→owner map |
 | `reports/{id}` | owner read | tagId, finderSessionToken, initialMessage, location, status |
 | `chats/{id}` + `messages` | party read | anonymous two-way thread |
@@ -89,14 +90,20 @@ there is no in-app way to grant it, by design. One-time setup per admin:
    `(await user.getIdTokenResult()).claims.admin` on every load and redirects
    non-admins to `/login`.
 
-Tag ids are 21-char nanoid (~126 bits) — non-sequential, non-guessable.
+TagBack IDs are `TB-XXXX-XXXX`, drawn from an unambiguous 31-character
+alphabet (no `0`/`O`, `1`/`I`/`L`) — short enough to read off a sticker and
+type by hand, still ~40 bits of entropy against enumeration. Minted by
+TagBack at registration, never by the physical chip. See
+[`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md) for the full
+identity model (physical UID vs. TagBack ID vs. NDEF URL).
 
 ## Build status by sprint
 
-- **Done:** design system, routing, security rules, tag generator + CSV export, geolocation helper, finder session tokens.
+- **Done:** design system, routing, security rules, geolocation helper, finder session tokens.
 - **Done:** admin auth (Firebase custom claim `admin: true`, `scripts/setAdmin.js`, `AdminLayout` guard) and real `tags/{tagId}` persistence (admin-gated writes in `firestore.rules`).
-- **Done:** real Firestore reads/writes for claim (`ClaimTag.jsx` transaction), the owner items/dashboard live queries, finder reports + anonymous chat, and admin batch provisioning/lifecycle.
+- **Done:** real Firestore reads/writes for claim (`ClaimTag.jsx` transaction), the owner items/dashboard live queries, finder reports + anonymous chat.
+- **Done:** hardware-identity NFC registration (`admin/nfc-register`) — admin taps a physical sticker, reads its UID when the browser exposes one, mints a TagBack ID, writes the TagBack URL; owner claims by TagBack ID and configures `tagProfiles/{tagId}` at `dashboard/nfc-setup`. See [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md).
 - **Done:** TagBack rebrand + design-system pass (color tokens, pill buttons/badges, gradient accents) — see [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md).
 - **Done:** navigation shell — owner/admin left sidebars, public `TopNav`, and `NFC Setup`/`Messages`/`Notifications` pages — see [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md#3--global-navigation-pattern).
 - **Done:** Dashboard/Items/Messages/Notifications/Chat all read and write live Firestore via `lib/ownerItems.js` (the earlier `localStorage` mock layer, `lib/api.js`, has been removed); claiming a tag now also flips `tags/{tagId}.status` to `claimed`. See [`ARCHITECTURE.md`](ARCHITECTURE.md#4-one-data-layer-live-or-mocked-by-firebaseready).
-- **TODO:** the rest of [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md) — self-serve claim of a freshly generated tag ID (still requires admin-provisioned inventory), tap→claim handoff for unclaimed tags, real moderation depth, admin analytics, and the other net-new functions it describes. See [`ARCHITECTURE.md`](ARCHITECTURE.md#8-known-gaps--inconsistencies) for the current gap list.
+- **TODO:** verify `NDEFReadingEvent.serialNumber` support on real target hardware (Android + Chrome + the actual NTAG stock), real moderation depth, admin analytics, and the other net-new functions in [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md). See [`ARCHITECTURE.md`](ARCHITECTURE.md#8-known-gaps--inconsistencies) and [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md#12-known-limitations--requires-physical-hardware-to-verify) for the current gap list.

@@ -10,12 +10,21 @@ rules_version = '2';
 //                                    rewardAmount, category?, lostSince? }.
 //                                 Contains NO PII, NO ownerUid.
 //                                 Anyone (a finder) may read this.
+//   tagProfiles/{tagId} PUBLIC  — owner-controlled social/contact links.
+//                                 Same posture as items: no PII, no ownerUid.
 //   itemOwners/{tagId}  PRIVATE — { ownerUid }. Maps a tag to its owner so the
 //                                 app can authorize writes. Never public.
 //   users/{uid}         PRIVATE — profile, phone, prefs. Owner-only.
 //
-// A finder reading items/{tagId} therefore can never resolve the owner's
-// identity, phone, email, or address.
+// A finder reading items/{tagId} or tagProfiles/{tagId} therefore can never
+// resolve the owner's identity, phone, email, or address.
+//
+// tags/{tagId} is the NFC asset registry — tagId is the TagBack ID (minted
+// at registration), NOT the physical chip UID. A tag doc may carry an
+// optional physicalUid field when the registering device's browser actually
+// exposed one; this is descriptive hardware metadata only, never a claim
+// credential (see NFC_REARCHITECTURE_PLAN.md §2/§7). tags is public-read for
+// status checks but contains no PII and no ownerUid.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -79,6 +88,25 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/blockedTokens/$(token));
     }
 
+    // tagProfiles/{tagId}: only the owner-controlled social/contact fields
+    // may exist, and every link field present must be an https:// URL (or
+    // absent — all fields are optional, per NFC_REARCHITECTURE_PLAN.md §2).
+    function isHttpsUrl(v) {
+      return v is string && v.matches('^https://.+');
+    }
+    function publicProfileFieldsOnly() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(
+        ['website', 'instagram', 'facebook', 'linkedin', 'youtube', 'tiktok', 'contactEnabled', 'lostFoundEnabled']
+      )
+      && (!('website' in d) || isHttpsUrl(d.website))
+      && (!('instagram' in d) || isHttpsUrl(d.instagram))
+      && (!('facebook' in d) || isHttpsUrl(d.facebook))
+      && (!('linkedin' in d) || isHttpsUrl(d.linkedin))
+      && (!('youtube' in d) || isHttpsUrl(d.youtube))
+      && (!('tiktok' in d) || isHttpsUrl(d.tiktok));
+    }
+
     // ---- users: private to the account owner, plus admin read/moderation.
     //      An admin may read any profile (admin/Owners.jsx lookup) and may
     //      set `disabled` (soft account disable); an owner may update their
@@ -92,18 +120,26 @@ service cloud.firestore {
       allow delete: if isSignedIn() && request.auth.uid == uid;
     }
 
-    // ---- tags: provisioning inventory. Public may read status to detect
-    //      unclaimed/blacklisted; only admins write (via console / functions). ----
+    // ---- tags: NFC asset registry. tagId is the TagBack ID (the stable
+    //      identifier minted at registration — see NFC_REARCHITECTURE_PLAN.md
+    //      §2), NOT the physical chip UID. A physicalUid field may or may not
+    //      be present depending on what the registering browser/device could
+    //      actually read (§0/§4.2 of that plan) — it is optional metadata,
+    //      never the document key and never a claim credential (§7).
+    //      Public may read status to detect registered/blacklisted; only
+    //      admins write (via console / functions). ----
     match /tags/{tagId} {
       allow read: if true;
       allow write: if isAdmin();
-      // Claim path: the caller may flip status unclaimed -> claimed for the
+      // Claim path: the caller may flip status registered -> claimed for the
       // exact tag they're claiming, only alongside creating itemOwners/{tagId}
       // for themselves in the SAME transaction (see dashboard/ClaimTag.jsx).
-      // Mirrors the items#create claim clause below.
+      // Mirrors the items#create claim clause below. hasOnly(['status']) also
+      // keeps physicalUid/registeredBy/registeredAt/chipType immutable from
+      // this (non-admin) path.
       allow update: if isSignedIn()
         && !isDisabledOwner(request.auth.uid)
-        && resource.data.status == 'unclaimed'
+        && resource.data.status == 'registered'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && request.resource.data.status == 'claimed'
         && existsAfter(/databases/$(database)/documents/itemOwners/$(tagId))
@@ -135,9 +171,19 @@ service cloud.firestore {
           && !exists(/databases/$(database)/documents/itemOwners/$(tagId))
           && existsAfter(/databases/$(database)/documents/itemOwners/$(tagId))
           && getAfter(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid
-          && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'unclaimed')
+          && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'registered')
       );
       allow update: if ownsTag(tagId) && publicItemFieldsOnly();
+      allow delete: if ownsTag(tagId);
+    }
+
+    // ---- tagProfiles: PUBLIC-SAFE owner-controlled profile add-ons (social
+    //      links, contact/lost-found toggles — see dashboard/NfcSetup.jsx).
+    //      Same PII posture as items: readable by anyone, writable only by
+    //      the owner, field set whitelisted. ----
+    match /tagProfiles/{tagId} {
+      allow read: if true;
+      allow create, update: if ownsTag(tagId) && publicProfileFieldsOnly();
       allow delete: if ownsTag(tagId);
     }
 
@@ -150,12 +196,13 @@ service cloud.firestore {
       // only safe while the doc doesn't exist yet — no data to leak — and
       // this clause self-revokes the instant a claim creates the doc.
       allow read: if ownsTag(tagId) || isAdmin() || (isSignedIn() && resource == null);
-      // Claim: create allowed only if the tag is currently unclaimed and the
-      // caller assigns themselves as owner.
+      // Claim: create allowed only if the tag is currently registered
+      // (admin has provisioned it, no owner yet) and the caller assigns
+      // themselves as owner.
       allow create: if isSignedIn()
         && !isDisabledOwner(request.auth.uid)
         && request.resource.data.ownerUid == request.auth.uid
-        && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'unclaimed';
+        && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'registered';
       allow update, delete: if ownsTag(tagId);
     }
 
@@ -240,9 +287,10 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // ---- meta: small admin-only counters/singletons. tagBatchCounter backs
-    //      admin/Inventory.jsx#nextBatchNumber's transactional increment, so
-    //      two admins generating batches at once can't collide on a number. ----
+    // ---- meta: small admin-only counters/singletons (currently unused by
+    //      the NFC registration flow — tagId is minted client-side per
+    //      NFC_REARCHITECTURE_PLAN.md §2.2, no shared counter needed). Kept
+    //      as a general admin-only bucket for any future singleton doc. ----
     match /meta/{docId} {
       allow read, write: if isAdmin();
     }

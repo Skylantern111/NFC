@@ -6,6 +6,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { CATEGORIES, CATEGORY_ICON } from '../../lib/categories';
+import { normalizeTagbackId, tagIdFromNdefMessage } from '../../lib/tags';
 import BackButton from '../../components/BackButton';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -18,21 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-
-// Pull a tagId out of a scanned NDEF message. Provisioned tags are expected
-// to carry a URL record pointing at /nfc/:tagId (see lib/tags.js#tagUrl); if
-// that shape isn't found, fall back to using the record's raw text.
-function tagIdFromNdefMessage(message) {
-  const decoder = new TextDecoder();
-  for (const record of message.records) {
-    if (record.recordType !== 'url' && record.recordType !== 'text') continue;
-    const text = decoder.decode(record.data);
-    const match = text.match(/\/nfc\/([A-Za-z0-9_-]{6,})/);
-    if (match) return match[1];
-    if (text.trim()) return text.trim();
-  }
-  return null;
-}
 
 // Reached at /dashboard/items/claim, either after an owner taps an unclaimed
 // tag while signed in (?tagId=... link) or via manual entry / an in-app Web
@@ -100,16 +86,18 @@ export default function ClaimTag() {
       return;
     }
 
+    const normalizedTagId = normalizeTagbackId(tagId);
+
     setBusy(true);
     try {
       await runTransaction(db, async (tx) => {
-        const tagRef = doc(db, 'tags', tagId);
-        const ownerRef = doc(db, 'itemOwners', tagId);
-        const itemRef = doc(db, 'items', tagId);
+        const tagRef = doc(db, 'tags', normalizedTagId);
+        const ownerRef = doc(db, 'itemOwners', normalizedTagId);
+        const itemRef = doc(db, 'items', normalizedTagId);
 
         const tagSnap = await tx.get(tagRef);
         if (!tagSnap.exists()) {
-          throw new Error('Tag not found. Check the id or that this tag has been provisioned.');
+          throw new Error('Tag not found. Check the TagBack ID or that this tag has been registered.');
         }
         if (tagSnap.data().status === 'blacklisted') {
           throw new Error('This tag has been blacklisted and cannot be claimed.');
@@ -125,7 +113,7 @@ export default function ClaimTag() {
         // `category` (see the file header note in this repo's plan doc).
         tx.set(ownerRef, { ownerUid: user.uid });
         tx.set(itemRef, {
-          tagId,
+          tagId: normalizedTagId,
           itemName,
           category,
           isLostMode: false,
@@ -158,12 +146,12 @@ export default function ClaimTag() {
               Round 10 #8 / Round 11 #5). */}
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="tagId">Tag id</Label>
+              <Label htmlFor="tagId">TagBack ID</Label>
               <Input
                 id="tagId"
                 value={tagId}
                 onChange={(e) => setTagId(e.target.value)}
-                placeholder="Scanned or shared with you as a link"
+                placeholder="TB-XXXX-XXXX — given to you by the admin, or scanned"
                 className="font-mono text-xs"
                 required
               />
@@ -182,8 +170,8 @@ export default function ClaimTag() {
               </Button>
             ) : (
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                This browser doesn't support NFC scanning — paste the tag id above, or open the link
-                from the tag directly.
+                This browser doesn't support NFC scanning — enter the TagBack ID above, or open the
+                link from the tag directly.
               </p>
             )}
             <div aria-live="polite">

@@ -197,6 +197,12 @@ export default function Items() {
                 </p>
               )}
               <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">Tag: {it.tagId}</p>
+              <Link
+                to={`/dashboard/nfc-setup?tagId=${encodeURIComponent(it.tagId)}`}
+                className="mt-1 inline-block text-xs font-semibold text-purple-600 hover:text-pink-600"
+              >
+                NFC profile
+              </Link>
             </div>
             <label className="flex shrink-0 items-center gap-2">
               <span className="text-xs text-slate-500 dark:text-slate-400">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>

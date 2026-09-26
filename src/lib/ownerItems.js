@@ -13,6 +13,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -442,6 +443,20 @@ export async function getPublicItem(tagId) {
   if (!firebaseReady || !tagId) return null;
   const snap = await getDoc(doc(db, 'items', tagId));
   return snap.exists() ? { tagId, ...snap.data() } : null;
+}
+
+// tagProfiles/{tagId} — owner-controlled public profile add-ons (social
+// links, contact/lost-found toggles). Public read, owner-only write (see
+// firestore.rules#publicProfileFieldsOnly and dashboard/NfcSetup.jsx).
+export async function getTagProfile(tagId) {
+  if (!firebaseReady || !tagId) return null;
+  const snap = await getDoc(doc(db, 'tagProfiles', tagId));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveTagProfile(tagId, profile) {
+  if (!firebaseReady) return;
+  await setDoc(doc(db, 'tagProfiles', tagId), profile, { merge: true });
 }
 
 // Live single chat doc, for Chat.jsx (owner or finder view).

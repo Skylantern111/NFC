@@ -33,7 +33,7 @@ the test step are all done on this website (`dashboard/nfc-setup`).
 | Theme | Light neumorphism + glassmorphism hybrid — see `LIGHT_NEUMORPHIC_REDESIGN_PLAN.md` |
 | Data | Firebase Firestore + Firebase Auth (email/password) |
 | Maps | Google Maps wrapper (`components/Map.jsx`) for finder-shared location |
-| Misc | `nanoid` (tag IDs, finder session tokens), `lucide-react` (icons), `recharts` (admin charts) |
+| Misc | `nanoid` (TagBack ID minting, finder session tokens), `lucide-react` (icons), `recharts` (admin charts) |
 
 ## 3. Routes
 
@@ -88,9 +88,10 @@ resolve who owns a tag.
 | Collection | Visibility | Notes |
 |---|---|---|
 | `users/{uid}` | private (owner) | profile, phone, notification prefs |
-| `tags/{tagId}` | public read, admin write | provisioning status: `unclaimed` / `claimed` / `blacklisted` |
+| `tags/{tagId}` | public read, admin write | NFC asset registry — `tagId` is the TagBack ID (minted at registration, not the physical chip UID); status: `registered` / `claimed` / `blacklisted`; optional `physicalUid` when the registering device's browser exposed one |
 | `tags/{tagId}/scans/{scanId}` | public create, owner read | anonymous tap counter, immutable |
 | `items/{tagId}` | **public read** | itemName, isLostMode, lostMessage, rewardAmount — no PII, no ownerUid |
+| `tagProfiles/{tagId}` | **public read**, owner write | owner-controlled social links + contact/lost-found toggles — no PII, no ownerUid |
 | `itemOwners/{tagId}` | private (owner) | the only tag → owner map; never public |
 | `reports/{id}` | owner read, public create | a finder's "found it" report, keyed by `finderSessionToken` |
 | `chats/{id}` + `messages` | party read | anonymous two-way thread, no `ownerUid` on the doc |
@@ -118,31 +119,51 @@ Full rule logic: [`firestore.rules`](firestore.rules). Key mechanisms:
   grant flow, by design. See `README.md` for the one-time setup steps.
 - Finder side has no account at all — just the session token above.
 
-## 7. NFC tag write flow
+## 7. NFC tag lifecycle
 
-`dashboard/nfc-setup` (`NfcSetup.jsx`):
-1. Generate a tag ID client-side (`nanoid(21)`, `lib/tags.js`) — nothing is
-   written to Firestore yet, so this step can't create orphaned inventory.
-2. Build the tap URL (`{origin}/nfc/:tagId`).
-3. Write it to a physical tag two ways:
-   - **In-browser**, via the Web NFC API (`window.NDEFReader`, Chrome on
-     Android + HTTPS only) — feature-detected; no separate app needed.
-   - **Fallback**: any third-party NFC-writer app, for Safari/iOS/desktop
-     where Web NFC doesn't exist.
-4. Test by tapping the tag, or "Simulate Tap" (navigates to `/nfc/:tagId`
-   in-app, standing in for a physical tap when no hardware is on hand).
-5. Claiming (linking the tag to the owner's account) is a separate step —
-   today it goes through `dashboard/items/claim`, not straight from setup.
+The physical NFC sticker owns its identity — the admin does not generate
+it. Full rationale and phased rollout: [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md).
+Three distinct identifiers are in play and must never be conflated:
+
+- **Physical UID** — the chip's own hardware serial, read via
+  `NDEFReadingEvent.serialNumber` when the registering browser/tag actually
+  exposes one. Optional, descriptive metadata only — never a claim
+  credential, never assumed present.
+- **TagBack ID** — the stable application identifier (`TB-XXXX-XXXX`,
+  `lib/tags.js#generateTagbackId`), minted by TagBack the moment a real
+  physical tap is registered. This is what `tags/{tagId}`'s doc id, the
+  `/nfc/:tagId` route, and the claim form all mean by "tag id."
+  `physicalUid` is a separate, optional field on the same doc.
+- **NDEF URL** — the actual bytes written onto the tag
+  (`{origin}/nfc/<tagbackId>`), tracked via `tags/{tagId}.writeStatus`.
+
+Admin flow (`admin/nfc-register`, `NfcRegister.jsx`):
+1. **Tap** a physical sticker — `NDEFReader.scan()`'s `reading` event gives
+   `serialNumber` (if exposed) and any existing NDEF content.
+2. **Read**: check for an existing registration by NDEF-embedded TagBack ID
+   or by a matching `physicalUid`; otherwise show the unregistered preview.
+3. **Register**: mint a TagBack ID, write `tags/{tagId}` inside a
+   transaction (guards against a same-instant double-registration).
+4. **Configure + write**: pick what to write (TagBack Lost & Found by
+   default, or another URL), call `NDEFReader.write()`. `writeStatus`
+   reflects only that Promise's outcome (`written` on resolve,
+   `write_failed` + captured error on reject) — no verifying re-scan.
+5. A dev-only fallback (no NFC hardware) registers a tag with
+   `physicalUid: null` and `nfcCapabilityAtRegistration: 'dev-fallback'`,
+   clearly distinct from a real device that genuinely couldn't read a UID.
+
+Owner flow: claim by entering (or tap-scanning) the TagBack ID
+(`dashboard/items/claim`, `ClaimTag.jsx`), then configure social
+links/contact/lost-found toggles at `dashboard/nfc-setup` (`NfcSetup.jsx`,
+writes `tagProfiles/{tagId}`) — the physical-tag identity fields on `tags`
+stay read-only to the owner.
+
+Finder flow is unchanged: tap → phone opens `/nfc/:tagId` → public page
+reads `items`/`tagProfiles` only, never `tags.physicalUid` or any owner
+data.
 
 ## 8. Known gaps / inconsistencies
 
-- Self-serve claim of a freshly generated tag ID isn't wired up — claiming
-  still requires the tag to already exist in admin-provisioned `tags/`
-  inventory (`NfcSetup.jsx` links out to `ClaimTag.jsx` instead, which
-  requires a pre-provisioned `tags/{tagId}` doc).
-- Tapping an unclaimed tag (`/nfc/:tagId`) shows "Tag not recognized" with
-  no link into the claim flow, even for a signed-in owner — no
-  `?tagId=...`-style handoff from tap to `ClaimTag.jsx` exists yet.
 - `components/Map.jsx` is a Google Maps wrapper, not Leaflet, despite
   `leaflet`/`react-leaflet` being dependencies and `index.css` still
   carrying `.leaflet-container` theming.

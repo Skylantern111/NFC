@@ -9,6 +9,10 @@ import {
 } from 'firebase/firestore';
 import {
   ArrowRight,
+  Facebook,
+  Globe,
+  Instagram,
+  Linkedin,
   Loader2,
   LocateFixed,
   MapPin,
@@ -16,7 +20,18 @@ import {
   ShieldAlert,
   ShieldCheck,
   Tag as TagIcon,
+  Youtube,
 } from 'lucide-react';
+
+const PROFILE_LINK_ICONS = {
+  website: Globe,
+  instagram: Instagram,
+  facebook: Facebook,
+  tiktok: Globe,
+  linkedin: Linkedin,
+  youtube: Youtube,
+};
+const LINK_FIELD_KEYS = Object.keys(PROFILE_LINK_ICONS);
 import { toast } from 'sonner';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
@@ -54,6 +69,7 @@ export default function NfcLanding() {
   const nav = useNavigate();
   const { user } = useAuth();
   const [item, setItem] = useState(null);
+  const [tagProfile, setTagProfile] = useState(null);
   const [state, setState] = useState('loading'); // loading | ready | notfound | blacklisted | unclaimed
   const [note, setNote] = useState('');
   const [locationNote, setLocationNote] = useState('');
@@ -82,19 +98,24 @@ export default function NfcLanding() {
           setState('blacklisted');
           return;
         }
-        // Unclaimed: no items/itemOwners doc exists yet (only created at
-        // claim time — see ClaimTag.jsx), so there's nothing to "find" here.
-        // Tapping the physical sticker on an unclaimed tag should offer to
-        // claim it, not show a dead end.
-        if (tagSnap.exists() && tagSnap.data().status === 'unclaimed') {
+        // Registered but not yet claimed: no items/itemOwners doc exists yet
+        // (only created at claim time — see ClaimTag.jsx), so there's
+        // nothing to "find" here. Tapping the physical sticker on a
+        // registered-but-unclaimed tag should offer to claim it, not show a
+        // dead end.
+        if (tagSnap.exists() && tagSnap.data().status === 'registered') {
           setState('unclaimed');
           return;
         }
         // Public read: security rules expose only whitelisted fields.
-        const snap = await getDoc(doc(db, 'items', tagId));
+        const [snap, profileSnap] = await Promise.all([
+          getDoc(doc(db, 'items', tagId)),
+          getDoc(doc(db, 'tagProfiles', tagId)),
+        ]);
         if (!live) return;
         if (snap.exists()) {
           setItem({ tagId, ...snap.data() });
+          setTagProfile(profileSnap.exists() ? profileSnap.data() : null);
           setState('ready');
         } else {
           setState('notfound');
@@ -332,6 +353,35 @@ export default function NfcLanding() {
           </CardContent>
         </Card>
 
+        {tagProfile && LINK_FIELD_KEYS.some((k) => tagProfile[k]) && (
+          <Card className={GLASS}>
+            <CardContent className="flex flex-wrap gap-2 text-slate-800 dark:text-slate-100">
+              {LINK_FIELD_KEYS.filter((k) => tagProfile[k]).map((k) => {
+                const Icon = PROFILE_LINK_ICONS[k] || Globe;
+                return (
+                  <a
+                    key={k}
+                    href={tagProfile[k]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-neu-flat-sm hover:shadow-neu-pressed-sm"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {k.charAt(0).toUpperCase() + k.slice(1)}
+                  </a>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
+        {tagProfile?.lostFoundEnabled === false ? (
+          <Card className={GLASS}>
+            <CardContent className="text-center text-sm text-slate-500 dark:text-slate-400">
+              The owner hasn't enabled found-item reporting for this tag.
+            </CardContent>
+          </Card>
+        ) : (
         <Card className={GLASS}>
           <CardContent className="text-slate-800 dark:text-slate-100">
             <form onSubmit={submitReport} className="flex flex-col gap-5">
@@ -420,6 +470,7 @@ export default function NfcLanding() {
             </form>
           </CardContent>
         </Card>
+        )}
 
         <p className="text-center text-xs text-slate-500 dark:text-slate-400">
           Your identity stays private. No app or account needed.

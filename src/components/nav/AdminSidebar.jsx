@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Boxes, ShieldAlert, Users } from 'lucide-react';
+import { Boxes, Nfc, ShieldAlert, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import SidebarShell from './SidebarShell';
 
@@ -12,6 +12,7 @@ import SidebarShell from './SidebarShell';
 // off rather than 404ing.
 const navItems = [
   { to: '/admin/inventory', label: 'Inventory', icon: Boxes },
+  { to: '/admin/nfc-register', label: 'NFC Register', icon: Nfc },
   { to: '/admin/moderation', label: 'Moderation', icon: ShieldAlert },
   { to: '/admin/owners', label: 'Owners', icon: Users },
 ];
