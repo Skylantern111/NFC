@@ -46,9 +46,16 @@ const Button = React.forwardRef(function Button(
   // `default` is a neu-extruded bg-base surface with gradient *text* — a
   // single element can't show a flat bg-base fill and clip a second
   // gradient bg to its text, so the gradient lives on an inner span instead.
+  // That span needs its own inline-flex row: Tailwind's preflight sets
+  // `svg { display: block }`, and a block-level icon inside a plain
+  // (non-flex) span forces the text after it onto its own line — i.e. the
+  // icon renders above the label instead of beside it, on every default-
+  // variant button with an icon (Sign in, Look up owner, etc). Non-default
+  // variants don't hit this since their children go straight into the
+  // outer inline-flex button.
   const label =
     !asChild && (variant === "default" || variant === undefined) ? (
-      <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+      <span className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
         {children}
       </span>
     ) : (

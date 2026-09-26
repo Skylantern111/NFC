@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Search, UserX, UserCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { findOwnerByTag, listOwnerTags, setOwnerDisabled } from '../../lib/adminOwners';
-import { TAG_STATUS_BADGE } from '../../lib/tags';
+import { normalizeTagbackId, TAG_STATUS_BADGE } from '../../lib/tags';
 import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,7 @@ export default function Owners() {
 
   async function onSearch(e) {
     e.preventDefault();
-    const term = tagId.trim();
+    const term = normalizeTagbackId(tagId);
     if (!term) return;
     setSearching(true);
     setSearched(true);
@@ -99,7 +99,7 @@ export default function Owners() {
 
       <form onSubmit={onSearch} className="flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Paste a tag ID…"
+          placeholder="Paste a TagBack ID…"
           value={tagId}
           onChange={(e) => setTagId(e.target.value)}
           className="max-w-md font-mono text-sm"
