@@ -11,7 +11,7 @@ const MIN_LENGTH = 6; // mirrors firestore.rules#validAdminPasscode
 
 // Self-serve admin signup passcode (SYSTEM_AUDIT_PLAN.md A1). Stored in
 // meta/adminSignup — admin-only in firestore.rules, never in the client
-// bundle — and checked by the rules when auth/Register.jsx creates a user
+// bundle — and checked by the rules when admin/AdminRegister.jsx (components/SignupForm.jsx) creates a user
 // with isAdmin: true. No doc = self-serve admin signup is off.
 export default function AdminSignupPasscodeCard() {
   const [enabled, setEnabled] = useState(null); // null = loading

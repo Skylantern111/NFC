@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 // AdminLayout's solid "ops console" surface and AdminSidebar's amber accent.
 // Admin status comes from either the real custom claim (scripts/setAdmin.js,
 // out-of-band) or the self-serve passcode flag set at signup
-// (Register.jsx/firestore.rules#isAdmin) — checkIsAdmin() checks both.
+// (AdminRegister.jsx/firestore.rules#isAdmin) — checkIsAdmin() checks both.
 export default function AdminLogin() {
   const nav = useNavigate();
   const location = useLocation();
@@ -114,8 +114,8 @@ export default function AdminLogin() {
         <Link to="/login" className="hover:text-slate-800 dark:hover:text-slate-100">
           Not an admin? Go to owner sign in
         </Link>
-        <Link to="/register" className="hover:text-slate-800 dark:hover:text-slate-100">
-          Need an admin account? Register with the admin passcode
+        <Link to="/admin/register" className="hover:text-slate-800 dark:hover:text-slate-100">
+          Need an admin account? Create one with the admin passcode
         </Link>
       </div>
       {!firebaseReady && (

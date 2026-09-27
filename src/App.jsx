@@ -34,6 +34,7 @@ const Settings = lazy(() => import('./pages/dashboard/Settings'));
 
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
+const AdminRegister = lazy(() => import('./pages/admin/AdminRegister'));
 const Inventory = lazy(() => import('./pages/admin/Inventory'));
 const NfcRegister = lazy(() => import('./pages/admin/NfcRegister'));
 const Moderation = lazy(() => import('./pages/admin/Moderation'));
@@ -86,6 +87,7 @@ export default function App() {
 
       {/* Admin */}
       <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin/register" element={<AdminRegister />} />
       <Route
         path="/admin"
         element={

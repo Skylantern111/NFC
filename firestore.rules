@@ -51,7 +51,7 @@ service cloud.firestore {
 
     // Two ways to be admin: the real custom claim (scripts/setAdmin.js,
     // server-side only), or a self-serve `users/{uid}.isAdmin` flag set at
-    // signup via a passcode (Register.jsx). SYSTEM_AUDIT_PLAN.md A1: the
+    // signup via a passcode (admin/AdminRegister.jsx). SYSTEM_AUDIT_PLAN.md A1: the
     // passcode is checked HERE, against meta/adminSignup (admin-only, never
     // shipped to the client), not in the browser — and users/{uid} can no
     // longer be deleted and re-created, so `isAdmin` really is fixed at

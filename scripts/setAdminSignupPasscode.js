@@ -1,5 +1,5 @@
 // Sets (or clears) the self-serve admin signup passcode — the value
-// firestore.rules#validAdminPasscode compares against when auth/Register.jsx
+// firestore.rules#validAdminPasscode compares against when admin/AdminRegister.jsx
 // creates a user with isAdmin: true (SYSTEM_AUDIT_PLAN.md A1). Admins can
 // also do this in the app (admin/Owners.jsx → "Admin signup passcode"); this
 // script is for bootstrapping when no admin can sign in yet.

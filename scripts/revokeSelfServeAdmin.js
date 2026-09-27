@@ -7,7 +7,7 @@
 //
 // This does NOT touch a real Firebase Auth custom claim (scripts/setAdmin.js's
 // grant) — it only affects the self-serve isAdmin flag set at signup via
-// auth/Register.jsx's passcode field. If the account you're revoking also
+// admin/AdminRegister.jsx's passcode field. If the account you're revoking also
 // has a real custom claim, that needs a separate
 // admin.auth().setCustomUserClaims(uid, { admin: false }) call — this
 // script does not do that for you, to avoid silently touching a grant that
