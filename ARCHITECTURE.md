@@ -87,16 +87,18 @@ resolve who owns a tag.
 
 | Collection | Visibility | Notes |
 |---|---|---|
-| `users/{uid}` | private (owner) | profile, phone, notification prefs |
+| `users/{uid}` | private (owner) | profile, phone, notification prefs. Can't be deleted by its owner; `isAdmin: true` only accepted on create with the passcode in `meta/adminSignup` |
 | `tags/{tagId}` | public read, admin write | NFC asset registry — `tagId` is the TagBack ID (minted at registration, not the physical chip UID); status: `registered` / `claimed` / `blacklisted`; optional `physicalUid` when the registering device's browser exposed one |
-| `tags/{tagId}/scans/{scanId}` | public create, owner read | anonymous tap counter, immutable |
+| `tags/{tagId}/scans/{scanId}` | public create (real tags, server time), owner/admin read | anonymous tap counter + `landingMode` shown, immutable |
+| `tagAdmin/{tagId}` | admin only | `registeredBy`, blacklist reason/who/prior status — kept off the public `tags` doc |
 | `items/{tagId}` | **public read** | itemName, isLostMode, lostMessage, rewardAmount — no PII, no ownerUid |
-| `tagProfiles/{tagId}` | **public read**, owner write | owner-controlled social links + contact/lost-found toggles — no PII, no ownerUid |
-| `itemOwners/{tagId}` | private (owner) | the only tag → owner map; never public |
-| `reports/{id}` | owner read, public create | a finder's "found it" report, keyed by `finderSessionToken` |
-| `chats/{id}` + `messages` | party read | anonymous two-way thread, no `ownerUid` on the doc |
+| `tagProfiles/{tagId}` | **public read**, owner or admin write | what a tap shows: `landingMode` (`lostfound`/`profile`/`redirect`), `displayName`, `bio`, social links, `contactUrl`, `redirectUrl`, toggles, `updatedAt`/`updatedBy` — no PII, no ownerUid. An unclaimed tag set to `profile`/`redirect` is admin-managed and can't be claimed |
+| `itemOwners/{tagId}` | private (owner) | the only tag → owner map; never public. Created only together with `tags.status → claimed`, deleted only together with `→ registered`, never edited |
+| `reports/{id}` | owner read/resolve/delete, public create (exact fields) | a finder's "found it" report, keyed by `finderSessionToken`; closed on "Mark as recovered"; deleted when the tag is released |
+| `chats/{id}` + `messages` | get by id: public; list: tag owner/admin | anonymous two-way thread, no `ownerUid` on the doc; `reportedByOwner`/`reportedByFinder` for moderation |
 | `notifications/{id}` | owner read (via tagId join) | written by whoever triggers the event |
 | `blockedTokens/{token}` | admin only | finder session bans (see Moderation) |
+| `meta/adminSignup` | admin only | self-serve admin signup passcode, checked by the rules (set on the Owners page) |
 
 Full rule logic: [`firestore.rules`](firestore.rules). Key mechanisms:
 - `ownsTag(tagId)` — looks up `itemOwners/{tagId}.ownerUid` against
@@ -144,8 +146,11 @@ Admin flow (`admin/nfc-register`, `NfcRegister.jsx`):
    or by a matching `physicalUid`; otherwise show the unregistered preview.
 3. **Register**: mint a TagBack ID, write `tags/{tagId}` inside a
    transaction (guards against a same-instant double-registration).
-4. **Configure + write**: pick what to write (TagBack Lost & Found by
-   default, or another URL), call `NDEFReader.write()`. `writeStatus`
+4. **Write**: always the TagBack URL, via `NDEFReader.write()`. The
+   sticker is a pointer only — what a tap shows lives in
+   `tagProfiles/{tagId}` and is edited at `/admin/tags/:tagId`
+   (`TagContent.jsx`, also bulk from Inventory) or by the owner, with no
+   rewrite (see `NFC_WRITE_DATA_ADMIN_PLAN.md`). `writeStatus`
    reflects only that Promise's outcome (`written` on resolve,
    `write_failed` + captured error on reject) — no verifying re-scan.
 5. A dev-only fallback (no NFC hardware) registers a tag with
@@ -158,9 +163,11 @@ links/contact/lost-found toggles at `dashboard/nfc-setup` (`NfcSetup.jsx`,
 writes `tagProfiles/{tagId}`) — the physical-tag identity fields on `tags`
 stay read-only to the owner.
 
-Finder flow is unchanged: tap → phone opens `/nfc/:tagId` → public page
-reads `items`/`tagProfiles` only, never `tags.physicalUid` or any owner
-data.
+Finder flow: tap → phone opens `/nfc/:tagId` → public page reads
+`items`/`tagProfiles` only, never `tags.physicalUid` or any owner data, and
+shows the lost & found page, the profile card, or redirects, per
+`landingMode` (`lib/tagContent.js#resolveLanding`). An item in lost mode
+always shows the lost & found page, whatever the mode.
 
 ## 8. Known gaps / inconsistencies
 

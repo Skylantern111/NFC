@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Ban, ShieldCheck, CheckCheck, Eye, Flag, ShieldBan, UserSearch } from 'lucide-react';
 import { toast } from 'sonner';
-import { useModerationQueue, banToken, unbanToken, markChatReviewed } from '../../lib/moderation';
+import { useModerationQueue, banToken, unbanToken, markChatReviewed, chatReports, hasReportFrom } from '../../lib/moderation';
 import { notifyOwner } from '../../lib/ownerItems';
 import { relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +45,7 @@ export default function Moderation() {
       const itemName = items[chat.tagId]?.itemName || '';
       return (
         itemName.toLowerCase().includes(term) ||
-        (chat.blockedReason || '').toLowerCase().includes(term) ||
+        chatReports(chat).some((r) => (r.reason || '').toLowerCase().includes(term)) ||
         (chat.finderSessionToken || '').toLowerCase().includes(term)
       );
     });
@@ -97,7 +97,10 @@ export default function Moderation() {
       if (banned) {
         await unbanToken(token);
       } else {
-        await banToken(token, { tagId: chat.tagId, reason: chat.blockedReason });
+        await banToken(token, {
+          tagId: chat.tagId,
+          reason: chatReports(chat).find((r) => r.by === 'owner')?.reason || null,
+        });
         // Close the loop: the owner reported this chat (chats.blocked), so
         // let them know the report was acted on instead of leaving them to
         // notice silently that the finder went quiet.
@@ -260,15 +263,27 @@ export default function Moderation() {
                     </TableCell>
                     <TableCell className="text-slate-700 dark:text-slate-200">{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                        {chat.blockedReason || 'No reason given'}
-                      </Badge>
+                      <div className="flex flex-col items-start gap-1">
+                        {chatReports(chat).map((r) => (
+                          <Badge
+                            key={r.by}
+                            variant="outline"
+                            className="border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300"
+                          >
+                            {r.by === 'finder' ? 'Finder: ' : 'Owner: '}
+                            {r.reason || 'No reason given'}
+                          </Badge>
+                        ))}
+                      </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
                       {chat.finderSessionToken}
                     </TableCell>
                     <TableCell className="text-xs text-slate-400 dark:text-slate-500">
-                      {relativeTimeFromMs(toMillis(chat.blockedAt))}
+                      {(() => {
+                        const times = chatReports(chat).map((r) => toMillis(r.at)).filter(Boolean);
+                        return times.length ? relativeTimeFromMs(Math.max(...times)) : '—';
+                      })()}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
@@ -279,13 +294,13 @@ export default function Moderation() {
                             on chats reported before this field existed;
                             those default to 'owner' (the only direction
                             possible at the time). */}
-                        {chat.blockedBy === 'finder' ? (
+                        {hasReportFrom(chat, 'finder') && (
                           <Badge variant="outline" className="border-sky-200 dark:border-sky-500/30 bg-sky-50/80 dark:bg-sky-500/10 text-sky-600 dark:text-sky-300">
                             Reported by finder
                           </Badge>
-                        ) : (
-                          <Badge variant="outline">Reported by owner</Badge>
                         )}
+                        {hasReportFrom(chat, 'owner') && <Badge variant="outline">Reported by owner</Badge>}
+                        {chat.archivedAt && <Badge variant="secondary">Tag released</Badge>}
                         {banned ? (
                           <Badge variant="destructive">Banned</Badge>
                         ) : (
@@ -318,7 +333,7 @@ export default function Moderation() {
                             <CheckCheck className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        {chat.blockedBy === 'finder' ? (
+                        {hasReportFrom(chat, 'finder') && (
                           // Banning this chat's finder token would punish the
                           // reporter, not the reported owner — the remedy is
                           // reviewing/disabling the OWNER's account instead.
@@ -327,7 +342,8 @@ export default function Moderation() {
                               <UserSearch className="h-3.5 w-3.5" /> Look up owner
                             </Link>
                           </Button>
-                        ) : (
+                        )}
+                        {hasReportFrom(chat, 'owner') && (
                           <Button
                             type="button"
                             size="sm"

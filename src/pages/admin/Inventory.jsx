@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   collection,
+  deleteField,
   doc,
+  documentId,
+  getDoc,
   getCountFromServer,
   getDocs,
   limit,
@@ -12,12 +15,14 @@ import {
   updateDoc,
   where,
   startAfter,
+  writeBatch,
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase/config';
 import { inventoryToCsv, tagUrl, TAG_STATUS_BADGE } from '../../lib/tags';
+import { contentLabel } from '../../lib/tagContent';
 import { findOwnerByTag } from '../../lib/adminOwners';
-import { relativeTimeFromMs, toMillis } from '../../lib/utils';
-import { Link } from 'react-router-dom';
+import { chunk, relativeTimeFromMs, toMillis } from '../../lib/utils';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -41,7 +46,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2, Nfc, RefreshCw } from 'lucide-react';
+import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2, Nfc, RefreshCw, PencilLine } from 'lucide-react';
 
 const STATUS_TABS = [
   { value: 'all', label: 'All', icon: Boxes, tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300' },
@@ -58,6 +63,8 @@ const WRITE_STATUS_LABEL = {
 };
 
 const ROW_LIMIT = 100;
+
+
 
 function toDate(createdAt) {
   // Firestore Timestamp has toDate(); tolerate a raw number too (shouldn't
@@ -94,6 +101,8 @@ export default function Inventory() {
   const [copiedTagId, setCopiedTagId] = useState('');
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [ownerLookup, setOwnerLookup] = useState({}); // tagId -> { loading, owner }
+  const [profiles, setProfiles] = useState({}); // tagId -> tagProfiles doc (only tags that have one)
+  const navigate = useNavigate();
 
   // Table only shows ROW_LIMIT rows at a time (KPI counts above stay
   // accurate regardless) — "Load more" pages the rest in via a startAfter
@@ -193,42 +202,41 @@ export default function Inventory() {
     }
   }
 
+  // Admin-only details (reason, who, which status to restore) go to
+  // tagAdmin/{tagId}, not the public tags doc (SYSTEM_AUDIT_PLAN.md A7).
+  // The prior status comes from every row we know about — loaded pages AND
+  // server-search matches — so a tag found by search isn't wrongly recorded
+  // as 'registered' (B7), which would make a claimed tag look claimable
+  // after un-blacklisting.
+  function priorStatusOf(tagId) {
+    return [...rows, ...serverMatches].find((r) => r.tagId === tagId)?.status || 'registered';
+  }
+
   async function onConfirmBlacklist() {
     if (!blacklistTarget || !flagReason.trim()) return;
     setBlacklistBusy(true);
     try {
       const reason = flagReason.trim();
-      if (blacklistTarget === '__bulk__') {
-        // Same batched-write shape as before — one commit for every
-        // selected tag instead of a round trip per row.
-        const { writeBatch } = await import('firebase/firestore');
+      const targets = blacklistTarget === '__bulk__' ? [...selectedIds] : [blacklistTarget];
+      // 2 writes per tag, 200 tags per batch: under Firestore's 500-write cap.
+      for (const group of chunk(targets, 200)) {
         const wb = writeBatch(db);
-        for (const tagId of selectedIds) {
-          const priorStatus = rows.find((r) => r.tagId === tagId)?.status || 'registered';
-          wb.update(doc(db, 'tags', tagId), {
-            status: 'blacklisted',
-            blacklistedFromStatus: priorStatus,
-            flagReason: reason,
-            blacklistedBy: auth.currentUser?.uid || null,
-            blacklistedAt: serverTimestamp(),
-          });
+        for (const tagId of group) {
+          wb.update(doc(db, 'tags', tagId), { status: 'blacklisted' });
+          wb.set(
+            doc(db, 'tagAdmin', tagId),
+            {
+              blacklistedFromStatus: priorStatusOf(tagId),
+              flagReason: reason,
+              blacklistedBy: auth.currentUser?.uid || null,
+              blacklistedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
         }
         await wb.commit();
-        setSelectedIds(new Set());
-      } else {
-        // A tag can be blacklisted while `claimed`, not just `registered` —
-        // remember which, so un-blacklisting restores the right state instead
-        // of always dropping back to `registered` (which would wrongly make
-        // an already-owned tag look claimable again).
-        const priorStatus = rows.find((r) => r.tagId === blacklistTarget)?.status || 'registered';
-        await updateDoc(doc(db, 'tags', blacklistTarget), {
-          status: 'blacklisted',
-          blacklistedFromStatus: priorStatus,
-          flagReason: reason,
-          blacklistedBy: auth.currentUser?.uid || null,
-          blacklistedAt: serverTimestamp(),
-        });
       }
+      if (blacklistTarget === '__bulk__') setSelectedIds(new Set());
       setBlacklistTarget(null);
       setFlagReason('');
       await loadCounts();
@@ -242,19 +250,35 @@ export default function Inventory() {
   // Reverses onConfirmBlacklist — a tag flagged by mistake (or one that
   // turns out fine) has a way back, mirroring Moderation's symmetric
   // Ban/Unban pattern instead of leaving blacklisting one-way. Restores
-  // whichever status it was blacklisted from (see blacklistedFromStatus
-  // above), not a hardcoded 'registered'.
+  // whichever status it was blacklisted from, not a hardcoded 'registered'.
+  // Tags blacklisted before tagAdmin existed keep that info on the tag doc
+  // itself; those legacy public fields are removed here.
   const [unblacklistBusy, setUnblacklistBusy] = useState('');
   async function onUnblacklist(tag) {
     setUnblacklistBusy(tag.tagId);
     try {
-      await updateDoc(doc(db, 'tags', tag.tagId), {
-        status: tag.blacklistedFromStatus || 'registered',
-        blacklistedFromStatus: null,
-        flagReason: null,
-        blacklistedBy: null,
-        blacklistedAt: null,
+      const adminSnap = await getDoc(doc(db, 'tagAdmin', tag.tagId));
+      const fromStatus =
+        (adminSnap.exists() && adminSnap.data().blacklistedFromStatus) || tag.blacklistedFromStatus || 'registered';
+      const wb = writeBatch(db);
+      wb.update(doc(db, 'tags', tag.tagId), {
+        status: fromStatus,
+        blacklistedFromStatus: deleteField(),
+        flagReason: deleteField(),
+        blacklistedBy: deleteField(),
+        blacklistedAt: deleteField(),
       });
+      wb.set(
+        doc(db, 'tagAdmin', tag.tagId),
+        {
+          blacklistedFromStatus: deleteField(),
+          flagReason: deleteField(),
+          blacklistedBy: deleteField(),
+          blacklistedAt: deleteField(),
+        },
+        { merge: true }
+      );
+      await wb.commit();
       await loadCounts();
     } catch (err) {
       setRowsError(err.message || 'Failed to unblacklist tag.');
@@ -318,6 +342,39 @@ export default function Inventory() {
       clearTimeout(timer);
     };
   }, [search, rows]);
+
+  // Content column: tagProfiles for the loaded rows, 30 ids per `in` query
+  // (Firestore's limit) instead of one read per row. Keyed on the id list so
+  // live row updates that don't add/remove tags don't refetch.
+  const rowIdsKey = rows.map((t) => t.tagId).join(',');
+  useEffect(() => {
+    const ids = rowIdsKey ? rowIdsKey.split(',') : [];
+    if (ids.length === 0) return;
+    let live = true;
+    (async () => {
+      try {
+        const snaps = await Promise.all(
+          chunk(ids, 30).map((part) => getDocs(query(collection(db, 'tagProfiles'), where(documentId(), 'in', part))))
+        );
+        if (!live) return;
+        const next = {};
+        for (const snap of snaps) for (const d of snap.docs) next[d.id] = d.data();
+        setProfiles(next);
+      } catch {
+        // Column falls back to "Lost & Found" — the default when no profile exists.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [rowIdsKey]);
+
+  // Bulk content only targets unclaimed tags — applying a template to a
+  // claimed tag would overwrite the owner's own content.
+  function onBulkContent() {
+    const tagIds = filteredRows.filter((t) => selectedIds.has(t.tagId) && t.status === 'registered').map((t) => t.tagId);
+    navigate('/admin/tags/bulk', { state: { tagIds, skipped: selectedIds.size - tagIds.length } });
+  }
 
   // Selection is scoped to whatever's currently filtered/loaded — switching
   // filters or searching while rows are checked would otherwise leave stale
@@ -455,6 +512,11 @@ export default function Inventory() {
                   Blacklist selected ({selectedIds.size})
                 </Button>
               )}
+              {selectedIds.size > 0 && (
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onBulkContent}>
+                  <PencilLine className="h-3.5 w-3.5" /> Set content ({selectedIds.size})
+                </Button>
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {STATUS_TABS.map((s) => (
@@ -494,6 +556,7 @@ export default function Inventory() {
                   <TableHead className="text-slate-500 dark:text-slate-400">Chip</TableHead>
                   <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
                   <TableHead className="text-slate-500 dark:text-slate-400">Write status</TableHead>
+                  <TableHead className="text-slate-500 dark:text-slate-400">Content</TableHead>
                   <TableHead className="text-slate-500 dark:text-slate-400">Registered</TableHead>
                   <TableHead className="text-slate-500 dark:text-slate-400">Owner</TableHead>
                   <TableHead className="text-right text-slate-500 dark:text-slate-400">Actions</TableHead>
@@ -503,7 +566,7 @@ export default function Inventory() {
                 {rowsLoading &&
                   [0, 1, 2, 3, 4].map((i) => (
                     <TableRow key={i} className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((c) => (
                         <TableCell key={c}>
                           <Skeleton className="h-4 w-full max-w-24" />
                         </TableCell>
@@ -512,7 +575,7 @@ export default function Inventory() {
                   ))}
                 {!rowsLoading && filteredRows.length === 0 && (
                   <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                    <TableCell colSpan={9} className="py-10 text-center text-slate-500 dark:text-slate-400">
+                    <TableCell colSpan={10} className="py-10 text-center text-slate-500 dark:text-slate-400">
                       No tags match this view.{' '}
                       <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
                         Register a physical tap
@@ -549,6 +612,12 @@ export default function Inventory() {
                       <TableCell className="text-slate-600 dark:text-slate-300">
                         {WRITE_STATUS_LABEL[t.writeStatus] || WRITE_STATUS_LABEL.not_written}
                       </TableCell>
+                      <TableCell
+                        className="max-w-48 truncate text-xs text-slate-600 dark:text-slate-300"
+                        title={profiles[t.tagId]?.redirectUrl || contentLabel(profiles[t.tagId])}
+                      >
+                        {contentLabel(profiles[t.tagId])}
+                      </TableCell>
                       <TableCell className="text-slate-500 dark:text-slate-400" title={created ? created.toLocaleString() : ''}>
                         {created ? relativeTimeFromMs(toMillis(created)) : '—'}
                       </TableCell>
@@ -571,6 +640,13 @@ export default function Inventory() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-wrap justify-end gap-1.5">
+                          {t.status !== 'blacklisted' && (
+                            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                              <Link to={`/admin/tags/${encodeURIComponent(t.tagId)}`}>
+                                <PencilLine className="h-3.5 w-3.5" /> Edit content
+                              </Link>
+                            </Button>
+                          )}
                           <Button variant="outline" size="sm" onClick={() => onCopyUrl(t.tagId)}>
                             {copiedTagId === t.tagId ? 'Copied' : 'Copy URL'}
                           </Button>

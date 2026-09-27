@@ -20,7 +20,7 @@ security rules, NFC write flow) see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - Claim a registered NFC tag to an item (name, category) via NFC tap or by entering its TagBack ID.
 - Arm / disarm "Lost Mode" on an item, with a message to the finder and an optional reward.
 - Public tap page: anyone who taps a tag sees item status, the owner's enabled social links, and can file a "found it" report with a message and optional GPS location.
-- My NFC Profile page: configure social links/contact/lost-found visibility for a claimed tag (`tagProfiles/{tagId}`) — the physical tag identity itself is admin-registered, not owner-editable.
+- My NFC Profile page: choose what a tap shows (lost & found page, profile card, or redirect) plus social/contact links for a claimed tag (`tagProfiles/{tagId}`) — the physical tag identity itself is admin-registered, not owner-editable. Admins edit the same content at `/admin/tags/:tagId`.
 - Anonymous two-way chat between owner and finder, keyed by a private session token (finder) / Firebase Auth (owner) — never by contact info.
 - Mark an item "Recovered" from chat, closing the report and clearing Lost Mode.
 - Admin: register physical NFC stickers by tapping them (reads the chip's hardware UID when the browser exposes one, mints a stable TagBack ID either way — see [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md)), write their TagBack URL, track claim lifecycle, blacklist compromised/lost tags.
@@ -75,7 +75,7 @@ on read), so public-safe data and owner-linking data live in separate collection
 | `users/{uid}` | private (owner) | email, displayName, phone, notificationPrefs |
 | `tags/{tagId}` | public read, **admin write** | `tagId` is the TagBack ID minted at registration (not the physical chip UID); `physicalUid` (optional, only if the registering device's browser exposed one), status (`registered`/`claimed`/`blacklisted`), `chipType`, `writeStatus` (`not_written`/`writing`/`written`/`write_failed`), `flagReason` (optional string, set by admin when blacklisting) |
 | `items/{tagId}` | **public read** | tagId, itemName, isLostMode, lostMessage, rewardAmount — **no PII, no ownerUid** |
-| `tagProfiles/{tagId}` | **public read**, owner write | website/instagram/facebook/tiktok/linkedin/youtube, contactEnabled, lostFoundEnabled — **no PII, no ownerUid** |
+| `tagProfiles/{tagId}` | **public read**, owner or admin write | landingMode, displayName, bio, website/instagram/facebook/tiktok/linkedin/youtube, contactUrl, redirectUrl, contactEnabled, lostFoundEnabled, updatedAt/updatedBy — **no PII, no ownerUid** |
 | `itemOwners/{tagId}` | private (owner) | ownerUid — the tag→owner map |
 | `reports/{id}` | owner read | tagId, finderSessionToken, initialMessage, location, status |
 | `chats/{id}` + `messages` | party read | anonymous two-way thread |

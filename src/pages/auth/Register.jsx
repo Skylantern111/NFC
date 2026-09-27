@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Check, Circle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { toast } from 'sonner';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { deleteField, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../../firebase/config';
+import { signupInProgress } from '../../context/AuthContext';
 import { friendlyAuthError, passwordRequirementResults, passwordStrength } from '../../lib/utils';
 import AmbientBackground from '../../components/AmbientBackground';
 import TopNav from '../../components/nav/TopNav';
@@ -13,17 +14,12 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 
-// Grants the self-serve admin path (see firestore.rules#isAdmin) when typed
-// into the optional passcode field below. Ships in the client bundle by
-// design — this is a low-stakes convenience gate, not real access control;
-// scripts/setAdmin.js's custom claim is the secure path.
-//
-// Sourced from an env var (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §R2.4) rather
-// than a hardcoded literal so it can be rotated per-deployment (new value,
-// redeploy) without a code change if it ever leaks beyond its intended
-// small pilot audience — see scripts/revokeSelfServeAdmin.js for cleaning
-// up an account that already self-granted admin with a leaked passcode.
-const ADMIN_SIGNUP_PASSCODE = import.meta.env.VITE_ADMIN_SIGNUP_PASSCODE || '111';
+// Optional admin passcode (self-serve admin signup). SYSTEM_AUDIT_PLAN.md A1:
+// the passcode is no longer in the client bundle, and the browser no longer
+// decides who is admin. The typed value is sent with the new users/{uid}
+// doc, and firestore.rules only accepts isAdmin: true when it matches
+// meta/adminSignup.passcode (set by an admin on admin/Owners.jsx). The
+// copy on the user's own doc is deleted right after.
 
 export default function Register() {
   const nav = useNavigate();
@@ -64,22 +60,35 @@ export default function Register() {
       return;
     }
     setBusy(true);
-    const grantsAdmin = form.adminPasscode.trim() === ADMIN_SIGNUP_PASSCODE;
+    const typedPasscode = form.adminPasscode.trim();
+    let grantsAdmin = false;
+    signupInProgress.current = true;
     try {
       const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
       await updateProfile(cred.user, { displayName: form.displayName });
       // Owner profile lives in `users` — never exposed to finders. `isAdmin`
       // can only be set here, at creation — firestore.rules blocks changing
       // it via a later update, so this is the one and only grant point.
-      await setDoc(doc(db, 'users', cred.user.uid), {
+      const userRef = doc(db, 'users', cred.user.uid);
+      const profile = {
         uid: cred.user.uid,
         email: form.email,
         displayName: form.displayName,
         phone: '',
         notificationPrefs: { inApp: true, email: true },
-        isAdmin: grantsAdmin,
         createdAt: serverTimestamp(),
-      });
+      };
+      if (typedPasscode) {
+        try {
+          await setDoc(userRef, { ...profile, isAdmin: true, adminPasscode: typedPasscode });
+          grantsAdmin = true;
+          await updateDoc(userRef, { adminPasscode: deleteField() }).catch(() => {});
+        } catch (err) {
+          if (err.code !== 'permission-denied') throw err;
+          toast.warning('That admin passcode was not accepted. Your account was created as a regular owner.');
+        }
+      }
+      if (!grantsAdmin) await setDoc(userRef, { ...profile, isAdmin: false });
       // Best-effort — account creation already succeeded above, so a failed
       // verification-email send (rare: network) shouldn't block the flow.
       sendEmailVerification(cred.user).catch((err) => console.warn('sendEmailVerification failed:', err));
@@ -88,6 +97,7 @@ export default function Register() {
     } catch (e) {
       setErr(friendlyAuthError(e));
     } finally {
+      signupInProgress.current = false;
       setBusy(false);
     }
   }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { CATEGORIES, CATEGORY_ICON } from '../../lib/categories';
 import { normalizePhysicalUid, normalizeTagbackId, tagIdFromNdefMessage } from '../../lib/tags';
+import { isAdminManaged } from '../../lib/tagContent';
 import BackButton from '../../components/BackButton';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -42,9 +43,21 @@ export default function ClaimTag() {
 
   const nfcSupported = typeof window !== 'undefined' && 'NDEFReader' in window;
 
+  // SYSTEM_AUDIT_PLAN.md B3: stop the reader after one tap (and on unmount)
+  // instead of leaving it scanning for the rest of the page's life.
+  const scanAbortRef = useRef(null);
+  function stopScan() {
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+  }
+  useEffect(() => stopScan, []);
+
   async function scanNfc() {
     setError('');
     setNfcStatus('scanning');
+    stopScan();
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
     try {
       const reader = new window.NDEFReader();
       // Handlers must be registered BEFORE scan() is awaited, not after —
@@ -54,6 +67,8 @@ export default function ClaimTag() {
       // could fire `reading` before anything is listening (see
       // IMPROVEMENT_PLAN.md Round 4 #5 / the Web NFC spec's own examples).
       reader.onreading = (event) => {
+        if (controller.signal.aborted) return;
+        stopScan();
         const scanned = tagIdFromNdefMessage(event.message);
         setScannedUid(normalizePhysicalUid(event.serialNumber));
         if (scanned) {
@@ -66,10 +81,13 @@ export default function ClaimTag() {
           setNfcStatus('unreadable');
         }
       };
-      reader.onreadingerror = () => setNfcStatus('error');
-      await reader.scan();
-    } catch {
-      setNfcStatus('error');
+      reader.onreadingerror = () => {
+        stopScan();
+        setNfcStatus('error');
+      };
+      await reader.scan({ signal: controller.signal });
+    } catch (err) {
+      if (err?.name !== 'AbortError') setNfcStatus('error');
     }
   }
 
@@ -94,6 +112,12 @@ export default function ClaimTag() {
     }
 
     const normalizedTagId = normalizeTagbackId(tagId);
+    // A malformed id (e.g. a pasted URL) would otherwise reach doc() and
+    // throw a cryptic "invalid document reference" (SYSTEM_AUDIT_PLAN.md B2).
+    if (!/^TB-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(normalizedTagId)) {
+      setError('Enter a TagBack ID like TB-ABCD-2345 (printed on the sticker).');
+      return;
+    }
     let registeredPhysicalUid = null;
 
     setBusy(true);
@@ -115,6 +139,13 @@ export default function ClaimTag() {
         const ownerSnap = await tx.get(ownerRef);
         if (ownerSnap.exists()) {
           throw new Error('This tag has already been claimed.');
+        }
+
+        // Mirrors the claim guard in firestore.rules: a tag an admin set up
+        // as a profile/redirect is company-managed, not claimable stock.
+        const profileSnap = await tx.get(doc(db, 'tagProfiles', normalizedTagId));
+        if (isAdminManaged(profileSnap.exists() ? profileSnap.data() : null)) {
+          throw new Error('This tag is managed by TagBack and cannot be claimed. Contact the admin if this seems wrong.');
         }
 
         // itemOwners is the private tag→owner map; items is the public-safe

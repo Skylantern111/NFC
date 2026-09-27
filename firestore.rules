@@ -51,13 +51,11 @@ service cloud.firestore {
 
     // Two ways to be admin: the real custom claim (scripts/setAdmin.js,
     // server-side only), or a self-serve `users/{uid}.isAdmin` flag set at
-    // signup via a passcode (Register.jsx) — see IMPROVEMENT_PLAN.md's admin
-    // round for why this second path exists and its known weaknesses (the
-    // passcode ships in the client bundle; this is a deliberate, documented
-    // tradeoff for a low-stakes project, not a secure grant mechanism).
-    // `isAdmin` can only ever be set at document *creation* (see
-    // users/{uid}'s `allow update` below, which blocks changing it later),
-    // so this doesn't let an already-signed-up non-admin self-upgrade.
+    // signup via a passcode (Register.jsx). SYSTEM_AUDIT_PLAN.md A1: the
+    // passcode is checked HERE, against meta/adminSignup (admin-only, never
+    // shipped to the client), not in the browser — and users/{uid} can no
+    // longer be deleted and re-created, so `isAdmin` really is fixed at
+    // creation (see users/{uid} below).
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.admin == true
@@ -112,8 +110,22 @@ service cloud.firestore {
     function publicProfileFieldsOnly() {
       let d = request.resource.data;
       return d.keys().hasOnly(
-        ['website', 'instagram', 'facebook', 'linkedin', 'youtube', 'tiktok', 'contactUrl', 'contactEnabled', 'lostFoundEnabled']
+        ['website', 'instagram', 'facebook', 'linkedin', 'youtube', 'tiktok', 'contactUrl', 'contactEnabled', 'lostFoundEnabled',
+         'landingMode', 'displayName', 'bio', 'redirectUrl', 'updatedAt', 'updatedBy', 'editorRole']
       )
+      // NFC_WRITE_DATA_ADMIN_PLAN.md — the sticker only carries the TagBack
+      // URL; what a tap shows is chosen here. displayName is typed in by
+      // whoever edits the profile, never copied from users/{uid}.
+      && (!('landingMode' in d) || d.landingMode in ['lostfound', 'profile', 'redirect'])
+      && (!('displayName' in d) || withinLength(d.displayName, 60))
+      && (!('bio' in d) || withinLength(d.bio, 160))
+      && (!('redirectUrl' in d) || isHttpsUrl(d.redirectUrl))
+      && (!('updatedAt' in d) || d.updatedAt is timestamp)
+      && (!('updatedBy' in d) || d.updatedBy == request.auth.uid)
+      // SYSTEM_AUDIT_PLAN.md C1: who set the content decides whether a
+      // redirect is instant (admin) or goes through a "leaving TagBack"
+      // page (owner) — so only a real admin may stamp 'admin'.
+      && (!('editorRole' in d) || d.editorRole == 'owner' || (d.editorRole == 'admin' && isAdmin()))
       && (!('website' in d) || isHttpsUrl(d.website))
       && (!('instagram' in d) || isHttpsUrl(d.instagram))
       && (!('facebook' in d) || isHttpsUrl(d.facebook))
@@ -128,17 +140,36 @@ service cloud.firestore {
       && (!('contactUrl' in d) || isHttpsUrl(d.contactUrl));
     }
 
+    // Self-serve admin signup: the typed passcode must match
+    // meta/adminSignup.passcode (set by an admin in admin/Owners.jsx or via
+    // scripts/setAdminSignupPasscode.js). No meta doc = admin signup off.
+    function validAdminPasscode() {
+      let meta = /databases/$(database)/documents/meta/adminSignup;
+      return exists(meta)
+        && get(meta).data.passcode is string
+        && get(meta).data.passcode.size() >= 6
+        && request.resource.data.adminPasscode == get(meta).data.passcode;
+    }
+
     // ---- users: private to the account owner, plus admin read/moderation.
     //      An admin may read any profile (admin/Owners.jsx lookup) and may
     //      set `disabled` (soft account disable); an owner may update their
-    //      own doc but never touch `disabled` on themselves. ----
+    //      own doc but never touch `disabled`/`isAdmin` on themselves.
+    //
+    //      SYSTEM_AUDIT_PLAN.md A1/A2: self-delete used to be allowed, so a
+    //      user could delete this doc and re-create it with isAdmin: true
+    //      (self-grant admin) or without `disabled` (undo an admin's
+    //      disable). Create now only accepts isAdmin: true with the real
+    //      passcode, never `disabled: true`, and the doc can't be deleted. ----
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && (!('disabled' in request.resource.data) || request.resource.data.disabled == false)
+        && (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false || validAdminPasscode());
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid == uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['disabled', 'isAdmin']));
-      allow delete: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
     }
 
     // ---- tags: NFC asset registry. tagId is the TagBack ID (the stable
@@ -163,6 +194,13 @@ service cloud.firestore {
         && resource.data.status == 'registered'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && request.resource.data.status == 'claimed'
+        // An unclaimed tag an admin has set to a profile/redirect is
+        // company-managed content, not stock waiting for an owner — a
+        // stranger holding the sticker must not be able to take it over
+        // (NFC_WRITE_DATA_ADMIN_PLAN.md). Admin sets it back to 'lostfound'
+        // to hand it out.
+        && (!exists(/databases/$(database)/documents/tagProfiles/$(tagId))
+            || get(/databases/$(database)/documents/tagProfiles/$(tagId)).data.get('landingMode', 'lostfound') == 'lostfound')
         && existsAfter(/databases/$(database)/documents/itemOwners/$(tagId))
         && getAfter(/databases/$(database)/documents/itemOwners/$(tagId)).data.ownerUid == request.auth.uid;
 
@@ -183,12 +221,23 @@ service cloud.firestore {
         && !existsAfter(/databases/$(database)/documents/itemOwners/$(tagId));
 
       // ---- scan log: anonymous tap counter, no finder identity captured.
-      //      Public-create (any tap), owner-read only, immutable. ----
+      //      Public-create (any tap), owner/admin read, immutable. ----
       match /scans/{scanId} {
-        allow create: if request.resource.data.keys().hasOnly(['timestamp', 'roughLocation']);
-        allow read: if ownsTag(tagId);
+        // SYSTEM_AUDIT_PLAN.md A8: real tags only, server time only.
+        allow create: if request.resource.data.keys().hasOnly(['timestamp', 'roughLocation', 'landingMode'])
+          && request.resource.data.timestamp == request.time
+          && exists(/databases/$(database)/documents/tags/$(tagId));
+        // Admin read: tap counts in admin/TagContent.jsx.
+        allow read: if ownsTag(tagId) || isAdmin();
         allow update, delete: if false;
       }
+    }
+
+    // ---- tagAdmin: admin-only notes about a tag (who registered it, why it
+    //      was blacklisted, which status to restore). SYSTEM_AUDIT_PLAN.md A7:
+    //      these used to sit on the public tags doc. ----
+    match /tagAdmin/{tagId} {
+      allow read, write: if isAdmin();
     }
 
     // ---- items: PUBLIC-SAFE. Readable by anyone. Writable only by the owner,
@@ -214,14 +263,20 @@ service cloud.firestore {
       allow delete: if ownsTag(tagId);
     }
 
-    // ---- tagProfiles: PUBLIC-SAFE owner-controlled profile add-ons (social
-    //      links, contact/lost-found toggles — see dashboard/NfcSetup.jsx).
-    //      Same PII posture as items: readable by anyone, writable only by
-    //      the owner, field set whitelisted. ----
+    // ---- tagProfiles: PUBLIC-SAFE tap content (landing mode, display
+    //      name, social links, contact/redirect links — see
+    //      dashboard/NfcSetup.jsx and admin/TagContent.jsx). Same PII posture
+    //      as items: readable by anyone, field set whitelisted. Writable by
+    //      the owner, and by an admin (unclaimed/company stock, or moderating
+    //      a claimed tag — updatedBy records who edited last, and the owner's
+    //      NfcSetup page shows when that was an admin). ----
     match /tagProfiles/{tagId} {
       allow read: if true;
-      allow create, update: if ownsTag(tagId) && publicProfileFieldsOnly();
-      allow delete: if ownsTag(tagId);
+      // isAdmin() first (SYSTEM_AUDIT_PLAN.md C3): a bulk batch then skips
+      // the per-tag itemOwners lookup, staying under the rules' per-request
+      // lookup limit.
+      allow create, update: if (isAdmin() || ownsTag(tagId)) && publicProfileFieldsOnly();
+      allow delete: if isAdmin() || ownsTag(tagId);
     }
 
     // ---- itemOwners: private tag→owner mapping. Admin read-only, for the
@@ -234,28 +289,51 @@ service cloud.firestore {
       // this clause self-revokes the instant a claim creates the doc.
       allow read: if ownsTag(tagId) || isAdmin() || (isSignedIn() && resource == null);
       // Claim: create allowed only if the tag is currently registered
-      // (admin has provisioned it, no owner yet) and the caller assigns
-      // themselves as owner.
+      // (admin has provisioned it, no owner yet), the caller assigns
+      // themselves as owner, AND the same write flips tags.status to
+      // 'claimed' (SYSTEM_AUDIT_PLAN.md A3). Without that last check a
+      // caller could create only this doc — squatting the tag while it
+      // still showed as unclaimed, and slipping past the tags#update claim
+      // guard on admin-managed tags.
       allow create: if isSignedIn()
         && !isDisabledOwner(request.auth.uid)
+        && request.resource.data.keys().hasOnly(['ownerUid'])
         && request.resource.data.ownerUid == request.auth.uid
-        && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'registered';
-      allow update, delete: if ownsTag(tagId);
+        && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'registered'
+        && getAfter(/databases/$(database)/documents/tags/$(tagId)).data.status == 'claimed';
+      // No ownership transfer by edit. Deleting is only the release
+      // transaction, which must flip the tag back to 'registered' in the
+      // same write (otherwise the tag would be stuck 'claimed' with no owner).
+      allow update: if false;
+      allow delete: if ownsTag(tagId)
+        && getAfter(/databases/$(database)/documents/tags/$(tagId)).data.status == 'registered';
     }
 
     // ---- reports: a finder (unauthenticated) files a found report. ----
     match /reports/{reportId} {
       // Finder creates; must carry a session token and target a real tag,
       // and that token must not be admin-blocked.
-      allow create: if request.resource.data.keys().hasAll(['tagId', 'finderSessionToken', 'status'])
+      // SYSTEM_AUDIT_PLAN.md A5: exact field set, every field bounded.
+      allow create: if request.resource.data.keys().hasOnly(
+          ['tagId', 'finderSessionToken', 'initialMessage', 'locationNote', 'location', 'status', 'timestamp'])
+        && request.resource.data.keys().hasAll(['tagId', 'finderSessionToken', 'status'])
         && request.resource.data.status == 'open'
+        && withinLength(request.resource.data.finderSessionToken, 64)
         && !isBlockedToken(request.resource.data.finderSessionToken)
         && !isBlacklistedTag(request.resource.data.tagId)
         // §R2.3 — was unbounded (client-side <Textarea> only).
-        && (!('initialMessage' in request.resource.data) || withinLength(request.resource.data.initialMessage, 500));
-      // Only the owner of the reported tag may read/resolve it.
-      allow read, update: if ownsTag(resource.data.tagId);
-      allow delete: if false;
+        && (!('initialMessage' in request.resource.data) || withinLength(request.resource.data.initialMessage, 500))
+        && (!('locationNote' in request.resource.data) || request.resource.data.locationNote == null
+            || withinLength(request.resource.data.locationNote, 200))
+        && (!('location' in request.resource.data) || request.resource.data.location == null
+            || (request.resource.data.location.keys().hasOnly(['lat', 'lng', 'accuracy'])
+                && request.resource.data.location.lat is number
+                && request.resource.data.location.lng is number))
+        && (!('timestamp' in request.resource.data) || request.resource.data.timestamp == request.time);
+      // Only the owner of the reported tag may read/resolve it. Delete:
+      // releasing a tag clears its reports so the next owner can't read
+      // the previous owner's finder reports (SYSTEM_AUDIT_PLAN.md A4).
+      allow read, update, delete: if ownsTag(resource.data.tagId);
     }
 
     // ---- chats + messages: two-way anonymous channel. ----
@@ -265,13 +343,24 @@ service cloud.firestore {
         return ownsTag(resource.data.tagId)
           || resource.data.finderSessionToken == request.resource.data.finderSessionToken;
       }
-      allow read: if true; // chat doc itself carries no PII
+      // get: anyone holding the (random) chatId — that's how a finder
+      // reaches their chat. list: only the tag's owner or an admin — a
+      // public list let anyone enumerate every chat on a tag by tagId.
+      allow get: if true;
+      allow list: if isAdmin() || ownsTag(resource.data.tagId);
       // No ownerUid on this doc: itemOwners stays private (finder can't read
       // it to stamp one), so Messages.jsx finds "my chats" by joining against
       // the owner's own itemOwners-derived tagIds instead (see
       // lib/ownerItems.js#useOwnerChats) — same `in`-query shape already used
       // by useOwnerOpenReports, well under the 30-tag cap for a single owner.
-      allow create: if request.resource.data.keys().hasAll(['tagId', 'finderSessionToken'])
+      // SYSTEM_AUDIT_PLAN.md A5: exact field set — a finder can't pre-set
+      // blocked/resolved/reviewedAt on a new chat.
+      allow create: if request.resource.data.keys().hasOnly(
+          ['reportId', 'tagId', 'finderSessionToken', 'createdAt', 'lastMessageAt', 'lastMessageText', 'unreadFor'])
+        && request.resource.data.keys().hasAll(['tagId', 'finderSessionToken'])
+        && withinLength(request.resource.data.finderSessionToken, 64)
+        && (!('lastMessageText' in request.resource.data) || withinLength(request.resource.data.lastMessageText, 140))
+        && (!('unreadFor' in request.resource.data) || request.resource.data.unreadFor == ['owner'])
         && !isBlockedToken(request.resource.data.finderSessionToken)
         && !isBlacklistedTag(request.resource.data.tagId);
       // Owner may update anything on the chat (block, etc). A finder sending
@@ -288,14 +377,29 @@ service cloud.firestore {
       // who already has the chatId. The backstop is admin review afterward,
       // not this check — consistent with this project's existing, documented
       // risk tolerance for the finder-identity model.
+      //
+      // SYSTEM_AUDIT_PLAN.md A6: the finder branch no longer covers
+      // lastMessageText (anyone with the chatId could rewrite the preview
+      // the owner sees) — the owner's list reads the real latest message
+      // instead. B6: a finder report lives in its own `reportedByFinder`
+      // field, so it can't overwrite (or be blocked by) the owner's.
       allow update: if ownsTag(resource.data.tagId)
         || (isChatParty()
             && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['lastMessageAt', 'lastMessageText', 'unreadFor']))
+               .hasOnly(['lastMessageAt', 'unreadFor'])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastMessageAt'])
+                || request.resource.data.lastMessageAt == request.time)
+            && request.resource.data.unreadFor is list
+            && request.resource.data.unreadFor.size() <= 2)
         || (isChatParty() && !ownsTag(resource.data.tagId)
+            && !('reportedByFinder' in resource.data)
             && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['blocked', 'blockedReason', 'blockedBy'])
-            && request.resource.data.blockedBy == 'finder')
+               .hasOnly(['blocked', 'reportedByFinder'])
+            && request.resource.data.blocked == true
+            && request.resource.data.reportedByFinder.keys().hasOnly(['reason', 'at'])
+            && (request.resource.data.reportedByFinder.reason == null
+                || withinLength(request.resource.data.reportedByFinder.reason, 500))
+            && request.resource.data.reportedByFinder.at == request.time)
         || (isAdmin()
             && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['reviewedAt', 'reviewedBy']));
@@ -331,7 +435,10 @@ service cloud.firestore {
     //      reads their own feed with the same tagId `in` join used for chats
     //      and open reports (see lib/ownerItems.js#useOwnerNotifications). ----
     match /notifications/{notifId} {
-      allow create: if request.resource.data.keys().hasAll(['type', 'tagId', 'createdAt', 'read'])
+      allow create: if request.resource.data.keys().hasOnly(['type', 'tagId', 'chatId', 'reportId', 'createdAt', 'read'])
+        && request.resource.data.keys().hasAll(['type', 'tagId', 'createdAt', 'read'])
+        && request.resource.data.type in ['report', 'message', 'moderation_resolved']
+        && request.resource.data.createdAt == request.time
         && request.resource.data.read == false
         && exists(/databases/$(database)/documents/items/$(request.resource.data.tagId));
       allow read, update, delete: if ownsTag(resource.data.tagId);

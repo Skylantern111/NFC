@@ -53,16 +53,30 @@ export function normalizePhysicalUid(serialNumber) {
 // scans a tag to claim it (dashboard/ClaimTag.jsx) and when the admin
 // registration scan needs to detect "this sticker already carries a
 // TagBack URL" (admin/NfcRegister.jsx). Provisioned tags carry a URL record
-// pointing at /nfc/:tagId (see tagUrl below); falls back to the record's
-// raw text if that shape isn't found.
+// pointing at /nfc/:tagId (see tagUrl below); a bare TB-XXXX-XXXX text
+// record is also accepted.
+//
+// Anything else returns null (SYSTEM_AUDIT_PLAN.md B2): this used to fall
+// back to the record's raw text, so a sticker holding e.g.
+// https://instagram.com/x produced "https://instagram.com/x" as a tag id —
+// and doc(db, 'tags', thatText) throws on the slashes, which blocked
+// registering or claiming any sticker with a non-TagBack URL on it.
+const TAG_PATH_RE = /\/nfc\/([A-Za-z0-9_-]{6,64})(?:[/?#]|$)/;
+const TAGBACK_ID_RE = /^TB-?[A-Z0-9]{4}-?[A-Z0-9]{4}$/i;
+
 export function tagIdFromNdefMessage(message) {
   const decoder = new TextDecoder();
-  for (const record of message.records) {
+  for (const record of message?.records || []) {
     if (record.recordType !== 'url' && record.recordType !== 'text') continue;
-    const text = decoder.decode(record.data);
-    const match = text.match(/\/nfc\/([A-Za-z0-9_-]{6,})/);
+    let text;
+    try {
+      text = decoder.decode(record.data).trim();
+    } catch {
+      continue;
+    }
+    const match = text.match(TAG_PATH_RE);
     if (match) return match[1];
-    if (text.trim()) return text.trim();
+    if (TAGBACK_ID_RE.test(text)) return normalizeTagbackId(text);
   }
   return null;
 }

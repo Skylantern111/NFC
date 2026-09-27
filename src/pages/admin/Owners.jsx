@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, UserX, UserCheck, Loader2 } from 'lucide-react';
+import AdminSignupPasscodeCard from '../../components/AdminSignupPasscodeCard';
 import { toast } from 'sonner';
 import { findOwnerByTag, listOwnerTags, setOwnerDisabled } from '../../lib/adminOwners';
 import { normalizeTagbackId, TAG_STATUS_BADGE } from '../../lib/tags';
@@ -298,6 +299,8 @@ export default function Owners() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AdminSignupPasscodeCard />
     </div>
   );
 }

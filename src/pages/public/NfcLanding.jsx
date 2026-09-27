@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   doc,
   getDoc,
@@ -9,36 +9,23 @@ import {
 } from 'firebase/firestore';
 import {
   ArrowRight,
-  Facebook,
-  Globe,
-  Instagram,
-  Linkedin,
+  ExternalLink,
   Loader2,
   LocateFixed,
   MapPin,
-  MessageCircle,
   MessageSquare,
   ShieldAlert,
   ShieldCheck,
   Tag as TagIcon,
-  Youtube,
 } from 'lucide-react';
-
-const PROFILE_LINK_ICONS = {
-  website: Globe,
-  instagram: Instagram,
-  facebook: Facebook,
-  tiktok: Globe,
-  linkedin: Linkedin,
-  youtube: Youtube,
-};
-const LINK_FIELD_KEYS = Object.keys(PROFILE_LINK_ICONS);
 import { toast } from 'sonner';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { captureLocation } from '../../lib/geolocation';
 import { getFinderToken } from '../../lib/finderSession';
 import { notifyOwner, recordTagScan } from '../../lib/ownerItems';
+import { hasVisibleLinks, isAdminManaged, resolveLanding } from '../../lib/tagContent';
+import { LinkPills, ProfileCard } from '../../components/TagContent';
 import AmbientBackground from '../../components/AmbientBackground';
 import TopNav from '../../components/nav/TopNav';
 import { Card, CardContent } from '@/components/ui/card';
@@ -65,13 +52,31 @@ function publicItemMock(tagId) {
   };
 }
 
+// Social/contact pills (shared with the profile card and the editors'
+// live preview) — the card only renders when there's something to show.
+function LinkPillsCard({ profile }) {
+  if (!hasVisibleLinks(profile)) return null;
+  return (
+    <Card className={GLASS}>
+      <CardContent className="text-slate-800 dark:text-slate-100">
+        <LinkPills profile={profile} interactive />
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function NfcLanding() {
   const { tagId } = useParams();
   const nav = useNavigate();
+  // Editors' "Preview"/"Open" links add ?preview=1 so an owner or admin
+  // checking the page doesn't inflate the tap count (SYSTEM_AUDIT_PLAN.md C2).
+  const [searchParams] = useSearchParams();
+  const isPreview = searchParams.get('preview') === '1';
   const { user } = useAuth();
   const [item, setItem] = useState(null);
   const [tagProfile, setTagProfile] = useState(null);
-  const [state, setState] = useState('loading'); // loading | ready | notfound | blacklisted | unclaimed
+  // loading | ready (lost & found) | profile | redirecting | notfound | blacklisted | unclaimed
+  const [state, setState] = useState('loading');
   const [note, setNote] = useState('');
   const [locationNote, setLocationNote] = useState('');
   const [location, setLocation] = useState(null);
@@ -99,27 +104,53 @@ export default function NfcLanding() {
           setState('blacklisted');
           return;
         }
-        // Registered but not yet claimed: no items/itemOwners doc exists yet
-        // (only created at claim time — see ClaimTag.jsx), so there's
-        // nothing to "find" here. Tapping the physical sticker on a
-        // registered-but-unclaimed tag should offer to claim it, not show a
-        // dead end.
-        if (tagSnap.exists() && tagSnap.data().status === 'registered') {
-          setState('unclaimed');
-          return;
-        }
-        // Public read: security rules expose only whitelisted fields.
+        // Public read: security rules expose only whitelisted fields. The
+        // item read is wasted on an unclaimed tag (no items doc yet), but
+        // running both in parallel keeps the common claimed-tag path fast.
         const [snap, profileSnap] = await Promise.all([
           getDoc(doc(db, 'items', tagId)),
           getDoc(doc(db, 'tagProfiles', tagId)),
         ]);
         if (!live) return;
-        if (snap.exists()) {
-          setItem({ tagId, ...snap.data() });
-          setTagProfile(profileSnap.exists() ? profileSnap.data() : null);
-          setState('ready');
+        const profile = profileSnap.exists() ? profileSnap.data() : null;
+        setTagProfile(profile);
+
+        // The sticker only carries this URL; tagProfiles decides what the
+        // tap shows (NFC_WRITE_DATA_ADMIN_PLAN.md).
+        function show(landing) {
           // Best-effort tap counter — never blocks or fails the page render.
-          recordTagScan(tagId);
+          if (!isPreview) recordTagScan(tagId, landing);
+          if (landing === 'redirect') {
+            // SYSTEM_AUDIT_PLAN.md C1: an owner-set redirect goes through a
+            // short "leaving TagBack" page, so a trusted TagBack link can't
+            // silently bounce people to a phishing site. Admin-set redirects
+            // (editorRole is rules-checked) stay instant.
+            if (profile.editorRole === 'admin') {
+              setState('redirecting');
+              window.location.replace(profile.redirectUrl);
+            } else {
+              setState('leaving');
+            }
+          } else {
+            setState(landing === 'profile' ? 'profile' : 'ready');
+          }
+        }
+
+        // Registered but not yet claimed: no items/itemOwners doc exists yet
+        // (only created at claim time — see ClaimTag.jsx). An admin may have
+        // given it profile/redirect content (company stock) — show that.
+        // Otherwise tapping it should offer to claim it, not a dead end.
+        if (tagSnap.exists() && tagSnap.data().status === 'registered') {
+          const landing = isAdminManaged(profile) ? resolveLanding(profile, null) : 'lostfound';
+          // No item to show a lost & found page for — fall back to the claim offer.
+          if (landing === 'lostfound') setState('unclaimed');
+          else show(landing);
+          return;
+        }
+        if (snap.exists()) {
+          const nextItem = { tagId, ...snap.data() };
+          setItem(nextItem);
+          show(resolveLanding(profile, nextItem));
         } else {
           setState('notfound');
         }
@@ -130,7 +161,20 @@ export default function NfcLanding() {
     return () => {
       live = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagId]);
+
+  // Auto-continue from the "leaving TagBack" page after a few seconds.
+  const [leaveIn, setLeaveIn] = useState(5);
+  useEffect(() => {
+    if (state !== 'leaving') return;
+    if (leaveIn <= 0) {
+      window.location.replace(tagProfile.redirectUrl);
+      return;
+    }
+    const t = setTimeout(() => setLeaveIn((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [state, leaveIn, tagProfile]);
 
   // Real, gracefully-degrading browser geolocation (see lib/geolocation.js —
   // resolves null on denial/unsupported/timeout rather than throwing). Not a
@@ -283,6 +327,78 @@ export default function NfcLanding() {
     );
   }
 
+  if (state === 'redirecting') {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-3 px-5 text-center text-slate-500 dark:text-slate-400">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <p className="text-sm">Opening link…</p>
+        <a
+          href={tagProfile?.redirectUrl}
+          className="inline-flex items-center gap-1 break-all text-xs font-semibold text-purple-600 hover:text-pink-600"
+        >
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" /> {tagProfile?.redirectUrl}
+        </a>
+      </div>
+    );
+  }
+
+  if (state === 'leaving') {
+    let host = tagProfile?.redirectUrl;
+    try {
+      host = new URL(tagProfile.redirectUrl).hostname;
+    } catch {
+      // Keep the raw URL.
+    }
+    return (
+      <>
+        <AmbientBackground />
+        <div className="relative flex min-h-screen flex-col">
+          <TopNav fallback="/" />
+          <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
+            <Card className={GLASS}>
+              <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
+                <ExternalLink className="h-6 w-6 text-purple-600" />
+                <h1 className="text-xl font-bold">You're leaving TagBack</h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  This tag's owner links to <span className="font-semibold text-slate-700 dark:text-slate-200">{host}</span>.
+                  Only continue if you trust it.
+                </p>
+                <p className="break-all text-xs text-slate-400 dark:text-slate-500">{tagProfile?.redirectUrl}</p>
+                <Button
+                  className="mt-1 w-full gap-2"
+                  onClick={() => window.location.replace(tagProfile.redirectUrl)}
+                >
+                  Continue ({leaveIn}) <ArrowRight className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  if (state === 'profile') {
+    // The report link only makes sense when there's an owner to notify
+    // (claimed tag → item exists) and reporting isn't switched off.
+    const canReport = !!item && tagProfile?.lostFoundEnabled !== false;
+    return (
+      <>
+        <AmbientBackground />
+        <div className="relative flex min-h-screen flex-col">
+          <TopNav fallback="/" />
+          <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5">
+            <Card className={GLASS}>
+              <CardContent className="py-8">
+                <ProfileCard profile={tagProfile} onReport={canReport ? () => setState('ready') : undefined} />
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </>
+    );
+  }
+
   if (state === 'blacklisted') {
     return (
       <>
@@ -356,42 +472,8 @@ export default function NfcLanding() {
           </CardContent>
         </Card>
 
-        {tagProfile &&
-          (LINK_FIELD_KEYS.some((k) => tagProfile[k]) || (tagProfile.contactEnabled && tagProfile.contactUrl)) && (
-          <Card className={GLASS}>
-            <CardContent className="flex flex-wrap gap-2 text-slate-800 dark:text-slate-100">
-              {LINK_FIELD_KEYS.filter((k) => tagProfile[k]).map((k) => {
-                const Icon = PROFILE_LINK_ICONS[k] || Globe;
-                return (
-                  <a
-                    key={k}
-                    href={tagProfile[k]}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-neu-flat-sm hover:shadow-neu-pressed-sm"
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {k.charAt(0).toUpperCase() + k.slice(1)}
-                  </a>
-                );
-              })}
-              {/* MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §R2.1 — contactEnabled
-                  previously toggled nothing visible; contactUrl is the
-                  owner-supplied public link it now reveals (never the
-                  private users/{uid}.phone/email). */}
-              {tagProfile.contactEnabled && tagProfile.contactUrl && (
-                <a
-                  href={tagProfile.contactUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-neu-flat-sm hover:shadow-neu-pressed-sm"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                  Contact
-                </a>
-              )}
-            </CardContent>
-          </Card>
+        {tagProfile && (
+          <LinkPillsCard profile={tagProfile} />
         )}
 
         {tagProfile?.lostFoundEnabled === false ? (

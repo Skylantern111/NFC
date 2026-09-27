@@ -23,12 +23,18 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  addDoc,
+  collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 
 let testEnv;
@@ -355,38 +361,378 @@ describe('chats — finder report path (public/Chat.jsx, §5.1)', () => {
   // the comment above this clause in firestore.rules). This test pins down
   // that documented, accepted behavior — it does NOT prove token
   // possession is required, because it isn't for this specific write.
-  test('an unauthenticated caller can report a chat as blockedBy: finder (documented limitation — see firestore.rules chats#update comment)', async () => {
+  test('an unauthenticated caller can file a finder report (documented limitation — see firestore.rules chats#update comment)', async () => {
     const chatId = await seedChat('TB-LLLL-1313', 'owner-1', 'finder-token-abc');
     const anyoneWithTheChatId = testEnv.unauthenticatedContext();
     await assertSucceeds(
       updateDoc(doc(anyoneWithTheChatId.firestore(), 'chats', chatId), {
         blocked: true,
-        blockedReason: 'harassment',
-        blockedBy: 'finder',
+        reportedByFinder: { reason: 'harassment', at: serverTimestamp() },
       })
     );
   });
 
-  test('a caller cannot claim blockedBy: finder while also touching other fields', async () => {
+  test('a finder report cannot also touch other fields', async () => {
     const chatId = await seedChat('TB-MMMM-1414', 'owner-1', 'finder-token-abc');
     const finder = testEnv.unauthenticatedContext();
     await assertFails(
       updateDoc(doc(finder.firestore(), 'chats', chatId), {
         blocked: true,
-        blockedBy: 'finder',
+        reportedByFinder: { reason: 'x', at: serverTimestamp() },
         tagId: 'TB-SOMETHING-ELSE',
       })
     );
   });
 
-  test('the owner can still report the finder (existing direction, unaffected)', async () => {
+  test('both sides can report the same chat, each once (SYSTEM_AUDIT_PLAN.md B6)', async () => {
     const chatId = await seedChat('TB-NNNN-1515', 'owner-1', 'finder-token-abc');
     const owner = testEnv.authenticatedContext('owner-1');
     await assertSucceeds(
       updateDoc(doc(owner.firestore(), 'chats', chatId), {
         blocked: true,
-        blockedReason: 'spam',
-        blockedBy: 'owner',
+        reportedByOwner: { reason: 'spam', at: serverTimestamp() },
+      })
+    );
+    const finder = testEnv.unauthenticatedContext();
+    await assertSucceeds(
+      updateDoc(doc(finder.firestore(), 'chats', chatId), {
+        blocked: true,
+        reportedByFinder: { reason: 'abuse', at: serverTimestamp() },
+      })
+    );
+    await assertFails(
+      updateDoc(doc(finder.firestore(), 'chats', chatId), {
+        blocked: true,
+        reportedByFinder: { reason: 'overwrite', at: serverTimestamp() },
+      })
+    );
+  });
+});
+
+describe('tag content (NFC_WRITE_DATA_ADMIN_PLAN.md — admin/TagContent.jsx)', () => {
+  const adminCtx = () => testEnv.authenticatedContext('admin-1', { admin: true });
+
+  test('an admin can set profile content on an unclaimed tag', async () => {
+    const tagId = 'TB-UUUU-2222';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    await assertSucceeds(
+      setDoc(doc(adminCtx().firestore(), 'tagProfiles', tagId), {
+        landingMode: 'profile',
+        displayName: 'Acme Coffee',
+        bio: 'Best beans in town',
+        instagram: 'https://instagram.com/acme',
+        lostFoundEnabled: true,
+        contactEnabled: false,
+        updatedAt: serverTimestamp(),
+        updatedBy: 'admin-1',
+      })
+    );
+  });
+
+  test('an admin can edit a claimed tag\'s content', async () => {
+    const tagId = 'TB-UUUU-2323';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+      await setDoc(doc(db, 'tagProfiles', tagId), { website: 'https://spam.example' });
+    });
+    await assertSucceeds(
+      setDoc(doc(adminCtx().firestore(), 'tagProfiles', tagId), { landingMode: 'lostfound', updatedBy: 'admin-1' })
+    );
+  });
+
+  test('a signed-in non-owner, non-admin cannot set content', async () => {
+    const tagId = 'TB-UUUU-2424';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    const stranger = testEnv.authenticatedContext('stranger-1');
+    await assertFails(
+      setDoc(doc(stranger.firestore(), 'tagProfiles', tagId), { landingMode: 'redirect', redirectUrl: 'https://evil.example' })
+    );
+  });
+
+  test('an unknown landingMode is rejected', async () => {
+    const tagId = 'TB-UUUU-2525';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    await assertFails(setDoc(doc(adminCtx().firestore(), 'tagProfiles', tagId), { landingMode: 'popup' }));
+  });
+
+  test('a non-https redirectUrl is rejected', async () => {
+    const tagId = 'TB-UUUU-2626';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    await assertFails(
+      setDoc(doc(adminCtx().firestore(), 'tagProfiles', tagId), {
+        landingMode: 'redirect',
+        redirectUrl: 'javascript:alert(1)',
+      })
+    );
+  });
+
+  test('a displayName over 60 chars is rejected', async () => {
+    const tagId = 'TB-UUUU-2727';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    await assertFails(
+      setDoc(doc(adminCtx().firestore(), 'tagProfiles', tagId), { landingMode: 'profile', displayName: 'x'.repeat(61) })
+    );
+  });
+
+  test('updatedBy cannot name someone other than the caller', async () => {
+    const tagId = 'TB-UUUU-2828';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    await assertFails(
+      setDoc(doc(adminCtx().firestore(), 'tagProfiles', tagId), { landingMode: 'lostfound', updatedBy: 'owner-1' })
+    );
+  });
+
+  async function claim(tagId) {
+    const owner = testEnv.authenticatedContext('owner-1');
+    const db = owner.firestore();
+    return runTransaction(db, async (tx) => {
+      tx.set(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+      tx.set(doc(db, 'items', tagId), { tagId, itemName: 'Test', isLostMode: false, lostMessage: '', rewardAmount: 0 });
+      tx.update(doc(db, 'tags', tagId), { status: 'claimed' });
+    });
+  }
+
+  test('an unclaimed tag set to profile/redirect cannot be claimed', async () => {
+    const tagId = 'TB-UUUU-2929';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' });
+      await setDoc(doc(db, 'tagProfiles', tagId), { landingMode: 'redirect', redirectUrl: 'https://acme.example' });
+    });
+    await assertFails(claim(tagId));
+  });
+
+  test('an unclaimed tag with lostfound content can still be claimed', async () => {
+    const tagId = 'TB-UUUU-3030';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' });
+      await setDoc(doc(db, 'tagProfiles', tagId), { landingMode: 'lostfound', displayName: 'Stock' });
+    });
+    await assertSucceeds(claim(tagId));
+  });
+
+  test('an admin can read tap counts; a stranger cannot', async () => {
+    const tagId = 'TB-UUUU-3131';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' });
+      await setDoc(doc(db, 'tags', tagId, 'scans', 's1'), { timestamp: serverTimestamp() });
+    });
+    await assertSucceeds(getDoc(doc(adminCtx().firestore(), 'tags', tagId, 'scans', 's1')));
+    const stranger = testEnv.authenticatedContext('stranger-1');
+    await assertFails(getDoc(doc(stranger.firestore(), 'tags', tagId, 'scans', 's1')));
+  });
+});
+
+describe('SYSTEM_AUDIT_PLAN.md fixes', () => {
+  const adminCtx = () => testEnv.authenticatedContext('admin-1', { admin: true });
+
+  // ---- A1/A2: users/{uid} ----
+  test('A1: a user cannot create their own profile with isAdmin: true without the passcode', async () => {
+    const user = testEnv.authenticatedContext('u1');
+    await assertFails(setDoc(doc(user.firestore(), 'users', 'u1'), { email: 'a@b.c', isAdmin: true }));
+  });
+
+  test('A1: isAdmin: true with a wrong passcode is rejected; the right one works', async () => {
+    await seed((db) => setDoc(doc(db, 'meta', 'adminSignup'), { passcode: 'correct-horse' }));
+    const u2 = testEnv.authenticatedContext('u2');
+    await assertFails(setDoc(doc(u2.firestore(), 'users', 'u2'), { isAdmin: true, adminPasscode: 'wrong-guess' }));
+    const u3 = testEnv.authenticatedContext('u3');
+    await assertSucceeds(setDoc(doc(u3.firestore(), 'users', 'u3'), { isAdmin: true, adminPasscode: 'correct-horse' }));
+  });
+
+  test('A1: a plain non-admin profile can still be created', async () => {
+    const user = testEnv.authenticatedContext('u4');
+    await assertSucceeds(setDoc(doc(user.firestore(), 'users', 'u4'), { email: 'a@b.c', isAdmin: false }));
+  });
+
+  test('A1/A2: a user cannot delete their own profile (the delete-and-recreate escalation)', async () => {
+    await seed((db) => setDoc(doc(db, 'users', 'u5'), { email: 'a@b.c', disabled: true }));
+    const user = testEnv.authenticatedContext('u5');
+    await assertFails(deleteDoc(doc(user.firestore(), 'users', 'u5')));
+  });
+
+  test('A2: a profile cannot be created with disabled: true', async () => {
+    const user = testEnv.authenticatedContext('u6');
+    await assertFails(setDoc(doc(user.firestore(), 'users', 'u6'), { disabled: true }));
+  });
+
+  // ---- A3: claim can't be split ----
+  test('A3: creating only itemOwners (without flipping the tag to claimed) is rejected', async () => {
+    const tagId = 'TB-AAAA-9001';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    const user = testEnv.authenticatedContext('squatter');
+    await assertFails(setDoc(doc(user.firestore(), 'itemOwners', tagId), { ownerUid: 'squatter' }));
+  });
+
+  test('A3: an owner cannot hand ownership to someone else by editing itemOwners', async () => {
+    const tagId = 'TB-AAAA-9002';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertFails(updateDoc(doc(owner.firestore(), 'itemOwners', tagId), { ownerUid: 'someone-else' }));
+  });
+
+  test('A3: itemOwners cannot be deleted without releasing the tag in the same write', async () => {
+    const tagId = 'TB-AAAA-9003';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertFails(deleteDoc(doc(owner.firestore(), 'itemOwners', tagId)));
+  });
+
+  // ---- A4: release clean-up ----
+  test('A4: the owner can delete their tag\'s reports (release clean-up)', async () => {
+    const tagId = 'TB-AAAA-9004';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+      await setDoc(doc(db, 'reports', 'r1'), { tagId, finderSessionToken: 't', status: 'open' });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertSucceeds(deleteDoc(doc(owner.firestore(), 'reports', 'r1')));
+  });
+
+  // ---- A5: exact field sets on public writes ----
+  test('A5: a well-formed report is accepted', async () => {
+    const tagId = 'TB-AAAA-9005';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' }));
+    const finder = testEnv.unauthenticatedContext();
+    await assertSucceeds(
+      addDoc(collection(finder.firestore(), 'reports'), {
+        tagId,
+        finderSessionToken: 'token-abc',
+        initialMessage: 'Found it',
+        locationNote: 'Front desk',
+        location: { lat: 1.5, lng: 2.5, accuracy: 10 },
+        status: 'open',
+        timestamp: serverTimestamp(),
+      })
+    );
+  });
+
+  test('A5: a report with an extra field is rejected', async () => {
+    const tagId = 'TB-AAAA-9006';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' }));
+    const finder = testEnv.unauthenticatedContext();
+    await assertFails(
+      addDoc(collection(finder.firestore(), 'reports'), {
+        tagId,
+        finderSessionToken: 'token-abc',
+        status: 'open',
+        junk: 'x'.repeat(1000),
+      })
+    );
+  });
+
+  test('A5: a new chat cannot be pre-set as blocked/resolved', async () => {
+    const tagId = 'TB-AAAA-9007';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' }));
+    const finder = testEnv.unauthenticatedContext();
+    await assertFails(
+      addDoc(collection(finder.firestore(), 'chats'), { tagId, finderSessionToken: 'token-abc', resolved: true })
+    );
+  });
+
+  test('A5: a notification with an unknown type is rejected', async () => {
+    const tagId = 'TB-AAAA-9008';
+    await seed((db) => setDoc(doc(db, 'items', tagId), { tagId, itemName: 'X', isLostMode: false }));
+    const finder = testEnv.unauthenticatedContext();
+    await assertFails(
+      addDoc(collection(finder.firestore(), 'notifications'), {
+        type: 'phishing',
+        tagId,
+        createdAt: serverTimestamp(),
+        read: false,
+      })
+    );
+    await assertSucceeds(
+      addDoc(collection(finder.firestore(), 'notifications'), {
+        type: 'message',
+        tagId,
+        chatId: 'c1',
+        createdAt: serverTimestamp(),
+        read: false,
+      })
+    );
+  });
+
+  // ---- A6: chat preview spoofing ----
+  test('A6: a non-owner cannot rewrite the chat preview text; activity markers still work', async () => {
+    const tagId = 'TB-AAAA-9009';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+      await setDoc(doc(db, 'chats', 'chat-a6'), { tagId, finderSessionToken: 'token-abc', unreadFor: [] });
+    });
+    const finder = testEnv.unauthenticatedContext();
+    await assertFails(
+      updateDoc(doc(finder.firestore(), 'chats', 'chat-a6'), { lastMessageText: 'Send your bank details' })
+    );
+    await assertSucceeds(
+      updateDoc(doc(finder.firestore(), 'chats', 'chat-a6'), { lastMessageAt: serverTimestamp(), unreadFor: ['owner'] })
+    );
+  });
+
+  // ---- A7: admin-only tag notes ----
+  test('A7: tagAdmin is readable by admins only', async () => {
+    await seed((db) => setDoc(doc(db, 'tagAdmin', 'TB-AAAA-9010'), { flagReason: 'fraud' }));
+    await assertSucceeds(getDoc(doc(adminCtx().firestore(), 'tagAdmin', 'TB-AAAA-9010')));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'tagAdmin', 'TB-AAAA-9010')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('owner-1').firestore(), 'tagAdmin', 'TB-AAAA-9010')));
+  });
+
+  // ---- A8: scan counter ----
+  test('A8: scans only for real tags, with server time', async () => {
+    await seed((db) => setDoc(doc(db, 'tags', 'TB-AAAA-9011'), { tagId: 'TB-AAAA-9011', status: 'claimed' }));
+    const finder = testEnv.unauthenticatedContext();
+    await assertSucceeds(
+      addDoc(collection(finder.firestore(), 'tags', 'TB-AAAA-9011', 'scans'), {
+        timestamp: serverTimestamp(),
+        landingMode: 'lostfound',
+      })
+    );
+    await assertFails(
+      addDoc(collection(finder.firestore(), 'tags', 'TB-NOPE-0000', 'scans'), { timestamp: serverTimestamp() })
+    );
+  });
+
+  // ---- chats list is no longer public ----
+  test('chats: a stranger cannot list a tag\'s chats; the owner can; get by id stays public', async () => {
+    const tagId = 'TB-AAAA-9012';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+      await setDoc(doc(db, 'chats', 'chat-list'), { tagId, finderSessionToken: 'token-abc' });
+    });
+    const stranger = testEnv.authenticatedContext('stranger-1');
+    await assertFails(getDocs(query(collection(stranger.firestore(), 'chats'), where('tagId', '==', tagId))));
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertSucceeds(getDocs(query(collection(owner.firestore(), 'chats'), where('tagId', 'in', [tagId]))));
+    await assertSucceeds(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'chats', 'chat-list')));
+  });
+
+  // ---- C1: editorRole ----
+  test('C1: an owner cannot mark their content as admin-set (to skip the redirect warning)', async () => {
+    const tagId = 'TB-AAAA-9013';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertFails(
+      setDoc(doc(owner.firestore(), 'tagProfiles', tagId), {
+        landingMode: 'redirect',
+        redirectUrl: 'https://example.com',
+        editorRole: 'admin',
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(owner.firestore(), 'tagProfiles', tagId), {
+        landingMode: 'redirect',
+        redirectUrl: 'https://example.com',
+        editorRole: 'owner',
       })
     );
   });

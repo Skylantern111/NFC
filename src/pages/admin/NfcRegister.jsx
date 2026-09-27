@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   collection,
@@ -11,6 +11,8 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  deleteField,
+  writeBatch,
 } from 'firebase/firestore';
 import { db, auth, firebaseReady } from '../../firebase/config';
 import {
@@ -21,7 +23,6 @@ import {
 } from '../../lib/tags';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -33,31 +34,18 @@ import {
   TriangleAlert,
   ShieldAlert,
   RotateCcw,
+  PencilLine,
 } from 'lucide-react';
 
 const CHIP_TYPES = ['NTAG213', 'NTAG215', 'NTAG216'];
 
-// What the admin can choose to write. Only one NDEF URI record fits on the
-// tag, so this is an either/or choice, not additive:
-//   - 'lostfound' writes the TagBack tap URL — the finder lands on the
-//     TagBack public page (report/chat/social-links-from-tagProfiles all
-//     live there). This is the only option that provisions a TagBack asset.
-//   - every other option writes the admin-typed URL directly and REPLACES
-//     the TagBack URL — the sticker no longer opens TagBack at all, it
-//     opens that link straight from the phone's OS-level NFC handling.
-//     These exist for provisioning a non-TagBack sticker (e.g. a plain
-//     company-page tag), NOT for adding a social link to a TagBack tag —
-//     that's what tagProfiles/{tagId} (owner's NFC profile page) is for.
-const WRITE_OPTIONS = [
-  { value: 'lostfound', label: 'TagBack Lost & Found (recommended)', bypasses: false },
-  { value: 'website', label: 'Website URL — bypasses TagBack', bypasses: true },
-  { value: 'instagram', label: 'Instagram — bypasses TagBack', bypasses: true },
-  { value: 'facebook', label: 'Facebook — bypasses TagBack', bypasses: true },
-  { value: 'tiktok', label: 'TikTok — bypasses TagBack', bypasses: true },
-  { value: 'linkedin', label: 'LinkedIn — bypasses TagBack', bypasses: true },
-  { value: 'youtube', label: 'YouTube — bypasses TagBack', bypasses: true },
-  { value: 'custom', label: 'Custom URL — bypasses TagBack', bypasses: true },
-];
+// The sticker only ever carries the TagBack URL ({origin}/nfc/{tagId}),
+// written once. What a tap actually shows — lost & found page, profile
+// card, or a redirect to any URL — lives in tagProfiles/{tagId} and is
+// edited from admin/TagContent.jsx (or the owner's dashboard/NfcSetup.jsx),
+// so it can change at any time without touching the sticker again
+// (NFC_WRITE_DATA_ADMIN_PLAN.md). The old "bypasses TagBack" write options
+// that froze a raw URL onto the chip are gone for that reason.
 
 const nfcSupported = typeof window !== 'undefined' && 'NDEFReader' in window;
 
@@ -84,11 +72,20 @@ export default function NfcRegister() {
   const [registerError, setRegisterError] = useState('');
   const [tag, setTag] = useState(null); // the registered tags/{tagId} record, once created
 
-  const [writeOption, setWriteOption] = useState('lostfound');
-  const [customUrl, setCustomUrl] = useState('');
   const [writeStatus, setWriteStatus] = useState('not_written');
   const [writeError, setWriteError] = useState('');
   const [copied, setCopied] = useState(false);
+
+  // SYSTEM_AUDIT_PLAN.md B3: an NDEFReader keeps scanning until aborted.
+  // Without this, the tap that WRITES the sticker also fired the old scan's
+  // onreading, which found the just-registered tag and flipped the page to
+  // "already registered" mid-write; Cancel didn't stop the scan either.
+  const scanAbortRef = useRef(null);
+  function stopScan() {
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+  }
+  useEffect(() => stopScan, []);
 
   const [devTagId, setDevTagId] = useState('');
   const [devChipType, setDevChipType] = useState('NTAG215');
@@ -127,6 +124,7 @@ export default function NfcRegister() {
   }, [rewriteTagId]);
 
   function reset() {
+    stopScan();
     setPhase('idle');
     setScanError('');
     setReading(null);
@@ -134,8 +132,6 @@ export default function NfcRegister() {
     setChipType('NTAG215');
     setRegisterError('');
     setTag(null);
-    setWriteOption('lostfound');
-    setCustomUrl('');
     setWriteStatus('not_written');
     setWriteError('');
     setCopied(false);
@@ -162,11 +158,17 @@ export default function NfcRegister() {
   async function startScan() {
     setScanError('');
     setPhase('scanning');
+    stopScan();
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
     try {
       const reader = new window.NDEFReader();
       // Handlers registered before scan() resolves — see ClaimTag.jsx's
       // identical note on why this ordering matters for Web NFC.
       reader.onreading = async (event) => {
+        // One tap per scan: stop listening before anything else.
+        if (controller.signal.aborted) return;
+        stopScan();
         const physicalUid = normalizePhysicalUid(event.serialNumber);
         const ndefTagId = tagIdFromNdefMessage(event.message);
         const nfcCapability = physicalUid ? 'uid-and-ndef' : 'ndef-only';
@@ -185,11 +187,13 @@ export default function NfcRegister() {
         }
       };
       reader.onreadingerror = () => {
+        stopScan();
         setScanError('No NFC tag detected. Hold the phone closer to the sticker and try again.');
         setPhase('idle');
       };
-      await reader.scan();
+      await reader.scan({ signal: controller.signal });
     } catch (err) {
+      if (err.name === 'AbortError') return;
       setScanError(
         err.name === 'NotAllowedError'
           ? 'NFC permission was denied. Please allow NFC access and try again.'
@@ -215,12 +219,20 @@ export default function NfcRegister() {
           chipType,
           nfcCapabilityAtRegistration: reading.nfcCapability,
           registeredAt: serverTimestamp(),
-          registeredBy: auth.currentUser?.uid || null,
           writeStatus: 'not_written',
           lastWrittenAt: null,
           lastWriteError: null,
         };
-        await updateDoc(doc(db, 'tags', reregisterTagId), patch);
+        // Admin-only fields live in tagAdmin (SYSTEM_AUDIT_PLAN.md A7) —
+        // and the legacy public copy is removed while we're here.
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'tags', reregisterTagId), { ...patch, registeredBy: deleteField() });
+        batch.set(
+          doc(db, 'tagAdmin', reregisterTagId),
+          { registeredBy: auth.currentUser?.uid || null, registeredAt: serverTimestamp() },
+          { merge: true }
+        );
+        await batch.commit();
         setTag({ tagId: reregisterTagId, ...patch });
         setPhase('registered');
       } else {
@@ -232,7 +244,6 @@ export default function NfcRegister() {
           nfcCapabilityAtRegistration: reading.nfcCapability,
           status: 'registered',
           registeredAt: serverTimestamp(),
-          registeredBy: auth.currentUser?.uid || null,
           writeStatus: 'not_written',
         };
         // Astronomically unlikely to collide, but the transaction is what
@@ -243,6 +254,10 @@ export default function NfcRegister() {
           const snap = await tx.get(ref);
           if (snap.exists()) throw new Error('Tag id collision — please try registering again.');
           tx.set(ref, record);
+          tx.set(doc(db, 'tagAdmin', tagId), {
+            registeredBy: auth.currentUser?.uid || null,
+            registeredAt: serverTimestamp(),
+          });
         });
         setTag(record);
         setPhase('registered');
@@ -254,18 +269,10 @@ export default function NfcRegister() {
     }
   }
 
-  function writeUrlFor(tagId) {
-    if (writeOption === 'lostfound') return tagUrl(tagId);
-    return customUrl.trim();
-  }
-
   async function onWriteTag() {
     if (!tag) return;
-    const url = writeUrlFor(tag.tagId);
-    if (!url) {
-      setWriteError('Enter a URL to write.');
-      return;
-    }
+    const url = tagUrl(tag.tagId);
+    stopScan();
     setWriteStatus('writing');
     setWriteError('');
     try {
@@ -317,7 +324,6 @@ export default function NfcRegister() {
         nfcCapabilityAtRegistration: 'dev-fallback',
         status: 'registered',
         registeredAt: serverTimestamp(),
-        registeredBy: auth.currentUser?.uid || null,
         writeStatus: 'not_written',
       };
       await runTransaction(db, async (tx) => {
@@ -325,6 +331,10 @@ export default function NfcRegister() {
         const snap = await tx.get(ref);
         if (snap.exists()) throw new Error('Tag id collision — please try again.');
         tx.set(ref, record);
+        tx.set(doc(db, 'tagAdmin', tagId), {
+          registeredBy: auth.currentUser?.uid || null,
+          registeredAt: serverTimestamp(),
+        });
       });
       setDevTagId(tagId);
     } catch (err) {
@@ -394,7 +404,13 @@ export default function NfcRegister() {
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Hold the sticker against the back of the device.
               </p>
-              <Button variant="outline" onClick={() => setPhase('idle')}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  stopScan();
+                  setPhase('idle');
+                }}
+              >
                 Cancel
               </Button>
             </>
@@ -460,44 +476,16 @@ export default function NfcRegister() {
               </div>
 
               <div className="space-y-2">
-                <Label>What do you want to write to this tag?</Label>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Only one link fits on the tag. TagBack Lost &amp; Found opens the TagBack page
-                  (report/chat and the owner's social links live there). Every other option
-                  replaces that with a plain link and the sticker stops opening TagBack.
-                </p>
-                <RadioGroup value={writeOption} onValueChange={setWriteOption} className="gap-2">
-                  {WRITE_OPTIONS.map((o) => (
-                    <label key={o.value} className="flex items-center gap-2 rounded-xl bg-base p-2.5 text-sm shadow-neu-flat-sm">
-                      <RadioGroupItem value={o.value} /> {o.label}
-                    </label>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              {WRITE_OPTIONS.find((o) => o.value === writeOption)?.bypasses && (
-                <p className="flex items-start gap-1.5 rounded-xl bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3.5 py-2.5 text-xs text-amber-700 dark:text-amber-300">
-                  <TriangleAlert className="h-3.5 w-3.5 shrink-0 translate-y-0.5" />
-                  This tag will no longer open the TagBack page — Lost &amp; Found, found-item
-                  reports, and anonymous chat won't be reachable from this sticker anymore.
-                </p>
-              )}
-
-              {writeOption === 'lostfound' ? (
+                <Label>Written to the sticker</Label>
                 <div className="rounded-xl bg-base p-3 font-mono text-xs text-slate-600 dark:text-slate-300 shadow-neu-pressed-sm">
                   {tagUrl(tag.tagId)}
                 </div>
-              ) : (
-                <div className="space-y-1.5">
-                  <Label htmlFor="customUrl">URL to write</Label>
-                  <Input
-                    id="customUrl"
-                    placeholder="https://…"
-                    value={customUrl}
-                    onChange={(e) => setCustomUrl(e.target.value)}
-                  />
-                </div>
-              )}
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  The sticker only holds this link. What a tap shows (lost &amp; found page, profile
+                  card, or a redirect) is set in the tag's content and can change any time without
+                  rewriting the sticker.
+                </p>
+              </div>
 
               {writeStatus === 'written' && (
                 <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
@@ -525,6 +513,11 @@ export default function NfcRegister() {
                     {writeStatus === 'writing' ? 'Hold tag near phone…' : 'Write NFC tag'}
                   </Button>
                 )}
+                <Button variant="outline" asChild className="gap-1.5">
+                  <Link to={`/admin/tags/${encodeURIComponent(tag.tagId)}`}>
+                    <PencilLine className="h-3.5 w-3.5" /> Set tag content
+                  </Link>
+                </Button>
                 {reregisterTagId || rewriteTagId ? (
                   <Button variant="outline" asChild className="gap-1.5">
                     <Link to="/admin/inventory">

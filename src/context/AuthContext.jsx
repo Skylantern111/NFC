@@ -1,10 +1,16 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { auth, db, firebaseReady } from '../firebase/config';
 
 const AuthContext = createContext({ user: null, loading: true, logout: () => {} });
+
+// Set by auth/Register.jsx while it creates the account + users/{uid} doc,
+// so the "missing profile" repair below doesn't race it and create the doc
+// first (which would turn Register's admin-grant create into a rejected
+// update).
+export const signupInProgress = { current: false };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -30,10 +36,29 @@ export function AuthProvider({ children }) {
   // disabled account logged in until its writes start failing confusingly.
   useEffect(() => {
     if (!firebaseReady || !user) return;
+    let repaired = false;
     const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
       if (snap.exists() && snap.data().disabled) {
         toast.error('This account has been disabled.');
         signOut(auth);
+        return;
+      }
+      // SYSTEM_AUDIT_PLAN.md B8: if signup created the Auth account but the
+      // users/{uid} write failed (network), every later profile write
+      // (Settings, nudge dismissals) failed with it. Create a plain, non-admin
+      // profile once. Skipped from the cache-only first snapshot, where a
+      // missing doc may just not be loaded yet.
+      if (!snap.exists() && !snap.metadata.fromCache && !repaired && !signupInProgress.current) {
+        repaired = true;
+        setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email || '',
+          displayName: user.displayName || '',
+          phone: '',
+          notificationPrefs: { inApp: true, email: true },
+          isAdmin: false,
+          createdAt: serverTimestamp(),
+        }).catch(() => {});
       }
     });
     return unsub;

@@ -8,6 +8,25 @@ import { chunk } from './utils';
 // isn't itself an enforcement action — the real enforcement is banning the
 // finder's session token, which firestore.rules#isBlockedToken then checks
 // on every reports/chats/messages create.
+// A chat can carry a report from each side (SYSTEM_AUDIT_PLAN.md B6):
+// reportedByOwner / reportedByFinder = { reason, at }. Chats reported before
+// that change have the legacy single blockedBy/blockedReason fields — a
+// missing blockedBy meant 'owner' (the only direction possible back then).
+export function chatReports(chat) {
+  if (!chat) return [];
+  const out = [];
+  if (chat.reportedByOwner) out.push({ by: 'owner', ...chat.reportedByOwner });
+  if (chat.reportedByFinder) out.push({ by: 'finder', ...chat.reportedByFinder });
+  if (out.length === 0 && chat.blocked) {
+    out.push({ by: chat.blockedBy === 'finder' ? 'finder' : 'owner', reason: chat.blockedReason || null, at: chat.blockedAt || null });
+  }
+  return out;
+}
+
+export function hasReportFrom(chat, by) {
+  return chatReports(chat).some((r) => r.by === by);
+}
+
 export function moderationMocks() {
   return {
     chats: [
@@ -15,15 +34,15 @@ export function moderationMocks() {
         id: 'mock-chat-2',
         tagId: 'mock-tag-1',
         finderSessionToken: 'fnd_9x2a1demo',
-        blockedReason: 'Spam links in every message.',
-        blockedAt: { toMillis: () => Date.now() - 3 * 60 * 60 * 1000 },
+        blocked: true,
+        reportedByOwner: { reason: 'Spam links in every message.', at: { toMillis: () => Date.now() - 3 * 60 * 60 * 1000 } },
       },
       {
         id: 'mock-chat-3',
         tagId: 'mock-tag-2',
         finderSessionToken: 'fnd_k7qz0demo',
-        blockedReason: 'Harassment.',
-        blockedAt: { toMillis: () => Date.now() - 26 * 60 * 60 * 1000 },
+        blocked: true,
+        reportedByFinder: { reason: 'Harassment.', at: { toMillis: () => Date.now() - 26 * 60 * 60 * 1000 } },
       },
     ],
     items: {

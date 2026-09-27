@@ -11,7 +11,9 @@ import {
   reportChat,
   reportChatAsFinder,
   sendChatMessage,
+  useOwnerTagIds,
 } from '../../lib/ownerItems';
+import { hasReportFrom } from '../../lib/moderation';
 import { getFinderToken } from '../../lib/finderSession';
 import { checkIsAdmin } from '../../lib/adminAuth';
 import { firebaseReady } from '../../firebase/config';
@@ -58,24 +60,33 @@ export default function Chat() {
   // recovered UI that only fails silently via firestore.rules#ownsTag).
   // Same two-path admin check as admin/AdminLayout.jsx's AdminGate.
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [adminChecked, setAdminChecked] = useState(false);
   useEffect(() => {
     if (!firebaseReady || !user) {
       setIsAdminUser(false);
+      setAdminChecked(true);
       return;
     }
     let cancelled = false;
+    setAdminChecked(false);
     checkIsAdmin(user).then((result) => {
-      if (!cancelled) setIsAdminUser(result);
+      if (cancelled) return;
+      setIsAdminUser(result);
+      setAdminChecked(true);
     });
     return () => {
       cancelled = true;
     };
   }, [user]);
 
-  const role = isAdminUser ? 'admin' : user ? 'owner' : 'finder';
   const previewTagId = !firebaseReady && chatId?.startsWith('preview-') ? chatId.slice(8) : null;
 
   const { chat: liveChat, loading: chatLoading } = useChat(firebaseReady ? chatId : null);
+  // SYSTEM_AUDIT_PLAN.md B1: signed in != owner. A TagBack user who finds
+  // someone ELSE's item is the finder in that chat; treating every signed-in
+  // viewer as the owner showed them owner buttons and got their messages
+  // rejected by firestore.rules. Owner = this chat's tag is one of theirs.
+  const { tagIds: ownTagIds, loaded: ownTagsLoaded } = useOwnerTagIds(user);
   const { messages: liveMessages } = useChatMessages(firebaseReady ? chatId : null);
   const [mockChat, setMockChat] = useState(() => (previewTagId ? { id: chatId, tagId: previewTagId } : null));
   const [mockMessages, setMockMessages] = useState([]);
@@ -95,6 +106,12 @@ export default function Chat() {
   const chat = firebaseReady ? liveChat : mockChat;
   const messages = firebaseReady ? liveMessages : mockMessages;
   const loading = firebaseReady ? chatLoading : false;
+
+  const ownsChat = !!user && !!chat?.tagId && ownTagIds.includes(chat.tagId);
+  const role = isAdminUser && !ownsChat ? 'admin' : ownsChat ? 'owner' : 'finder';
+  // Until the admin/owner checks finish, `role` may still flip — don't act
+  // on it (e.g. mark the wrong side read) before then.
+  const roleReady = !firebaseReady || !user || (adminChecked && ownTagsLoaded && !!chat);
 
   useEffect(() => {
     if (!firebaseReady || !chat?.tagId) return;
@@ -131,19 +148,19 @@ export default function Chat() {
   // Opening the thread counts as reading it — clears the unread marker for
   // whichever side is viewing (drives the dot in dashboard/Messages.jsx).
   useEffect(() => {
-    if (!chatId || !firebaseReady || role === 'admin') return;
+    if (!chatId || !firebaseReady || !roleReady || role === 'admin') return;
     markChatRead(chatId, role).catch(() => {});
-  }, [chatId, role]);
+  }, [chatId, role, roleReady]);
 
   async function send(e) {
     e.preventDefault();
-    if (!text.trim() || sending) return;
+    if (!text.trim() || sending || !roleReady) return;
     const body = text.trim();
     setText('');
     if (firebaseReady) {
       setSending(true);
       try {
-        await sendChatMessage(chatId, role, body, role === 'finder' ? getFinderToken() : undefined);
+        await sendChatMessage(chatId, role, body, role === 'finder' ? getFinderToken() : undefined, chat);
       } catch (err) {
         // Restore the draft rather than silently losing it (e.g. a banned
         // finder token gets rejected by firestore.rules#isBlockedToken).
@@ -167,7 +184,7 @@ export default function Chat() {
     setResolving(true);
     try {
       if (firebaseReady) {
-        await markRecovered(chat.tagId, chatId);
+        await markRecovered(chat.tagId, chatId, chat.reportId);
       } else {
         setItem((it) => ({ ...it, isLostMode: false }));
         setMockChat((c) => ({ ...c, resolved: true }));
@@ -199,7 +216,11 @@ export default function Chat() {
           await reportChat(chatId, blockReason.trim());
         }
       } else {
-        setMockChat((c) => ({ ...c, blocked: true, blockedReason: blockReason.trim(), blockedBy: role }));
+        setMockChat((c) => ({
+          ...c,
+          blocked: true,
+          [role === 'finder' ? 'reportedByFinder' : 'reportedByOwner']: { reason: blockReason.trim(), at: null },
+        }));
       }
       setBlockOpen(false);
       toast.success('Chat reported for review.');
@@ -234,7 +255,7 @@ export default function Chat() {
         )}
         {role === 'owner' && (
           <div className="flex shrink-0 items-center gap-2">
-            {chat?.blocked ? (
+            {hasReportFrom(chat, 'owner') ? (
               <span className="flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-500/30 bg-red-50/80 dark:bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-300">
                 <Ban className="h-3.5 w-3.5" /> Reported
               </span>
@@ -271,7 +292,7 @@ export default function Chat() {
             own item's Lost Mode. */}
         {role === 'finder' && (
           <div className="flex shrink-0 items-center gap-2">
-            {chat?.blocked ? (
+            {hasReportFrom(chat, 'finder') ? (
               <span className="flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-500/30 bg-red-50/80 dark:bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-300">
                 <Ban className="h-3.5 w-3.5" /> Reported
               </span>

@@ -18,8 +18,9 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
-import { db, firebaseReady } from '../firebase/config';
+import { auth, db, firebaseReady } from '../firebase/config';
 import { chunk } from './utils';
 
 // Realistic placeholder data so Dashboard/Items still preview when no real
@@ -233,7 +234,14 @@ export function useOwnerOpenReports(tagIds) {
 export async function findChatIdForReport(report) {
   if (!firebaseReady) return `preview-${report.tagId}`;
   try {
-    const q = query(collection(db, 'chats'), where('reportId', '==', report.id), limit(1));
+    // The tagId filter is what lets firestore.rules' chats `list` clause
+    // (owner of that tag only) approve this query.
+    const q = query(
+      collection(db, 'chats'),
+      where('tagId', '==', report.tagId),
+      where('reportId', '==', report.id),
+      limit(1)
+    );
     const snap = await getDocs(q);
     if (!snap.empty) return snap.docs[0].id;
   } catch {
@@ -283,10 +291,39 @@ export function useOwnerChats(user) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, tagsLoaded]);
 
+  // SYSTEM_AUDIT_PLAN.md A6: a finder can no longer write lastMessageText
+  // (anyone with the chatId could spoof it), so the preview comes from the
+  // actual latest message. Re-fetched only when a chat's lastMessageAt moves.
+  const [previews, setPreviews] = useState({}); // chatId -> { at, text }
+  const activityKey = chats.map((c) => `${c.id}:${c.lastMessageAt?.toMillis?.() ?? 0}`).join(',');
+  useEffect(() => {
+    if (!firebaseReady) return;
+    let live = true;
+    for (const c of chats) {
+      const at = c.lastMessageAt?.toMillis?.() ?? 0;
+      if (previews[c.id]?.at === at) continue;
+      getDocs(query(collection(db, 'chats', c.id, 'messages'), orderBy('timestamp', 'desc'), limit(1)))
+        .then((snap) => {
+          if (!live || snap.empty) return;
+          setPreviews((prev) => ({ ...prev, [c.id]: { at, text: String(snap.docs[0].data().text || '').slice(0, 140) } }));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activityKey]);
+
   const sorted = useMemo(
     () =>
-      chats.slice().sort((a, b) => (b.lastMessageAt?.toMillis?.() ?? 0) - (a.lastMessageAt?.toMillis?.() ?? 0)),
-    [chats]
+      chats
+        // Reported chats a previous owner left behind on release stay for
+        // moderation, but aren't part of this owner's inbox (A4).
+        .filter((c) => !c.archivedAt)
+        .map((c) => (previews[c.id] ? { ...c, lastMessageText: previews[c.id].text } : c))
+        .sort((a, b) => (b.lastMessageAt?.toMillis?.() ?? 0) - (a.lastMessageAt?.toMillis?.() ?? 0)),
+    [chats, previews]
   );
 
   return { chats: sorted, loading: firebaseReady ? loading : false };
@@ -385,12 +422,16 @@ export async function notifyOwner({ type, tagId, chatId, reportId }) {
 // Stamps the parent chat doc's activity markers after a message is sent, so
 // Messages.jsx can show a snippet/timestamp without reading every thread.
 // `unreadFor` tracks which side hasn't seen the latest message yet.
+//
+// Only the owner writes lastMessageText: firestore.rules no longer lets the
+// finder side touch it (SYSTEM_AUDIT_PLAN.md A6) — useOwnerChats reads the
+// real latest message for the preview instead.
 export async function touchChatActivity(chatId, { sender, text }) {
   if (!firebaseReady) return;
   const otherRole = sender === 'owner' ? 'finder' : 'owner';
   await updateDoc(doc(db, 'chats', chatId), {
     lastMessageAt: serverTimestamp(),
-    lastMessageText: text.slice(0, 140),
+    ...(sender === 'owner' ? { lastMessageText: text.slice(0, 140) } : {}),
     unreadFor: arrayUnion(otherRole),
   });
 }
@@ -427,16 +468,28 @@ export async function toggleLostMode(tagId, isLost, { lostMessage, rewardAmount 
 // resolved. `resolved` is a plain app-level field on the chat doc (like
 // `blocked` below) — chats carry no rules-enforced field whitelist for an
 // owner's own writes, so no firestore.rules change is needed for it.
-export async function markRecovered(tagId, chatId) {
+//
+// Also closes the chat's report (SYSTEM_AUDIT_PLAN.md B9): nothing ever
+// moved a report out of 'open', so the dashboard's "open reports" count
+// and the item's "found reported" badge stayed on after recovery.
+export async function markRecovered(tagId, chatId, reportId) {
   if (!firebaseReady) return;
   await updateDoc(doc(db, 'items', tagId), { isLostMode: false, lostSince: null });
   if (chatId) await updateDoc(doc(db, 'chats', chatId), { resolved: true });
+  if (reportId) await updateDoc(doc(db, 'reports', reportId), { status: 'resolved' });
 }
 
 // Owner flags a chat for the admin moderation queue (see admin/Moderation.jsx).
+// `blocked` stays as the "has any report" flag the queue queries on; each
+// side's report has its own field (SYSTEM_AUDIT_PLAN.md B6 — one shared
+// blockedBy/blockedReason meant the second report was impossible), and it
+// carries its own time (B4 — the queue's "Reported" column was always empty).
 export async function reportChat(chatId, reason) {
   if (!firebaseReady) return;
-  await updateDoc(doc(db, 'chats', chatId), { blocked: true, blockedReason: reason || null, blockedBy: 'owner' });
+  await updateDoc(doc(db, 'chats', chatId), {
+    blocked: true,
+    reportedByOwner: { reason: reason || null, at: serverTimestamp() },
+  });
 }
 
 // Finder's reciprocal report path (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §5.1)
@@ -447,7 +500,10 @@ export async function reportChat(chatId, reason) {
 // See firestore.rules chats#update's dedicated finder-report clause.
 export async function reportChatAsFinder(chatId, reason) {
   if (!firebaseReady) return;
-  await updateDoc(doc(db, 'chats', chatId), { blocked: true, blockedReason: reason || null, blockedBy: 'finder' });
+  await updateDoc(doc(db, 'chats', chatId), {
+    blocked: true,
+    reportedByFinder: { reason: reason || null, at: serverTimestamp() },
+  });
 }
 
 // One-time public-safe item read by tag id — same shape/rule as
@@ -458,18 +514,55 @@ export async function getPublicItem(tagId) {
   return snap.exists() ? { tagId, ...snap.data() } : null;
 }
 
-// tagProfiles/{tagId} — owner-controlled public profile add-ons (social
-// links, contact/lost-found toggles). Public read, owner-only write (see
-// firestore.rules#publicProfileFieldsOnly and dashboard/NfcSetup.jsx).
+// tagProfiles/{tagId} — what a tap on the sticker shows (landing mode,
+// display name, social/contact/redirect links, lost-found toggle). Public
+// read; written by the owner (dashboard/NfcSetup.jsx) or an admin
+// (admin/TagContent.jsx) — see firestore.rules#publicProfileFieldsOnly.
 export async function getTagProfile(tagId) {
   if (!firebaseReady || !tagId) return null;
   const snap = await getDoc(doc(db, 'tagProfiles', tagId));
   return snap.exists() ? snap.data() : null;
 }
 
-export async function saveTagProfile(tagId, profile) {
+// Every save stamps updatedAt/updatedBy, so an owner can see when an admin
+// last changed their tag's content (and vice versa). editorRole decides
+// whether a redirect is instant ('admin') or shows a "leaving TagBack"
+// page first ('owner') — firestore.rules only accepts 'admin' from a real
+// admin (SYSTEM_AUDIT_PLAN.md C1).
+function stampProfile(profile, editorRole) {
+  return {
+    ...profile,
+    updatedAt: serverTimestamp(),
+    updatedBy: auth.currentUser?.uid || null,
+    editorRole: editorRole === 'admin' ? 'admin' : 'owner',
+  };
+}
+
+// Replaces the whole doc rather than merging: the editors drop blank
+// fields before saving (lib/tagContent.js#formToProfile), so a merge would
+// silently keep a link the user just cleared.
+export async function saveTagProfile(tagId, profile, { editorRole = 'owner' } = {}) {
   if (!firebaseReady) return;
-  await setDoc(doc(db, 'tagProfiles', tagId), profile, { merge: true });
+  await setDoc(doc(db, 'tagProfiles', tagId), stampProfile(profile, editorRole));
+}
+
+// Admin "Reset content": the tag goes back to the default Lost & Found page.
+export async function deleteTagProfile(tagId) {
+  if (!firebaseReady) return;
+  await deleteDoc(doc(db, 'tagProfiles', tagId));
+}
+
+// Admin bulk apply (admin/TagContent.jsx bulk mode): one content template
+// onto many tags. Replaces each doc, same as saveTagProfile. 100 per batch
+// (not Firestore's 500 max) keeps each commit well inside the rules'
+// per-request lookup budget (SYSTEM_AUDIT_PLAN.md C3).
+export async function applyTagProfileToMany(tagIds, profile) {
+  if (!firebaseReady) return;
+  for (const ids of chunk(tagIds, 100)) {
+    const batch = writeBatch(db);
+    for (const id of ids) batch.set(doc(db, 'tagProfiles', id), stampProfile(profile, 'admin'));
+    await batch.commit();
+  }
 }
 
 // Owner-initiated release (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §3.2) — the
@@ -479,8 +572,29 @@ export async function saveTagProfile(tagId, profile) {
 // (by this owner again, or handed to someone else) or re-provisioned by an
 // admin. See firestore.rules tags#update's release clause for the
 // same-transaction ownership check this mirrors.
+//
+// SYSTEM_AUDIT_PLAN.md A4: reports/chats/notifications are keyed by tagId
+// only, so the NEXT owner of this tag would otherwise read this owner's
+// finder reports (with locations), chats and alerts. Cleared first, while
+// this owner still owns the tag: reports and notifications are deleted,
+// chats are deleted unless reported (those stay for the admin moderation
+// queue, marked archivedAt so no owner inbox shows them).
 export async function releaseTag(tagId) {
   if (!firebaseReady) return;
+  const byTag = (name) => getDocs(query(collection(db, name), where('tagId', '==', tagId)));
+  const [reportSnap, notifSnap, chatSnap] = await Promise.all([byTag('reports'), byTag('notifications'), byTag('chats')]);
+  const ops = [
+    ...reportSnap.docs.map((d) => (b) => b.delete(d.ref)),
+    ...notifSnap.docs.map((d) => (b) => b.delete(d.ref)),
+    ...chatSnap.docs.map((d) =>
+      d.data().blocked ? (b) => b.update(d.ref, { archivedAt: serverTimestamp() }) : (b) => b.delete(d.ref)
+    ),
+  ];
+  for (const group of chunk(ops, 400)) {
+    const batch = writeBatch(db);
+    group.forEach((op) => op(batch));
+    await batch.commit();
+  }
   await runTransaction(db, async (tx) => {
     const tagRef = doc(db, 'tags', tagId);
     const ownerRef = doc(db, 'itemOwners', tagId);
@@ -498,10 +612,15 @@ export async function releaseTag(tagId) {
 // (public-create, owner-read, immutable) but nothing wrote to it. Recorded
 // best-effort, non-blocking: a finder's public page loading successfully
 // shouldn't ever fail or stall because this write failed.
-export async function recordTagScan(tagId) {
+//
+// landingMode records what the tap showed, for per-mode tap counts.
+export async function recordTagScan(tagId, landingMode) {
   if (!firebaseReady || !tagId) return;
   try {
-    await addDoc(collection(db, 'tags', tagId, 'scans'), { timestamp: serverTimestamp() });
+    await addDoc(collection(db, 'tags', tagId, 'scans'), {
+      timestamp: serverTimestamp(),
+      ...(landingMode ? { landingMode } : {}),
+    });
   } catch {
     // Best-effort — a finder's page load must never depend on this succeeding.
   }
@@ -573,7 +692,11 @@ export function useChatMessages(chatId) {
 // missing field never equals a stored token string, so this was previously
 // rejecting every finder reply once a real Firestore project was connected
 // (see IMPROVEMENT_PLAN.md Round 10 #1 / Round 11 #2).
-export async function sendChatMessage(chatId, sender, text, finderSessionToken) {
+//
+// A finder's message also notifies the owner (SYSTEM_AUDIT_PLAN.md B5 —
+// only the first report used to), but only when the owner has no unread
+// message in this chat yet, so a burst of messages is one alert, not ten.
+export async function sendChatMessage(chatId, sender, text, finderSessionToken, chat) {
   if (!firebaseReady) return;
   await addDoc(collection(db, 'chats', chatId, 'messages'), {
     sender,
@@ -582,6 +705,9 @@ export async function sendChatMessage(chatId, sender, text, finderSessionToken) 
     ...(sender === 'finder' ? { finderSessionToken } : {}),
   });
   await touchChatActivity(chatId, { sender, text });
+  if (sender === 'finder' && chat?.tagId && !(chat.unreadFor || []).includes('owner')) {
+    notifyOwner({ type: 'message', tagId: chat.tagId, chatId }).catch(() => {});
+  }
 }
 
 // Dashboard.jsx's stale-lost nudge dismissal (§4.5 / IMPROVEMENT_PLAN.md
