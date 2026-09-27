@@ -176,6 +176,19 @@ export default function NfcLanding() {
     return () => clearTimeout(t);
   }, [state, leaveIn, tagProfile]);
 
+  // Browser tab title: the profile's display name or the item's name once
+  // loaded. Link-preview bots don't run this (see index.html), so shared
+  // previews stay generic — this only affects the open page.
+  useEffect(() => {
+    const base = document.title;
+    const name =
+      state === 'profile' ? tagProfile?.displayName?.trim() : state === 'ready' ? item?.itemName?.trim() : '';
+    if (name) document.title = `${name} · TagBack`;
+    return () => {
+      document.title = base;
+    };
+  }, [state, tagProfile, item]);
+
   // Real, gracefully-degrading browser geolocation (see lib/geolocation.js —
   // resolves null on denial/unsupported/timeout rather than throwing). Not a
   // fake timer: this is an actual GPS read, fired on demand from the toggle.

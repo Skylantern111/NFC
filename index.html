@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0D0A1A" />
     <title>TagBack — NFC Lost &amp; Found</title>
+    <!-- Link preview (Messenger, WhatsApp, Facebook, X…). Preview bots read
+         this static HTML without running the app, so every link shares one
+         preview; per-tag previews would need server-side rendering (a Cloud
+         Function, i.e. the paid Blaze plan). og:image must be an absolute URL. -->
+    <meta name="description" content="Found something with a TagBack tag? Tap to reach the owner privately — no app, no account." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TagBack" />
+    <meta property="og:title" content="TagBack — Tap to return a lost item" />
+    <meta property="og:description" content="Found something with a TagBack tag? Tap to reach the owner privately — no app, no account." />
+    <meta property="og:image" content="https://nfc-lost-and-found.web.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="TagBack — tap to reach the owner privately" />
+    <meta name="twitter:card" content="summary_large_image" />
     <script>
       // Apply the stored theme before first paint so toggling dark mode is
       // instant on reload too — without this, the page would flash light
