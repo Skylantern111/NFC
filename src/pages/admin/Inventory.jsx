@@ -23,6 +23,7 @@ import { contentLabel } from '../../lib/tagContent';
 import { findOwnerByTag } from '../../lib/adminOwners';
 import { chunk, relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -39,6 +40,13 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -46,7 +54,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Boxes, CircleDashed, CheckCircle2, ShieldAlert, Search, Undo2, Nfc, RefreshCw, PencilLine } from 'lucide-react';
+import {
+  Boxes,
+  CircleDashed,
+  CheckCircle2,
+  ShieldAlert,
+  Search,
+  Undo2,
+  Nfc,
+  RefreshCw,
+  PencilLine,
+  MoreHorizontal,
+  Copy,
+  Ban,
+} from 'lucide-react';
 
 const STATUS_TABS = [
   { value: 'all', label: 'All', icon: Boxes, tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300' },
@@ -98,7 +119,6 @@ export default function Inventory() {
   const [blacklistTarget, setBlacklistTarget] = useState(null); // tagId, '__bulk__', or null
   const [flagReason, setFlagReason] = useState('');
   const [blacklistBusy, setBlacklistBusy] = useState(false);
-  const [copiedTagId, setCopiedTagId] = useState('');
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [ownerLookup, setOwnerLookup] = useState({}); // tagId -> { loading, owner }
   const [profiles, setProfiles] = useState({}); // tagId -> tagProfiles doc (only tags that have one)
@@ -181,10 +201,9 @@ export default function Inventory() {
   async function onCopyUrl(tagId) {
     try {
       await navigator.clipboard.writeText(tagUrl(tagId));
-      setCopiedTagId(tagId);
-      setTimeout(() => setCopiedTagId((cur) => (cur === tagId ? '' : cur)), 1500);
+      toast.success(`Copied the URL for ${tagId}.`);
     } catch {
-      // Clipboard API can fail (permissions/insecure context) — ignore silently.
+      toast.error('Could not copy — your browser blocked clipboard access.');
     }
   }
 
@@ -639,62 +658,73 @@ export default function Inventory() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          {t.status !== 'blacklisted' && (
-                            <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                              <Link to={`/admin/tags/${encodeURIComponent(t.tagId)}`}>
-                                <PencilLine className="h-3.5 w-3.5" /> Edit content
-                              </Link>
-                            </Button>
-                          )}
-                          <Button variant="outline" size="sm" onClick={() => onCopyUrl(t.tagId)}>
-                            {copiedTagId === t.tagId ? 'Copied' : 'Copy URL'}
-                          </Button>
-                          {t.status !== 'blacklisted' && (t.writeStatus === 'write_failed' || t.writeStatus === 'not_written' || !t.writeStatus) && (
-                            <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                              <Link to={`/admin/nfc-register?rewrite=${encodeURIComponent(t.tagId)}`}>
-                                <RefreshCw className="h-3.5 w-3.5" /> Retry write
-                              </Link>
-                            </Button>
-                          )}
-                          {t.status !== 'blacklisted' && (
+                        {/* Every row action lives in one ⋯ menu instead of up to
+                            five buttons wrapping across lines. */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5"
-                              title="Sticker lost, damaged, or swapped — re-point this TagBack ID at a new physical tap"
-                              asChild
-                            >
-                              <Link to={`/admin/nfc-register?reregister=${encodeURIComponent(t.tagId)}`}>
-                                <Nfc className="h-3.5 w-3.5" /> Re-register
-                              </Link>
-                            </Button>
-                          )}
-                          {t.status !== 'blacklisted' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-rose-600"
-                              onClick={() => {
-                                setBlacklistTarget(t.tagId);
-                                setFlagReason('');
-                              }}
-                            >
-                              Blacklist
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5 text-emerald-600"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={`Actions for ${t.tagId}`}
                               disabled={unblacklistBusy === t.tagId}
-                              onClick={() => onUnblacklist(t)}
                             >
-                              <Undo2 className="h-3.5 w-3.5" />
-                              {unblacklistBusy === t.tagId ? 'Restoring…' : 'Unblacklist'}
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-52 rounded-xl border-slate-200 dark:border-slate-700 [&_[role=menuitem]]:cursor-pointer [&_[role=menuitem]]:outline-none"
+                          >
+                            {t.status !== 'blacklisted' && (
+                              <DropdownMenuItem asChild>
+                                <Link to={`/admin/tags/${encodeURIComponent(t.tagId)}`}>
+                                  <PencilLine /> Edit content
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onSelect={() => onCopyUrl(t.tagId)}>
+                              <Copy /> Copy URL
+                            </DropdownMenuItem>
+                            {t.status !== 'blacklisted' &&
+                              (t.writeStatus === 'write_failed' || t.writeStatus === 'not_written' || !t.writeStatus) && (
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/admin/nfc-register?rewrite=${encodeURIComponent(t.tagId)}`}>
+                                    <RefreshCw /> Retry write
+                                  </Link>
+                                </DropdownMenuItem>
+                              )}
+                            {t.status !== 'blacklisted' && (
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  to={`/admin/nfc-register?reregister=${encodeURIComponent(t.tagId)}`}
+                                  title="Sticker lost, damaged, or swapped — re-point this TagBack ID at a new physical tap"
+                                >
+                                  <Nfc /> Re-register sticker
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            {t.status !== 'blacklisted' ? (
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() => {
+                                  setBlacklistTarget(t.tagId);
+                                  setFlagReason('');
+                                }}
+                              >
+                                <Ban /> Blacklist…
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                className="text-emerald-600 dark:text-emerald-400"
+                                onSelect={() => onUnblacklist(t)}
+                              >
+                                <Undo2 className="text-emerald-600 dark:text-emerald-400" /> Unblacklist
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
