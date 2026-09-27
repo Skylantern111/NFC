@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import AdminSidebar from '../../components/nav/AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
-import { getAdminStatus } from '../../lib/adminAuth';
+import { checkIsAdmin } from '../../lib/adminAuth';
 
 // No AmbientBackground / backdrop-blur here: solid surfaces keep large
 // data tables scrolling at 60fps.
@@ -12,7 +12,7 @@ function AdminGate({ children }) {
   const { user, loading, firebaseReady } = useAuth();
   const location = useLocation();
   const [checkingClaim, setCheckingClaim] = useState(true);
-  const [status, setStatus] = useState('none'); // 'admin' | 'unverified' | 'none'
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!firebaseReady || loading || !user) {
@@ -21,9 +21,9 @@ function AdminGate({ children }) {
     }
     let cancelled = false;
     setCheckingClaim(true);
-    getAdminStatus(user)
+    checkIsAdmin(user)
       .then((result) => {
-        if (!cancelled) setStatus(result);
+        if (!cancelled) setIsAdmin(result);
       })
       .finally(() => {
         if (!cancelled) setCheckingClaim(false);
@@ -54,11 +54,7 @@ function AdminGate({ children }) {
     );
   }
 
-  if (status === 'unverified') {
-    return <Navigate to="/admin/login" state={{ from: location, verify: true }} replace />;
-  }
-
-  if (status !== 'admin') {
+  if (!isAdmin) {
     return (
       <Navigate
         to="/admin/login"

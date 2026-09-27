@@ -275,7 +275,7 @@ is undefined". It has probably been live since `1c278ce` (2026-09-05).
 | B4 | `ProtectedRoute` removed around `/admin`; `AdminGate` sends signed-out users to `/admin/login`. |
 | B5 | Release dialog says reports/chats/alerts are deleted; the release step retries up to 3 times, and a failure after cleanup shows a specific message. |
 | B6 | "In-app alerts" switch replaced by a plain statement. |
-| B7 | Passcode admins need a verified email — enforced in `isAdmin()` and in `getAdminStatus()`. Admin signup and `AdminGate` land on a "Verify your email" step with Resend and Continue. Claim-based admins are unaffected. |
+| B7 | **Reverted** at the owner's request: the "verify your email" step for passcode admins didn't work for them in practice. Admins are not required to verify their email. |
 | B8 | Bulk content selection is kept in `sessionStorage` across reloads. |
 | B9 | Dashboard label: "Lost item" only when Lost Mode is on, else "Your item". |
 | B10 | Owner redirects need a click ("Continue to <domain>"); no auto-continue. |
@@ -305,4 +305,3 @@ Rules, indexes and hosting must go together. A0 makes the rules deploy
 urgent. After deploy:
 - Any passcode shorter than 16 characters stops working; set a new one
   with **Generate**.
-- Passcode admins must verify their email before the console opens.

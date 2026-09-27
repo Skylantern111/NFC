@@ -818,14 +818,14 @@ describe('SYSTEM_AUDIT_ROUND2.md fixes', () => {
     );
   });
 
-  // ---- B7: passcode admins need a verified email ----
-  test('B7: a passcode admin without a verified email is not admin; verified is', async () => {
+  // ---- B7 (reverted): passcode admins do NOT need a verified email ----
+  test('B7 reverted: a passcode admin is admin with or without a verified email', async () => {
     await seed(async (db) => {
       await setDoc(doc(db, 'users', 'doc-admin-2'), { isAdmin: true });
       await setDoc(doc(db, 'tagAdmin', 'TB-RRRR-0006'), { flagReason: 'x' });
     });
     const unverified = testEnv.authenticatedContext('doc-admin-2').firestore();
-    await assertFails(getDoc(doc(unverified, 'tagAdmin', 'TB-RRRR-0006')));
+    await assertSucceeds(getDoc(doc(unverified, 'tagAdmin', 'TB-RRRR-0006')));
     const verified = testEnv.authenticatedContext('doc-admin-2', { email_verified: true }).firestore();
     await assertSucceeds(getDoc(doc(verified, 'tagAdmin', 'TB-RRRR-0006')));
   });

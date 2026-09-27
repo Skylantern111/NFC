@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, MailCheck, ShieldAlert } from 'lucide-react';
-import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { Eye, EyeOff, Loader2, ShieldAlert } from 'lucide-react';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, firebaseReady } from '../../firebase/config';
 import { friendlyAuthError } from '../../lib/utils';
-import { getAdminStatus } from '../../lib/adminAuth';
+import { checkIsAdmin } from '../../lib/adminAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,15 +24,6 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState(location.state?.notice || '');
   const [busy, setBusy] = useState(false);
-  // SYSTEM_AUDIT_ROUND2.md B7: a passcode-created admin must verify their
-  // email before the admin console opens (firestore.rules#isAdmin checks it
-  // too). Arriving with state.verify (from admin signup or AdminGate) and
-  // still signed in shows this step straight away.
-  const [verifyUser, setVerifyUser] = useState(() =>
-    location.state?.verify && firebaseReady ? auth.currentUser : null
-  );
-  const [info, setInfo] = useState('');
-
   const redirectTo = location.state?.from?.pathname
     ? `${location.state.from.pathname}${location.state.from.search || ''}`
     : '/admin/inventory';
@@ -47,12 +38,8 @@ export default function AdminLogin() {
     setBusy(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      const status = await getAdminStatus(cred.user);
-      if (status === 'unverified') {
-        setVerifyUser(cred.user);
-        return;
-      }
-      if (status !== 'admin') {
+      const isAdmin = await checkIsAdmin(cred.user);
+      if (!isAdmin) {
         await signOut(auth);
         setErr("This account doesn't have admin access.");
         return;
@@ -63,77 +50,6 @@ export default function AdminLogin() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function onResend() {
-    setErr('');
-    setInfo('');
-    setBusy(true);
-    try {
-      await sendEmailVerification(verifyUser);
-      setInfo('Verification email sent — check your inbox (and spam).');
-    } catch (e) {
-      setErr(friendlyAuthError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onVerifiedContinue() {
-    setErr('');
-    setInfo('');
-    setBusy(true);
-    try {
-      const status = await getAdminStatus(verifyUser);
-      if (status === 'admin') nav(redirectTo, { replace: true });
-      else if (status === 'unverified') setErr("Your email isn't verified yet. Open the link in the email, then try again.");
-      else setErr("This account doesn't have admin access.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (verifyUser) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-base px-5 py-8">
-        <Card className="w-full max-w-sm rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
-          <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
-              <MailCheck className="h-5.5 w-5.5" />
-            </span>
-            <h1 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Verify your email</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Admin access needs a verified email. We sent a link to{' '}
-              <span className="font-semibold text-slate-700 dark:text-slate-200">{verifyUser.email}</span>. Open it, then
-              continue here.
-            </p>
-            {err && <p className="text-sm text-rose-600">{err}</p>}
-            {info && <p className="text-sm text-emerald-600">{info}</p>}
-            <Button className="w-full gap-1.5" onClick={onVerifiedContinue} disabled={busy}>
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              I've verified — continue
-            </Button>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="outline" size="sm" onClick={onResend} disabled={busy}>
-                Resend email
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  await signOut(auth);
-                  setVerifyUser(null);
-                  setErr('');
-                  setInfo('');
-                }}
-              >
-                Use another account
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
   }
 
   return (

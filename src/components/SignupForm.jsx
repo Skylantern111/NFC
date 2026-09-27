@@ -100,10 +100,7 @@ export default function SignupForm({ admin = false }) {
       // verification-email send (rare: network) shouldn't block the flow.
       sendEmailVerification(cred.user).catch((err) => console.warn('sendEmailVerification failed:', err));
       toast.success('Account created — check your email to verify it.');
-      // Admin accounts must verify their email before the console opens
-      // (SYSTEM_AUDIT_ROUND2.md B7) — land on that step directly.
-      if (admin) nav('/admin/login', { state: { verify: true } });
-      else nav('/dashboard');
+      nav(admin ? '/admin/inventory' : '/dashboard');
     } catch (e) {
       setErr(friendlyAuthError(e));
     } finally {

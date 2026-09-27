@@ -64,16 +64,14 @@ service cloud.firestore {
     // creation (see users/{uid} below).
     //
     // SYSTEM_AUDIT_ROUND2.md A2: a disabled account is never admin (it used
-    // to keep full admin rights after signing back in). B7: the passcode
-    // path also needs a verified email; the custom claim is granted
-    // server-side by a person, so it doesn't.
+    // to keep full admin rights after signing back in). (B7's verified-email
+    // requirement for passcode admins was removed at the owner's request.)
     function isAdmin() {
       return isSignedIn()
         && !isDisabledOwner(request.auth.uid)
         && (
           request.auth.token.get('admin', false) == true
-          || (request.auth.token.get('email_verified', false) == true
-              && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
               && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true)
         );
     }
