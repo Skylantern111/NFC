@@ -7,13 +7,13 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 
-const MIN_LENGTH = 16; // mirrors firestore.rules#validAdminPasscode
+const MIN_LENGTH = 8; // mirrors firestore.rules#validAdminPasscode
 
 // SYSTEM_AUDIT_ROUND2.md A3: the rules can't rate-limit guesses, so the
-// passcode itself has to be too long to guess. 20 characters from a
-// 31-symbol alphabet (no 0/O/1/I/L) ≈ 99 bits.
+// passcode itself has to be hard to guess. 8 characters from a
+// 31-symbol alphabet (no 0/O/1/I/L) ≈ 40 bits (8 is the minimum the owner chose).
 const PASSCODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-function generatePasscode(length = 20) {
+function generatePasscode(length = 8) {
   const bytes = new Uint32Array(length);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (n) => PASSCODE_ALPHABET[n % PASSCODE_ALPHABET.length]).join('');

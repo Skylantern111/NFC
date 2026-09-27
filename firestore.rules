@@ -159,7 +159,7 @@ service cloud.firestore {
       let meta = /databases/$(database)/documents/meta/adminSignup;
       return exists(meta)
         && get(meta).data.get('passcode', null) is string
-        && get(meta).data.passcode.size() >= 16
+        && get(meta).data.passcode.size() >= 8
         && request.resource.data.get('adminPasscode', null) == get(meta).data.passcode;
     }
 

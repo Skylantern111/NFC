@@ -267,7 +267,7 @@ is undefined". It has probably been live since `1c278ce` (2026-09-05).
 |---|---|
 | A1 | `tags`, `items`, `tagProfiles`: `get` public, `list` admin-only (`items` also the owner). |
 | A2 | `isAdmin()` requires `!isDisabledOwner(...)` — claim and passcode admins alike. |
-| A3 | Passcode must be ≥ 16 characters (rules, card, script). The Owners card has **Generate** (20 random characters) and **Copy**, and suggests turning signup off when unused. |
+| A3 | Passcode must be ≥ 8 characters (lowered from 16 at the owner's request; rules, card, script). The Owners card has **Generate** (8 random characters) and **Copy**, and suggests turning signup off when unused. |
 | A4 | Messages: `hasOnly(sender, text, timestamp, finderSessionToken)` and `timestamp == request.time`. |
 | B1 | Notifications open `n.chatId` (fallback: the newest chat on that tag). |
 | B2 | Dashboard pairs each report with `chat.reportId === report.id`. |
@@ -303,5 +303,5 @@ Tests: 60 passing (10 new). `npm run build` clean.
 **Deploy:** `firebase deploy --only firestore:rules,firestore:indexes,hosting`.
 Rules, indexes and hosting must go together. A0 makes the rules deploy
 urgent. After deploy:
-- Any passcode shorter than 16 characters stops working; set a new one
+- Any passcode shorter than 8 characters stops working; set a new one
   with **Generate**.

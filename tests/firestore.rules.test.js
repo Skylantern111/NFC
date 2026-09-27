@@ -793,10 +793,10 @@ describe('SYSTEM_AUDIT_ROUND2.md fixes', () => {
   });
 
   // ---- A3: passcode length ----
-  test('A3: a stored passcode shorter than 16 characters never grants admin', async () => {
-    await seed((db) => setDoc(doc(db, 'meta', 'adminSignup'), { passcode: 'short-123' }));
+  test('A3: a stored passcode shorter than 8 characters never grants admin', async () => {
+    await seed((db) => setDoc(doc(db, 'meta', 'adminSignup'), { passcode: 'short12' }));
     const user = testEnv.authenticatedContext('u-short');
-    await assertFails(setDoc(doc(user.firestore(), 'users', 'u-short'), { isAdmin: true, adminPasscode: 'short-123' }));
+    await assertFails(setDoc(doc(user.firestore(), 'users', 'u-short'), { isAdmin: true, adminPasscode: 'short12' }));
   });
 
   // ---- A4: messages ----
