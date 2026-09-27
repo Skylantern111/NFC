@@ -39,7 +39,12 @@ export default function Dashboard() {
   const loading = itemsLoading || reportsLoading;
 
   const itemsByTag = useMemo(() => Object.fromEntries(items.map((i) => [i.tagId, i])), [items]);
-  const chatByTag = useMemo(() => Object.fromEntries(chats.map((c) => [c.tagId, c])), [chats]);
+  // SYSTEM_AUDIT_ROUND2.md B2: each report has its own chat (chat.reportId);
+  // keying by tag paired every report on a tag with one arbitrary chat.
+  const chatByReport = useMemo(
+    () => Object.fromEntries(chats.filter((c) => c.reportId).map((c) => [c.reportId, c])),
+    [chats]
+  );
 
   // "Active incident" = an item with an open found-report against it. No
   // items.status field in real Firestore (see firestore.rules) — this is
@@ -52,10 +57,10 @@ export default function Dashboard() {
         .map((report) => ({
           report,
           item: itemsByTag[report.tagId] || null,
-          chat: chatByTag[report.tagId] || null,
+          chat: chatByReport[report.id] || null,
         }))
         .filter((i) => i.item),
-    [reports, itemsByTag, chatByTag]
+    [reports, itemsByTag, chatByReport]
   );
 
   const stats = [
@@ -146,7 +151,9 @@ export default function Dashboard() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Lost item</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    {item.isLostMode ? 'Lost item' : 'Your item'}
+                  </p>
                   <h2 className="mt-1 text-xl font-extrabold text-slate-800 dark:text-slate-100">{item.itemName}</h2>
                 </div>
 

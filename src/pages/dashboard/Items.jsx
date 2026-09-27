@@ -85,7 +85,11 @@ export default function Items() {
       setReleaseDialog(null);
       toast.success('Tag released — it can be re-claimed or re-provisioned now.');
     } catch (err) {
-      toast.error(friendlyFirestoreError(err, 'Could not release this tag. Try again.'));
+      toast.error(
+        err.code === 'release-partial'
+          ? "This tag's reports, chats and alerts were cleared, but releasing it failed. It's still yours — try Release again."
+          : friendlyFirestoreError(err, 'Could not release this tag. Try again.')
+      );
     } finally {
       setReleasing(false);
     }
@@ -336,10 +340,11 @@ export default function Items() {
           <DialogHeader>
             <DialogTitle>Release "{releaseDialog?.name}"?</DialogTitle>
             <DialogDescription>
-              This unlinks the tag from your account — your item name, profile links, and lost-mode
-              message for it are deleted. The physical sticker itself is unaffected and can be
-              re-claimed (by you or someone else) or re-provisioned by an admin. This can't be
-              undone from here.
+              This unlinks the tag from your account. Deleted for good: the item name, profile
+              links and lost-mode message, plus every finder report, chat and notification for this
+              tag, so the next owner can't see them. The physical sticker itself is unaffected and
+              can be re-claimed (by you or someone else) or re-provisioned by an admin. This can't be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -354,11 +354,14 @@ export function useOwnerNotifications(user) {
     // Capped per-group: an unbounded feed could otherwise load every
     // notification ever fired for a long-lived account on every dashboard
     // visit. Chunked past the 30-tag `in` cap — see useOwnerOpenReports.
+    // orderBy createdAt (SYSTEM_AUDIT_ROUND2.md B3): without it the cap kept
+    // the first 200 by document id, so new alerts could fall off the feed.
+    // Needs the (tagId, createdAt desc) index in firestore.indexes.json.
     const groups = chunk(tagIds, 30);
     const partials = groups.map(() => []);
     const unsubs = groups.map((group, i) =>
       onSnapshot(
-        query(collection(db, 'notifications'), where('tagId', 'in', group), limit(200)),
+        query(collection(db, 'notifications'), where('tagId', 'in', group), orderBy('createdAt', 'desc'), limit(200)),
         (snap) => {
           partials[i] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           setNotifications(partials.flat());
@@ -595,16 +598,30 @@ export async function releaseTag(tagId) {
     group.forEach((op) => op(batch));
     await batch.commit();
   }
-  await runTransaction(db, async (tx) => {
-    const tagRef = doc(db, 'tags', tagId);
-    const ownerRef = doc(db, 'itemOwners', tagId);
-    const itemRef = doc(db, 'items', tagId);
-    const profileRef = doc(db, 'tagProfiles', tagId);
-    tx.delete(ownerRef);
-    tx.delete(itemRef);
-    tx.delete(profileRef);
-    tx.update(tagRef, { status: 'registered' });
-  });
+  // The history above is already gone at this point (the rules only let
+  // the current owner delete it, so it can't wait until after). Retry the
+  // release itself a few times rather than leave the owner with a tag that
+  // has lost its history but is still theirs (SYSTEM_AUDIT_ROUND2.md B5).
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await runTransaction(db, async (tx) => {
+        tx.delete(doc(db, 'itemOwners', tagId));
+        tx.delete(doc(db, 'items', tagId));
+        tx.delete(doc(db, 'tagProfiles', tagId));
+        tx.update(doc(db, 'tags', tagId), { status: 'registered' });
+      });
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (err?.code === 'permission-denied') break; // retrying won't help
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    }
+  }
+  const err = new Error('The tag history was cleared, but the release itself failed.');
+  err.code = 'release-partial';
+  err.cause = lastErr;
+  throw err;
 }
 
 // Anonymous tap counter (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §4.1) — the

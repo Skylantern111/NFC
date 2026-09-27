@@ -35,7 +35,13 @@ export default function Notifications() {
   const loading = notifLoading || itemsLoading;
 
   const itemsByTag = useMemo(() => Object.fromEntries(items.map((i) => [i.tagId, i])), [items]);
-  const chatByTag = useMemo(() => Object.fromEntries(chats.map((c) => [c.tagId, c])), [chats]);
+  // Fallback only, for old notifications without a chatId: the most recent
+  // chat on that tag. (chats come newest-first; keep the first per tag.)
+  const latestChatByTag = useMemo(() => {
+    const out = {};
+    for (const c of chats) if (!out[c.tagId]) out[c.tagId] = c;
+    return out;
+  }, [chats]);
 
   const [markingAll, setMarkingAll] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -125,11 +131,13 @@ export default function Notifications() {
               const meta = TYPE_META[n.type] || TYPE_META.message;
               const Icon = meta.icon;
               const item = itemsByTag[n.tagId];
-              const chat = chatByTag[n.tagId];
+              // SYSTEM_AUDIT_ROUND2.md B1: open the chat this notification is
+              // about, not whichever chat happens to share its tag.
+              const chatId = n.chatId || latestChatByTag[n.tagId]?.id;
               return (
                 <Link
                   key={n.id}
-                  to={chat ? `/chat/${chat.id}` : '/dashboard/messages'}
+                  to={chatId ? `/chat/${chatId}` : '/dashboard/messages'}
                   onClick={() => onOpenNotification(n)}
                   className="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5"
                 >

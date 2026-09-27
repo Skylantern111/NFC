@@ -5,7 +5,7 @@
 // script is for bootstrapping when no admin can sign in yet.
 //
 //   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json \
-//     node scripts/setAdminSignupPasscode.js <passcode>     # set (6+ chars)
+//     node scripts/setAdminSignupPasscode.js <passcode>     # set (16+ chars)
 //   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json \
 //     node scripts/setAdminSignupPasscode.js --off          # turn off
 //
@@ -20,8 +20,8 @@ if (!arg) {
   console.error('Usage: node scripts/setAdminSignupPasscode.js <passcode> | --off');
   process.exit(1);
 }
-if (arg !== '--off' && arg.length < 6) {
-  console.error('The passcode must be at least 6 characters (firestore.rules rejects shorter ones).');
+if (arg !== '--off' && arg.length < 16) {
+  console.error('The passcode must be at least 16 characters (firestore.rules rejects shorter ones).');
   process.exit(1);
 }
 if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {

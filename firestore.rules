@@ -37,9 +37,15 @@ service cloud.firestore {
     // see admin/Owners.jsx. No Cloud Functions/Admin SDK in this project, so
     // this can't revoke Firebase Auth sign-in itself; it cuts off every
     // owner-gated write instead, by folding into ownsTag() below.
+    //
+    // .get('disabled', false), not .disabled (SYSTEM_AUDIT_ROUND2.md A0):
+    // reading a field a doc doesn't have is an evaluation ERROR in rules, and
+    // `!error` denies. Real profiles never have `disabled` until an admin
+    // sets it, so this used to deny every owner action (claim, edit item,
+    // read reports) for every user with a profile doc.
     function isDisabledOwner(uid) {
       return exists(/databases/$(database)/documents/users/$(uid))
-        && get(/databases/$(database)/documents/users/$(uid)).data.disabled == true;
+        && get(/databases/$(database)/documents/users/$(uid)).data.get('disabled', false) == true;
     }
 
     function ownsTag(tagId) {
@@ -56,12 +62,20 @@ service cloud.firestore {
     // shipped to the client), not in the browser — and users/{uid} can no
     // longer be deleted and re-created, so `isAdmin` really is fixed at
     // creation (see users/{uid} below).
+    //
+    // SYSTEM_AUDIT_ROUND2.md A2: a disabled account is never admin (it used
+    // to keep full admin rights after signing back in). B7: the passcode
+    // path also needs a verified email; the custom claim is granted
+    // server-side by a person, so it doesn't.
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true
-        || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
-            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
-      );
+      return isSignedIn()
+        && !isDisabledOwner(request.auth.uid)
+        && (
+          request.auth.token.get('admin', false) == true
+          || (request.auth.token.get('email_verified', false) == true
+              && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true)
+        );
     }
 
     // A tag an admin has blacklisted (admin/Inventory.jsx) — blocks the
@@ -146,9 +160,9 @@ service cloud.firestore {
     function validAdminPasscode() {
       let meta = /databases/$(database)/documents/meta/adminSignup;
       return exists(meta)
-        && get(meta).data.passcode is string
-        && get(meta).data.passcode.size() >= 6
-        && request.resource.data.adminPasscode == get(meta).data.passcode;
+        && get(meta).data.get('passcode', null) is string
+        && get(meta).data.passcode.size() >= 16
+        && request.resource.data.get('adminPasscode', null) == get(meta).data.passcode;
     }
 
     // ---- users: private to the account owner, plus admin read/moderation.
@@ -181,7 +195,12 @@ service cloud.firestore {
     //      Public may read status to detect registered/blacklisted; only
     //      admins write (via console / functions). ----
     match /tags/{tagId} {
-      allow read: if true;
+      // SYSTEM_AUDIT_ROUND2.md A1: `read` also allowed queries, so anyone
+      // could list every unclaimed TagBack ID and claim them all remotely.
+      // Opening one tag by its ID stays public (the finder page, claim);
+      // listing is admin-only.
+      allow get: if true;
+      allow list: if isAdmin();
       allow write: if isAdmin();
       // Claim path: the caller may flip status registered -> claimed for the
       // exact tag they're claiming, only alongside creating itemOwners/{tagId}
@@ -243,7 +262,10 @@ service cloud.firestore {
     // ---- items: PUBLIC-SAFE. Readable by anyone. Writable only by the owner,
     //      and only with the whitelisted public fields (blocks PII injection). ----
     match /items/{tagId} {
-      allow read: if true;
+      // A1: public by ID only — a public list exposed every item name and
+      // lost message. Owners read their items by ID; admins query them.
+      allow get: if true;
+      allow list: if isAdmin() || ownsTag(resource.data.tagId);
       // Normal path: already-owned tag, editing item fields.
       // Claim path: itemOwners/{tagId} is being created in THIS SAME
       // transaction (see dashboard/ClaimTag.jsx). get()/exists() only see
@@ -271,7 +293,10 @@ service cloud.firestore {
     //      a claimed tag — updatedBy records who edited last, and the owner's
     //      NfcSetup page shows when that was an admin). ----
     match /tagProfiles/{tagId} {
-      allow read: if true;
+      // A1: public by ID only — a public list exposed every display name,
+      // bio and contact link. Admin pages query by documentId().
+      allow get: if true;
+      allow list: if isAdmin();
       // isAdmin() first (SYSTEM_AUDIT_PLAN.md C3): a bulk batch then skips
       // the per-tag itemOwners lookup, staying under the rules' per-request
       // lookup limit.
@@ -411,7 +436,12 @@ service cloud.firestore {
         // matching, non-blocked token, on a non-blacklisted tag). Repeated
         // get()s of the same chats/{chatId} path below are served from
         // Firestore's per-request rules cache, not re-fetched.
-        allow create: if request.resource.data.sender in ['owner', 'finder']
+        // SYSTEM_AUDIT_ROUND2.md A4: exact fields and server time — extra
+        // fields could bloat a message, and a missing or fake timestamp
+        // hid it from, or moved it within, the thread (ordered by timestamp).
+        allow create: if request.resource.data.keys().hasOnly(['sender', 'text', 'timestamp', 'finderSessionToken'])
+          && request.resource.data.sender in ['owner', 'finder']
+          && request.resource.data.timestamp == request.time
           // §R2.3 — was unbounded (client-side <Input> only).
           && withinLength(request.resource.data.text, 1000)
           && (

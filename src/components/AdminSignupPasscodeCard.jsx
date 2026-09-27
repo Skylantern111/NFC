@@ -7,7 +7,17 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 
-const MIN_LENGTH = 6; // mirrors firestore.rules#validAdminPasscode
+const MIN_LENGTH = 16; // mirrors firestore.rules#validAdminPasscode
+
+// SYSTEM_AUDIT_ROUND2.md A3: the rules can't rate-limit guesses, so the
+// passcode itself has to be too long to guess. 20 characters from a
+// 31-symbol alphabet (no 0/O/1/I/L) ≈ 99 bits.
+const PASSCODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+function generatePasscode(length = 20) {
+  const bytes = new Uint32Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (n) => PASSCODE_ALPHABET[n % PASSCODE_ALPHABET.length]).join('');
+}
 
 // Self-serve admin signup passcode (SYSTEM_AUDIT_PLAN.md A1). Stored in
 // meta/adminSignup — admin-only in firestore.rules, never in the client
@@ -17,6 +27,7 @@ export default function AdminSignupPasscodeCard() {
   const [enabled, setEnabled] = useState(null); // null = loading
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(false); // show the passcode in clear (after Generate)
 
   useEffect(() => {
     if (!firebaseReady) {
@@ -40,8 +51,7 @@ export default function AdminSignupPasscodeCard() {
         updatedBy: auth.currentUser?.uid || null,
       });
       setEnabled(true);
-      setValue('');
-      toast.success('Admin signup passcode updated.');
+      toast.success('Admin signup passcode updated. Copy it now — it is not shown again.');
     } catch (err) {
       toast.error('Could not save passcode: ' + err.message);
     } finally {
@@ -69,21 +79,46 @@ export default function AdminSignupPasscodeCard() {
           <KeyRound className="h-4 w-4" /> Admin signup passcode
         </CardTitle>
         <CardDescription className="text-slate-500 dark:text-slate-400">
-          Anyone who types this passcode when creating an account becomes an admin. Checked by the database rules,
-          never shipped to browsers. Status:{' '}
-          {enabled === null ? 'loading…' : enabled ? 'on' : 'off (no passcode set)'}.
+          Anyone who types this passcode on the admin signup page (/admin/register) becomes an admin, after verifying
+          their email. Checked by the database rules, never shipped to browsers. Turn it off when nobody is being
+          onboarded. Status: {enabled === null ? 'loading…' : enabled ? 'on' : 'off (no passcode set)'}.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSave} className="flex flex-wrap items-center gap-2">
           <Input
-            type="password"
+            type={shown ? 'text' : 'password'}
             autoComplete="new-password"
             placeholder={`New passcode (at least ${MIN_LENGTH} characters)`}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className="max-w-xs"
+            className="max-w-xs font-mono"
           />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              setValue(generatePasscode());
+              setShown(true);
+            }}
+          >
+            Generate
+          </Button>
+          {shown && value && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() =>
+                navigator.clipboard
+                  .writeText(value)
+                  .then(() => toast.success('Passcode copied.'))
+                  .catch(() => toast.error('Could not copy — select and copy it by hand.'))
+              }
+            >
+              Copy
+            </Button>
+          )}
           <Button type="submit" disabled={busy || value.trim().length < MIN_LENGTH} className="gap-1.5">
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
             {enabled ? 'Change passcode' : 'Set passcode'}

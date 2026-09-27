@@ -533,11 +533,11 @@ describe('SYSTEM_AUDIT_PLAN.md fixes', () => {
   });
 
   test('A1: isAdmin: true with a wrong passcode is rejected; the right one works', async () => {
-    await seed((db) => setDoc(doc(db, 'meta', 'adminSignup'), { passcode: 'correct-horse' }));
+    await seed((db) => setDoc(doc(db, 'meta', 'adminSignup'), { passcode: 'CORRECT-HORSE-BATTERY-1' }));
     const u2 = testEnv.authenticatedContext('u2');
     await assertFails(setDoc(doc(u2.firestore(), 'users', 'u2'), { isAdmin: true, adminPasscode: 'wrong-guess' }));
     const u3 = testEnv.authenticatedContext('u3');
-    await assertSucceeds(setDoc(doc(u3.firestore(), 'users', 'u3'), { isAdmin: true, adminPasscode: 'correct-horse' }));
+    await assertSucceeds(setDoc(doc(u3.firestore(), 'users', 'u3'), { isAdmin: true, adminPasscode: 'CORRECT-HORSE-BATTERY-1' }));
   });
 
   test('A1: a plain non-admin profile can still be created', async () => {
@@ -735,5 +735,143 @@ describe('SYSTEM_AUDIT_PLAN.md fixes', () => {
         editorRole: 'owner',
       })
     );
+  });
+});
+
+describe('SYSTEM_AUDIT_ROUND2.md fixes', () => {
+  // ---- A1: public get, no public list ----
+  test('A1: anyone can open a tag, item or profile by ID', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', 'TB-RRRR-0001'), { tagId: 'TB-RRRR-0001', status: 'registered' });
+      await setDoc(doc(db, 'items', 'TB-RRRR-0001'), { tagId: 'TB-RRRR-0001', itemName: 'Wallet' });
+      await setDoc(doc(db, 'tagProfiles', 'TB-RRRR-0001'), { displayName: 'Jane' });
+    });
+    const anon = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(anon, 'tags', 'TB-RRRR-0001')));
+    await assertSucceeds(getDoc(doc(anon, 'items', 'TB-RRRR-0001')));
+    await assertSucceeds(getDoc(doc(anon, 'tagProfiles', 'TB-RRRR-0001')));
+  });
+
+  test('A1: nobody but an admin can list tags, items or profiles', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', 'TB-RRRR-0002'), { tagId: 'TB-RRRR-0002', status: 'registered' });
+      await setDoc(doc(db, 'items', 'TB-RRRR-0002'), { tagId: 'TB-RRRR-0002', itemName: 'Wallet' });
+      await setDoc(doc(db, 'tagProfiles', 'TB-RRRR-0002'), { displayName: 'Jane' });
+    });
+    for (const ctx of [testEnv.unauthenticatedContext(), testEnv.authenticatedContext('stranger-1')]) {
+      const db = ctx.firestore();
+      await assertFails(getDocs(query(collection(db, 'tags'), where('status', '==', 'registered'))));
+      await assertFails(getDocs(collection(db, 'items')));
+      await assertFails(getDocs(collection(db, 'tagProfiles')));
+    }
+    const admin = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    await assertSucceeds(getDocs(query(collection(admin, 'tags'), where('status', '==', 'registered'))));
+    await assertSucceeds(getDocs(collection(admin, 'items')));
+    await assertSucceeds(getDocs(collection(admin, 'tagProfiles')));
+  });
+
+  test('A1: an owner can still query their own items', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'itemOwners', 'TB-RRRR-0003'), { ownerUid: 'owner-1' });
+      await setDoc(doc(db, 'items', 'TB-RRRR-0003'), { tagId: 'TB-RRRR-0003', itemName: 'Keys' });
+    });
+    const owner = testEnv.authenticatedContext('owner-1').firestore();
+    await assertSucceeds(getDocs(query(collection(owner, 'items'), where('tagId', 'in', ['TB-RRRR-0003']))));
+  });
+
+  // ---- A2: disabled admins ----
+  test('A2: a disabled admin loses admin rights (claim and passcode admins)', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users', 'claim-admin'), { disabled: true });
+      await setDoc(doc(db, 'users', 'doc-admin'), { isAdmin: true, disabled: true });
+      await setDoc(doc(db, 'tagAdmin', 'TB-RRRR-0004'), { flagReason: 'x' });
+    });
+    const claimAdmin = testEnv.authenticatedContext('claim-admin', { admin: true }).firestore();
+    await assertFails(getDoc(doc(claimAdmin, 'tagAdmin', 'TB-RRRR-0004')));
+    const docAdmin = testEnv.authenticatedContext('doc-admin', { email_verified: true }).firestore();
+    await assertFails(getDoc(doc(docAdmin, 'tagAdmin', 'TB-RRRR-0004')));
+  });
+
+  // ---- A3: passcode length ----
+  test('A3: a stored passcode shorter than 16 characters never grants admin', async () => {
+    await seed((db) => setDoc(doc(db, 'meta', 'adminSignup'), { passcode: 'short-123' }));
+    const user = testEnv.authenticatedContext('u-short');
+    await assertFails(setDoc(doc(user.firestore(), 'users', 'u-short'), { isAdmin: true, adminPasscode: 'short-123' }));
+  });
+
+  // ---- A4: messages ----
+  test('A4: a message needs server time and only known fields', async () => {
+    const tagId = 'TB-RRRR-0005';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'chats', 'chat-r2'), { tagId, finderSessionToken: 'token-abc' });
+    });
+    const finder = testEnv.unauthenticatedContext().firestore();
+    const base = { sender: 'finder', text: 'hello', finderSessionToken: 'token-abc' };
+    await assertSucceeds(addDoc(collection(finder, 'chats', 'chat-r2', 'messages'), { ...base, timestamp: serverTimestamp() }));
+    await assertFails(addDoc(collection(finder, 'chats', 'chat-r2', 'messages'), base));
+    await assertFails(
+      addDoc(collection(finder, 'chats', 'chat-r2', 'messages'), { ...base, timestamp: new Date('2099-01-01') })
+    );
+    await assertFails(
+      addDoc(collection(finder, 'chats', 'chat-r2', 'messages'), { ...base, timestamp: serverTimestamp(), junk: 'x' })
+    );
+  });
+
+  // ---- B7: passcode admins need a verified email ----
+  test('B7: a passcode admin without a verified email is not admin; verified is', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users', 'doc-admin-2'), { isAdmin: true });
+      await setDoc(doc(db, 'tagAdmin', 'TB-RRRR-0006'), { flagReason: 'x' });
+    });
+    const unverified = testEnv.authenticatedContext('doc-admin-2').firestore();
+    await assertFails(getDoc(doc(unverified, 'tagAdmin', 'TB-RRRR-0006')));
+    const verified = testEnv.authenticatedContext('doc-admin-2', { email_verified: true }).firestore();
+    await assertSucceeds(getDoc(doc(verified, 'tagAdmin', 'TB-RRRR-0006')));
+  });
+});
+
+// SYSTEM_AUDIT_ROUND2.md A0 — every earlier test used owners WITHOUT a
+// users/{uid} profile, which hid that a real profile (no `disabled` field)
+// made isDisabledOwner() error and deny every owner action.
+describe('real user profiles (A0)', () => {
+  async function seedProfile(uid, extra = {}) {
+    await seed((db) => setDoc(doc(db, 'users', uid), { uid, email: `${uid}@example.com`, isAdmin: false, ...extra }));
+  }
+
+  test('an owner with a normal profile can claim a tag', async () => {
+    const tagId = 'TB-ZZZZ-0001';
+    await seedProfile('real-1');
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
+    const db = testEnv.authenticatedContext('real-1').firestore();
+    await assertSucceeds(
+      runTransaction(db, async (tx) => {
+        tx.set(doc(db, 'itemOwners', tagId), { ownerUid: 'real-1' });
+        tx.set(doc(db, 'items', tagId), { tagId, itemName: 'Bag', isLostMode: false, lostMessage: '', rewardAmount: 0 });
+        tx.update(doc(db, 'tags', tagId), { status: 'claimed' });
+      })
+    );
+  });
+
+  test('an owner with a normal profile can edit their item', async () => {
+    const tagId = 'TB-ZZZZ-0002';
+    await seedProfile('real-2');
+    await seed(async (db) => {
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'real-2' });
+      await setDoc(doc(db, 'items', tagId), { tagId, itemName: 'Bag', isLostMode: false });
+    });
+    const db = testEnv.authenticatedContext('real-2').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'items', tagId), { isLostMode: true }));
+  });
+
+  test('a disabled owner cannot edit their item', async () => {
+    const tagId = 'TB-ZZZZ-0003';
+    await seedProfile('real-3', { disabled: true });
+    await seed(async (db) => {
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'real-3' });
+      await setDoc(doc(db, 'items', tagId), { tagId, itemName: 'Bag', isLostMode: false });
+    });
+    const db = testEnv.authenticatedContext('real-3').firestore();
+    await assertFails(updateDoc(doc(db, 'items', tagId), { isLostMode: true }));
   });
 });

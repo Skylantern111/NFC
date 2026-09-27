@@ -9,3 +9,8 @@ dist-ssr
 *.log
 .vite
 .firebase
+
+# Firebase service-account keys used by scripts/*.js (GOOGLE_APPLICATION_CREDENTIALS).
+# Never commit these.
+*service-account*.json
+*-firebase-adminsdk-*.json

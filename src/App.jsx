@@ -90,11 +90,10 @@ export default function App() {
       <Route path="/admin/register" element={<AdminRegister />} />
       <Route
         path="/admin"
-        element={
-          <ProtectedRoute>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
+        // No ProtectedRoute here (SYSTEM_AUDIT_ROUND2.md B4): AdminLayout's
+        // AdminGate sends signed-out users to /admin/login itself;
+        // ProtectedRoute sent them to the owner /login instead.
+        element={<AdminLayout />}
       >
         <Route index element={<Navigate to="inventory" replace />} />
         <Route path="inventory" element={<Inventory />} />

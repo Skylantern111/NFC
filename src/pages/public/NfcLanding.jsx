@@ -122,9 +122,10 @@ export default function NfcLanding() {
           if (!isPreview) recordTagScan(tagId, landing);
           if (landing === 'redirect') {
             // SYSTEM_AUDIT_PLAN.md C1: an owner-set redirect goes through a
-            // short "leaving TagBack" page, so a trusted TagBack link can't
-            // silently bounce people to a phishing site. Admin-set redirects
-            // (editorRole is rules-checked) stay instant.
+            // "leaving TagBack" page, so a trusted TagBack link can't silently
+            // bounce people to a phishing site. It needs a click — it used to
+            // auto-continue after 5 s (SYSTEM_AUDIT_ROUND2.md B10). Admin-set
+            // redirects (editorRole is rules-checked) stay instant.
             if (profile.editorRole === 'admin') {
               setState('redirecting');
               window.location.replace(profile.redirectUrl);
@@ -164,17 +165,6 @@ export default function NfcLanding() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagId]);
 
-  // Auto-continue from the "leaving TagBack" page after a few seconds.
-  const [leaveIn, setLeaveIn] = useState(5);
-  useEffect(() => {
-    if (state !== 'leaving') return;
-    if (leaveIn <= 0) {
-      window.location.replace(tagProfile.redirectUrl);
-      return;
-    }
-    const t = setTimeout(() => setLeaveIn((n) => n - 1), 1000);
-    return () => clearTimeout(t);
-  }, [state, leaveIn, tagProfile]);
 
   // Browser tab title: the profile's display name or the item's name once
   // loaded. Link-preview bots don't run this (see index.html), so shared
@@ -381,7 +371,7 @@ export default function NfcLanding() {
                   className="mt-1 w-full gap-2"
                   onClick={() => window.location.replace(tagProfile.redirectUrl)}
                 >
-                  Continue ({leaveIn}) <ArrowRight className="h-4 w-4" />
+                  Continue to {host} <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
             </Card>

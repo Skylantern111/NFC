@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
 const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg';
+const BULK_KEY = 'tagContentBulkSelection';
 
 // Admin editor for what a tap on a sticker shows (NFC_WRITE_DATA_ADMIN_PLAN.md).
 // The sticker itself only holds tagUrl(tagId) — this page changes
@@ -33,8 +34,30 @@ export default function TagContent() {
   const { tagId } = useParams();
   const location = useLocation();
   const bulk = tagId === 'bulk';
-  const bulkIds = bulk ? location.state?.tagIds || [] : [];
-  const bulkSkipped = bulk ? location.state?.skipped || 0 : 0;
+  // Bulk selection arrives in router state, which a page reload drops —
+  // keep a copy in sessionStorage so a refresh doesn't lose it
+  // (SYSTEM_AUDIT_ROUND2.md B8).
+  const [bulkSelection] = useState(() => {
+    if (!bulk) return { tagIds: [], skipped: 0 };
+    if (location.state?.tagIds) {
+      const sel = { tagIds: location.state.tagIds, skipped: location.state.skipped || 0 };
+      try {
+        sessionStorage.setItem(BULK_KEY, JSON.stringify(sel));
+      } catch {
+        // Storage blocked — selection just won't survive a reload.
+      }
+      return sel;
+    }
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(BULK_KEY) || 'null');
+      if (Array.isArray(saved?.tagIds)) return { tagIds: saved.tagIds, skipped: saved.skipped || 0 };
+    } catch {
+      // Fall through to an empty selection.
+    }
+    return { tagIds: [], skipped: 0 };
+  });
+  const bulkIds = bulkSelection.tagIds;
+  const bulkSkipped = bulkSelection.skipped;
 
   const [tag, setTag] = useState(null);
   const [itemName, setItemName] = useState('');

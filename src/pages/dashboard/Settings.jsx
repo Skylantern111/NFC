@@ -47,7 +47,6 @@ export default function Settings() {
     };
   }, [user]);
 
-  const toggle = (k) => setPrefs((p) => ({ ...p, [k]: !p[k] }));
 
   async function onResendVerification() {
     if (!user) return;
@@ -167,10 +166,12 @@ export default function Settings() {
 
           <GlassCard>
             <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
-            <label className="flex items-center justify-between py-2">
-              <span className="text-slate-600 dark:text-slate-300">In-app alerts</span>
-              <Switch checked={prefs.inApp} onCheckedChange={() => toggle('inApp')} />
-            </label>
+            {/* SYSTEM_AUDIT_ROUND2.md B6: there used to be an "In-app alerts"
+                switch here that nothing read — alerts always showed. It's a
+                plain statement now instead of a control that does nothing. */}
+            <p className="py-2 text-sm text-slate-600 dark:text-slate-300">
+              In-app alerts are always on: the bell badge and the browser tab show new reports and messages.
+            </p>
             {/* No email-sending backend exists in this project (no Cloud
                 Function, no email service — see IMPROVEMENT_PLAN.md Round 10
                 #4). Disabled rather than left toggleable, so turning it "on"
