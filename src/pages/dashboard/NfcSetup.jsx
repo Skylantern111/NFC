@@ -8,6 +8,7 @@ import {
   Instagram,
   Linkedin,
   Loader2,
+  MessageCircle,
   ShieldCheck,
   TriangleAlert,
   Youtube,
@@ -41,6 +42,7 @@ const EMPTY_PROFILE = {
   tiktok: '',
   linkedin: '',
   youtube: '',
+  contactUrl: '',
   contactEnabled: false,
   lostFoundEnabled: true,
 };
@@ -110,10 +112,16 @@ export default function NfcSetup() {
     setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
+  // contactUrl shares the same https-only validation/cleaning as the social
+  // links above, but is gated by the contactEnabled toggle rather than
+  // always shown — kept as a separate list so LINK_FIELDS (the preview row)
+  // doesn't need to special-case it.
+  const URL_FIELD_KEYS = [...LINK_FIELDS.map((f) => f.key), 'contactUrl'];
+
   async function onSave(e) {
     e.preventDefault();
     const nextErrors = {};
-    for (const { key } of LINK_FIELDS) {
+    for (const key of URL_FIELD_KEYS) {
       const value = profile[key]?.trim();
       if (value && !isHttpsUrl(value)) {
         nextErrors[key] = 'Enter a valid https:// URL, or leave blank.';
@@ -133,7 +141,7 @@ export default function NfcSetup() {
       // only when the field is actually omitted), so drop blanks entirely
       // rather than writing empty strings that would fail publicProfileFieldsOnly's
       // per-field https:// check.
-      for (const { key } of LINK_FIELDS) {
+      for (const key of URL_FIELD_KEYS) {
         if (!cleaned[key]) delete cleaned[key];
       }
       await saveTagProfile(tagId, cleaned);
@@ -231,15 +239,33 @@ export default function NfcSetup() {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-xl bg-base p-3.5 shadow-neu-flat-sm">
-              <div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Contact information</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Show a way to reach you beyond anonymous chat.</p>
+            <div className="rounded-xl bg-base p-3.5 shadow-neu-flat-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Contact information</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Show a way to reach you beyond anonymous chat.</p>
+                </div>
+                <Switch
+                  checked={profile.contactEnabled}
+                  onCheckedChange={(v) => setProfile((p) => ({ ...p, contactEnabled: v }))}
+                />
               </div>
-              <Switch
-                checked={profile.contactEnabled}
-                onCheckedChange={(v) => setProfile((p) => ({ ...p, contactEnabled: v }))}
-              />
+              {profile.contactEnabled && (
+                <div className="mt-3 flex flex-col gap-1.5">
+                  <Label htmlFor="contactUrl">Contact link</Label>
+                  <Input
+                    id="contactUrl"
+                    placeholder="https://wa.me/1555… or another contact link"
+                    value={profile.contactUrl || ''}
+                    onChange={(e) => setLink('contactUrl', e.target.value)}
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    A link, not a raw phone/email — e.g. a WhatsApp click-to-chat URL. Your real
+                    phone/email (Settings) is never shown publicly.
+                  </p>
+                  {errors.contactUrl && <p className="text-xs text-red-500">{errors.contactUrl}</p>}
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -261,7 +287,8 @@ export default function NfcSetup() {
                 pills render on public/NfcLanding.jsx, so an owner sees the
                 effect of a link before saving instead of save-then-check
                 (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §3.1). */}
-            {LINK_FIELDS.some(({ key }) => isHttpsUrl(profile[key]?.trim() || '')) && (
+            {(LINK_FIELDS.some(({ key }) => isHttpsUrl(profile[key]?.trim() || '')) ||
+              (profile.contactEnabled && isHttpsUrl(profile.contactUrl?.trim() || ''))) && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Preview — what a finder sees on your tag's page
@@ -275,6 +302,11 @@ export default function NfcSetup() {
                       <Icon className="h-3.5 w-3.5" /> {label}
                     </span>
                   ))}
+                  {profile.contactEnabled && isHttpsUrl(profile.contactUrl?.trim() || '') && (
+                    <span className="flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-neu-flat-sm">
+                      <MessageCircle className="h-3.5 w-3.5" /> Contact
+                    </span>
+                  )}
                 </div>
               </div>
             )}

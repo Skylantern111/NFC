@@ -159,6 +159,63 @@ describe('claim transaction (dashboard/ClaimTag.jsx)', () => {
   });
 });
 
+describe('items/reports/messages — field bounds (§R2.3)', () => {
+  test('rewardAmount cannot be negative', async () => {
+    const tagId = 'TB-QQQQ-1818';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+      await setDoc(doc(db, 'items', tagId), { tagId, itemName: 'Test', isLostMode: false, rewardAmount: 0 });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertFails(updateDoc(doc(owner.firestore(), 'items', tagId), { rewardAmount: -5 }));
+  });
+
+  test('itemName over 100 chars is rejected', async () => {
+    const tagId = 'TB-RRRR-1919';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+      await setDoc(doc(db, 'items', tagId), { tagId, itemName: 'Test', isLostMode: false });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertFails(
+      updateDoc(doc(owner.firestore(), 'items', tagId), { itemName: 'x'.repeat(101) })
+    );
+  });
+
+  test('a report with an over-length initialMessage is rejected', async () => {
+    const tagId = 'TB-SSSS-2020';
+    await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' }));
+    const finder = testEnv.unauthenticatedContext();
+    await assertFails(
+      setDoc(doc(finder.firestore(), 'reports', 'report-1'), {
+        tagId,
+        finderSessionToken: 'token-1',
+        status: 'open',
+        initialMessage: 'x'.repeat(501),
+      })
+    );
+  });
+
+  test('a chat message with over-length text is rejected', async () => {
+    const tagId = 'TB-TTTT-2121';
+    const chatId = 'chat-bounds-1';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'chats', chatId), { tagId, finderSessionToken: 'token-1' });
+    });
+    const finder = testEnv.unauthenticatedContext();
+    await assertFails(
+      setDoc(doc(finder.firestore(), 'chats', chatId, 'messages', 'msg-1'), {
+        sender: 'finder',
+        finderSessionToken: 'token-1',
+        text: 'x'.repeat(1001),
+      })
+    );
+  });
+});
+
 describe('release (lib/ownerItems.js#releaseTag, §3.2)', () => {
   async function seedClaimedTag(tagId, ownerUid) {
     await seed(async (db) => {
@@ -234,6 +291,37 @@ describe('tagProfiles (dashboard/NfcSetup.jsx, §3.1)', () => {
     const owner = testEnv.authenticatedContext('owner-1');
     await assertFails(
       setDoc(doc(owner.firestore(), 'tagProfiles', tagId), { emailAddress: 'me@example.com' })
+    );
+  });
+
+  // §R2.1 — contactEnabled previously had no field to actually reveal.
+  test('an https contactUrl is accepted alongside contactEnabled', async () => {
+    const tagId = 'TB-OOOO-1616';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertSucceeds(
+      setDoc(doc(owner.firestore(), 'tagProfiles', tagId), {
+        contactEnabled: true,
+        contactUrl: 'https://wa.me/15555550100',
+      })
+    );
+  });
+
+  test('a non-https contactUrl is rejected', async () => {
+    const tagId = 'TB-PPPP-1717';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
+    });
+    const owner = testEnv.authenticatedContext('owner-1');
+    await assertFails(
+      setDoc(doc(owner.firestore(), 'tagProfiles', tagId), {
+        contactEnabled: true,
+        contactUrl: 'tel:+15555550100',
+      })
     );
   });
 

@@ -209,6 +209,7 @@ export default function ClaimTag() {
                 id="itemName"
                 placeholder="Black Travel Backpack"
                 value={itemName}
+                maxLength={100}
                 onChange={(e) => setItemName(e.target.value)}
                 required
               />

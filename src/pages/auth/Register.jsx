@@ -17,7 +17,13 @@ import { Label } from '../../components/ui/label';
 // into the optional passcode field below. Ships in the client bundle by
 // design — this is a low-stakes convenience gate, not real access control;
 // scripts/setAdmin.js's custom claim is the secure path.
-const ADMIN_SIGNUP_PASSCODE = '111';
+//
+// Sourced from an env var (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §R2.4) rather
+// than a hardcoded literal so it can be rotated per-deployment (new value,
+// redeploy) without a code change if it ever leaks beyond its intended
+// small pilot audience — see scripts/revokeSelfServeAdmin.js for cleaning
+// up an account that already self-granted admin with a leaked passcode.
+const ADMIN_SIGNUP_PASSCODE = import.meta.env.VITE_ADMIN_SIGNUP_PASSCODE || '111';
 
 export default function Register() {
   const nav = useNavigate();

@@ -249,3 +249,145 @@ Build verified clean (`npm run build`) after every change above; rules
 verified twice — once by `firebase deploy --only firestore:rules --dry-run`
 and once, far more meaningfully, by the new test suite actually exercising
 them against a real emulator.
+
+---
+
+# Round 2 — additional gaps (R2.1, R2.3, R2.4, R2.5 implemented; R2.2 open)
+
+Found while re-auditing the files Round 1 didn't touch
+(`Settings.jsx`, `Notifications.jsx`, `OwnerNotificationsContext.jsx`,
+`scripts/`). Same rule as Round 1: every item below is something actually
+observed in the code, not a guess.
+
+### R2.1 [P1] `contactEnabled` is a dead toggle — it does nothing
+
+`dashboard/NfcSetup.jsx` has a "Contact information" switch, labeled "Show
+a way to reach you beyond anonymous chat," that saves to
+`tagProfiles/{tagId}.contactEnabled`. **Nothing reads this field.**
+`grep -n "contactEnabled" src/pages/public/NfcLanding.jsx` returns nothing
+— the finder-facing page never checks it, so there is no visible effect of
+turning it on. Worse: there is currently no public-safe *value* for it to
+reveal even if it were wired up — the only contact field that exists
+(`users/{uid}.phone`, edited in `Settings.jsx`) is explicitly private
+("Never shown to finders"). This toggle currently just lies to the owner.
+
+**Improvement — pick one:**
+- Remove the toggle entirely until there's something real behind it, or
+- Give it a real, privacy-safe payload: e.g. an owner-supplied public
+  contact *link* (a `mailto:`/WhatsApp/Telegram URL, not a raw phone
+  number) stored as a new `tagProfiles.contactUrl` field, rendered on
+  `NfcLanding.jsx` only when `contactEnabled` is true. Keeps the "no raw
+  PII, ever" architecture intact while making the toggle mean something.
+
+### R2.2 [P1] No notification delivery outside the open tab
+
+`Settings.jsx` already self-documents this: "No email-sending backend
+exists in this project," and the "Email alerts" toggle is disabled with a
+"(coming soon)" label. `Notifications.jsx` only surfaces alerts inside the
+app's own UI (a live Firestore listener) — there is no service worker, no
+Web Push, no `Notification` API usage, and no Firebase Cloud Messaging
+call anywhere in `src/` (confirmed by grep), despite
+`VITE_FIREBASE_MESSAGING_SENDER_ID` already being configured in `.env`
+(FCM needs that same config, so the project is halfway set up for it
+already). Practically: an owner who isn't actively looking at the open tab
+will not learn a finder reported their item until they happen to check.
+For a "get your lost item back fast" product, this is the single biggest
+gap in the actual recovery loop — bigger than any UI polish item.
+
+**Improvement:** Web Push via Firebase Cloud Messaging — a service worker
+(`firebase-messaging-sw.js`), a request-permission step (likely in
+`Settings.jsx`, next to the existing notification toggles), storing the
+returned FCM token on `users/{uid}`, and a trigger to actually send one.
+The last part is the real cost: this project has **no Cloud Functions**
+(deliberately, per `ARCHITECTURE.md`/`README.md`), and sending an FCM push
+requires a server-side call with the Admin SDK or the FCM HTTP v1 API —
+there's no way to send a push purely from client-side security-rules-gated
+Firestore writes. This is the one item in this whole plan that structurally
+requires adding a backend component, not just more client code — worth
+flagging clearly before committing to it.
+
+### R2.3 [P2] No server-side bounds on item/report fields
+
+`firestore.rules#publicItemFieldsOnly()` whitelists which *fields* may
+exist on `items/{tagId}`, but puts no constraint on their *values* —
+`rewardAmount` could be written negative or absurdly large, `itemName`/
+`lostMessage` have no length cap. Today this is only guarded client-side
+(`Items.jsx`'s reward `<Input type="number" min="0">`), which any direct
+Firestore SDK call bypasses. Same gap on `reports/{id}.initialMessage` and
+`chats/{id}/messages/{id}.text` — no length cap at the rules level.
+
+**Improvement:** add `request.resource.data.rewardAmount is number &&
+request.resource.data.rewardAmount >= 0` to `items#update`/`#create`, and a
+`.size() < N` string-length check on `itemName`/`lostMessage`/
+`initialMessage`/message `text`. Cheap, rules-only change; needs no schema
+migration since it only tightens existing writes.
+
+### R2.4 [P2] No clean way to revoke a self-serve-granted admin
+
+`Register.jsx`'s `ADMIN_SIGNUP_PASSCODE` (currently the literal `'111'`,
+hardcoded) grants `isAdmin: true` on `users/{uid}` at signup.
+`firestore.rules#users` blocks a user from changing their *own*
+`isAdmin`/`disabled` fields later, but nothing stops another admin from
+flipping someone else's `isAdmin` via a direct Firestore write — there is
+just no script or admin-console UI for it. `scripts/` only has
+`setAdmin.js` (grant, via a real custom claim) and
+`migrateUnclaimedTags.js` — no `revokeAdmin.js` or equivalent. If the
+signup passcode ever leaks beyond its intended small pilot audience (it
+already ships in the client bundle by design — see the rules comment on
+why), there's no clean remediation path for a self-granted admin acting in
+bad faith, only a manual Firestore console edit.
+
+**Improvement:** a `scripts/revokeSelfServeAdmin.js` (Admin SDK, sets
+`users/{uid}.isAdmin: false`) as the documented remediation path, and/or
+moving `ADMIN_SIGNUP_PASSCODE` out of a hardcoded literal into
+`VITE_ADMIN_SIGNUP_PASSCODE` (`.env`) so it can be rotated per-deployment
+without a code change — cheap, and reduces how long a leaked passcode
+stays useful.
+
+### R2.5 [P3] No unread-count signal outside the active tab
+
+`OwnerNotificationsContext.jsx` drives an in-app sidebar badge only. No
+`document.title` update (e.g. `(3) TagBack`) and no favicon badge — an
+owner with the dashboard open in a background tab has no visual cue a
+report came in without switching to that tab. Cheap, isolated, no rules/
+schema change — purely a `useEffect` in `DashboardLayout` or the
+notifications context reacting to `unreadCount`.
+
+## Round 2 suggested order
+
+1. **R2.2** (push notifications) first *if* the project is willing to take
+   on a backend component — it's the highest-impact item in either round,
+   but also the only one that changes the project's "no backend" shape.
+2. **R2.1** (contactEnabled) — cheapest fix that removes an active
+   misleading affordance rather than adding one.
+3. **R2.3** (field bounds) — pure rules tightening, no UI work, low risk.
+4. **R2.4** (admin revocation) — small, isolated, unblocks a real
+   incident-response gap.
+5. **R2.5** (tab badge) — purely cosmetic, do whenever convenient.
+
+## Round 2 implementation status
+
+- **R2.1** — resolved by giving the toggle a real payload: new
+  `tagProfiles.contactUrl` (https-only, same `isHttpsUrl` check as the
+  social links), edited in `NfcSetup.jsx` under the "Contact information"
+  switch, included in the live preview, and rendered as a "Contact" pill on
+  `NfcLanding.jsx` only when `contactEnabled` is true.
+- **R2.3** — `firestore.rules` now bounds `items.itemName` (≤100 chars),
+  `items.lostMessage` (≤500), `items.rewardAmount` (number, 0–1,000,000),
+  `reports.initialMessage` (≤500), and chat message `text` (≤1000). The
+  matching client inputs (`ClaimTag.jsx`, `Items.jsx`, `NfcLanding.jsx`,
+  `Chat.jsx`) got the same `maxLength`/`max` so a normal user can never hit
+  a raw permission-denied from these limits.
+- **R2.4** — `scripts/revokeSelfServeAdmin.js` (Admin SDK, sets
+  `users/{uid}.isAdmin: false`; deliberately does not touch a real custom
+  claim), and `Register.jsx` now reads `VITE_ADMIN_SIGNUP_PASSCODE`
+  (documented in `.env.example`, falls back to `'111'`).
+- **R2.5** — `OwnerNotificationsContext.jsx` prefixes `document.title` with
+  the unread count, restored on unmount.
+
+Verified: `npm run build` clean; `npm test` 22/22 passing against the
+Firestore emulator (6 new tests for R2.1/R2.3).
+
+Not implemented: **R2.2** (push notifications). It needs a server-side
+sender (Cloud Functions on the Blaze plan, or another backend) — a change
+to the project's "no backend" shape that needs an explicit decision first.

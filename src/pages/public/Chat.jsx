@@ -355,6 +355,7 @@ export default function Chat() {
           <form onSubmit={send} className={cn(GLASS, 'm-3 mt-0 flex gap-2 p-2')}>
             <Input
               value={text}
+              maxLength={1000}
               onChange={(e) => setText(e.target.value)}
               placeholder="Type a message…"
               className="flex-1"

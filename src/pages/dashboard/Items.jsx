@@ -279,6 +279,7 @@ export default function Items() {
               <Textarea
                 id="lostMessage"
                 rows={3}
+                maxLength={500}
                 value={armDialog?.lostMessage || ''}
                 onChange={(e) => setArmDialog((d) => ({ ...d, lostMessage: e.target.value }))}
                 placeholder="e.g. Please call the front desk if found."
@@ -290,6 +291,7 @@ export default function Items() {
                 id="rewardAmount"
                 type="number"
                 min="0"
+                max="1000000"
                 value={armDialog?.rewardAmount || ''}
                 onChange={(e) => setArmDialog((d) => ({ ...d, rewardAmount: e.target.value }))}
                 placeholder="20"

@@ -16,6 +16,7 @@ import {
   Loader2,
   LocateFixed,
   MapPin,
+  MessageCircle,
   MessageSquare,
   ShieldAlert,
   ShieldCheck,
@@ -355,7 +356,8 @@ export default function NfcLanding() {
           </CardContent>
         </Card>
 
-        {tagProfile && LINK_FIELD_KEYS.some((k) => tagProfile[k]) && (
+        {tagProfile &&
+          (LINK_FIELD_KEYS.some((k) => tagProfile[k]) || (tagProfile.contactEnabled && tagProfile.contactUrl)) && (
           <Card className={GLASS}>
             <CardContent className="flex flex-wrap gap-2 text-slate-800 dark:text-slate-100">
               {LINK_FIELD_KEYS.filter((k) => tagProfile[k]).map((k) => {
@@ -373,6 +375,21 @@ export default function NfcLanding() {
                   </a>
                 );
               })}
+              {/* MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §R2.1 — contactEnabled
+                  previously toggled nothing visible; contactUrl is the
+                  owner-supplied public link it now reveals (never the
+                  private users/{uid}.phone/email). */}
+              {tagProfile.contactEnabled && tagProfile.contactUrl && (
+                <a
+                  href={tagProfile.contactUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-neu-flat-sm hover:shadow-neu-pressed-sm"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Contact
+                </a>
+              )}
             </CardContent>
           </Card>
         )}
@@ -440,6 +457,7 @@ export default function NfcLanding() {
                   <Textarea
                     id="finder-message"
                     value={note}
+                    maxLength={500}
                     onChange={(e) => setNote(e.target.value)}
                     rows={3}
                     placeholder="e.g. Left it at the reception desk of Hotel Blue."

@@ -74,12 +74,27 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'blacklisted';
     }
 
+    // MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §R2.3 — a shared bound so a direct
+    // SDK call (bypassing the client's <Input> constraints) can't write an
+    // unbounded string. Generous limits: these are UI-displayed strings,
+    // not data fields with a "correct" length.
+    function withinLength(v, max) {
+      return v is string && v.size() <= max;
+    }
+
     // Only the fields a finder is allowed to see may exist on a public item doc.
     // category/lostSince are optional (owner-set convenience fields, still no PII).
+    // rewardAmount/itemName/lostMessage are bounded (§R2.3) — previously only
+    // enforced client-side (Items.jsx's <Input type="number" min="0">),
+    // which any direct Firestore SDK call could bypass.
     function publicItemFieldsOnly() {
-      return request.resource.data.keys().hasOnly(
+      let d = request.resource.data;
+      return d.keys().hasOnly(
         ['tagId', 'itemName', 'isLostMode', 'lostMessage', 'rewardAmount', 'category', 'lostSince']
-      );
+      )
+      && (!('itemName' in d) || withinLength(d.itemName, 100))
+      && (!('lostMessage' in d) || withinLength(d.lostMessage, 500))
+      && (!('rewardAmount' in d) || (d.rewardAmount is number && d.rewardAmount >= 0 && d.rewardAmount <= 1000000));
     }
 
     // A finder session token that's been banned by an admin (see
@@ -97,14 +112,20 @@ service cloud.firestore {
     function publicProfileFieldsOnly() {
       let d = request.resource.data;
       return d.keys().hasOnly(
-        ['website', 'instagram', 'facebook', 'linkedin', 'youtube', 'tiktok', 'contactEnabled', 'lostFoundEnabled']
+        ['website', 'instagram', 'facebook', 'linkedin', 'youtube', 'tiktok', 'contactUrl', 'contactEnabled', 'lostFoundEnabled']
       )
       && (!('website' in d) || isHttpsUrl(d.website))
       && (!('instagram' in d) || isHttpsUrl(d.instagram))
       && (!('facebook' in d) || isHttpsUrl(d.facebook))
       && (!('linkedin' in d) || isHttpsUrl(d.linkedin))
       && (!('youtube' in d) || isHttpsUrl(d.youtube))
-      && (!('tiktok' in d) || isHttpsUrl(d.tiktok));
+      && (!('tiktok' in d) || isHttpsUrl(d.tiktok))
+      // §R2.1 — contactEnabled previously had no field to actually reveal.
+      // contactUrl is an owner-supplied public link (e.g. a WhatsApp
+      // click-to-chat URL), same https-only posture as the social links
+      // above — never a raw phone/email pulled from the private
+      // users/{uid} doc.
+      && (!('contactUrl' in d) || isHttpsUrl(d.contactUrl));
     }
 
     // ---- users: private to the account owner, plus admin read/moderation.
@@ -229,7 +250,9 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasAll(['tagId', 'finderSessionToken', 'status'])
         && request.resource.data.status == 'open'
         && !isBlockedToken(request.resource.data.finderSessionToken)
-        && !isBlacklistedTag(request.resource.data.tagId);
+        && !isBlacklistedTag(request.resource.data.tagId)
+        // §R2.3 — was unbounded (client-side <Textarea> only).
+        && (!('initialMessage' in request.resource.data) || withinLength(request.resource.data.initialMessage, 500));
       // Only the owner of the reported tag may read/resolve it.
       allow read, update: if ownsTag(resource.data.tagId);
       allow delete: if false;
@@ -285,6 +308,8 @@ service cloud.firestore {
         // get()s of the same chats/{chatId} path below are served from
         // Firestore's per-request rules cache, not re-fetched.
         allow create: if request.resource.data.sender in ['owner', 'finder']
+          // §R2.3 — was unbounded (client-side <Input> only).
+          && withinLength(request.resource.data.text, 1000)
           && (
             (request.resource.data.sender == 'owner'
               && ownsTag(get(/databases/$(database)/documents/chats/$(chatId)).data.tagId))
