@@ -1,6 +1,6 @@
 # NFC Architecture Redesign — Implementation Plan
 
-Status: **planning only — nothing in this document has been implemented yet.**
+Status: **implemented** (commit `ed8e74d`; later changes in `NFC_WRITE_DATA_ADMIN_PLAN.md` and the audits). This header originally read "planning only"; the current system is described in `../ARCHITECTURE.md` §7–8.
 
 This plan covers moving TagBack's NFC tag identity from an admin-generated
 nanoid to a hardware-verified registration model, while preserving

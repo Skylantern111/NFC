@@ -3,13 +3,15 @@
 Plans, audits and change logs, oldest first within each group. The code
 and the two root files ([`../README.md`](../README.md),
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md)) describe the current system;
-these files record how it got there. Code comments cite these files by
+these files record how it got there. For the current end-to-end workflows
+(register → claim → report → chat → recover → release → moderate) see
+[`../ARCHITECTURE.md` §8](../ARCHITECTURE.md#8-system-workflows). Code comments cite these files by
 name (e.g. "SYSTEM_AUDIT_ROUND2.md A0").
 
 ## Setup
 | File | What it is |
 |---|---|
-| [FIREBASE_SETUP.md](FIREBASE_SETUP.md) | Creating and connecting the Firebase project |
+| [FIREBASE_SETUP.md](FIREBASE_SETUP.md) | Firebase project setup, deploy, first admin, console settings, backups, smoke test |
 
 ## Design
 | File | Status |
@@ -23,7 +25,7 @@ name (e.g. "SYSTEM_AUDIT_ROUND2.md A0").
 |---|---|
 | [IMPROVEMENT_PLAN.md](IMPROVEMENT_PLAN.md) | Rounds 1–15 — implemented except Round 10 #9 (PWA) |
 | [MOCK_DATA_LAYER_PLAN.md](MOCK_DATA_LAYER_PLAN.md) | Frontend-only mock layer — superseded: preview mode uses inline mocks behind `firebaseReady` (see ARCHITECTURE.md §4) |
-| [NFC_REARCHITECTURE_PLAN.md](NFC_REARCHITECTURE_PLAN.md) | Hardware-identity NFC registration — implemented (commit `ed8e74d`), despite its "planning only" header |
+| [NFC_REARCHITECTURE_PLAN.md](NFC_REARCHITECTURE_PLAN.md) | Hardware-identity NFC registration — implemented (commit `ed8e74d`) |
 | [MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md](MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md) | Rounds 1–2 — implemented except §2.2/§5.2/§6.1 and R2.2 (push notifications) |
 | [NFC_WRITE_DATA_ADMIN_PLAN.md](NFC_WRITE_DATA_ADMIN_PLAN.md) | Tag content (sticker holds only a link) — implemented |
 | [TAG_CONTENT_BEYOND_STICKERS_PLAN.md](TAG_CONTENT_BEYOND_STICKERS_PLAN.md) | QR/link tags — **not implemented** (cancelled) |
