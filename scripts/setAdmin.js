@@ -11,8 +11,6 @@
 // key). NEVER commit that file. GOOGLE_APPLICATION_CREDENTIALS is the
 // standard firebase-admin/Google Cloud convention for pointing at it.
 
-import admin from 'firebase-admin';
-
 const identifier = process.argv[2];
 
 if (!identifier) {
@@ -20,24 +18,13 @@ if (!identifier) {
   process.exit(1);
 }
 
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error(
-    'GOOGLE_APPLICATION_CREDENTIALS is not set. Point it at your service-account JSON key, e.g.\n' +
-      '  GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json node scripts/setAdmin.js you@example.com'
-  );
-  process.exit(1);
-}
-
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-});
+// Loaded after the argument checks so a usage error doesn't need credentials.
+const { auth, resolveUid } = await import('./_firebaseAdmin.js');
 
 async function main() {
-  const uid = identifier.includes('@')
-    ? (await admin.auth().getUserByEmail(identifier)).uid
-    : identifier;
+  const uid = await resolveUid(identifier);
 
-  await admin.auth().setCustomUserClaims(uid, { admin: true });
+  await auth.setCustomUserClaims(uid, { admin: true });
 
   console.log(`Success: uid ${uid} now has the admin custom claim.`);
   console.log(

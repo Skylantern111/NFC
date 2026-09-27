@@ -5,7 +5,10 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
+import { installGlobalErrorReporting } from './lib/errorLog';
 import './index.css';
+
+installGlobalErrorReporting();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

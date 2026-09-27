@@ -163,6 +163,13 @@ service cloud.firestore {
         && request.resource.data.get('adminPasscode', null) == get(meta).data.passcode;
     }
 
+    // SYSTEM_AUDIT_ROUND4.md B1: the admin console shows users/{uid}.email,
+    // so a user may only store their real sign-in email there (or none).
+    function emailMatchesLogin() {
+      return !('email' in request.resource.data)
+        || request.resource.data.email == request.auth.token.get('email', null);
+    }
+
     // ---- users: private to the account owner, plus admin read/moderation.
     //      An admin may read any profile (admin/Owners.jsx lookup) and may
     //      set `disabled` (soft account disable); an owner may update their
@@ -177,11 +184,17 @@ service cloud.firestore {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == uid
         && (!('disabled' in request.resource.data) || request.resource.data.disabled == false)
-        && (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false || validAdminPasscode());
+        && (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false || validAdminPasscode())
+        && emailMatchesLogin();
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid == uid
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['disabled', 'isAdmin']));
-      allow delete: if false;
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['disabled', 'isAdmin'])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) || emailMatchesLogin()));
+      // "Delete my account" (SYSTEM_AUDIT_ROUND4 C1, full deletion). Safe
+      // against the Round 1 A1/A2 tricks: a disabled account can't delete
+      // (so it can't re-create itself without `disabled`), and a re-created
+      // profile still needs the passcode for isAdmin.
+      allow delete: if isSignedIn() && request.auth.uid == uid && !isDisabledOwner(uid);
     }
 
     // ---- tags: NFC asset registry. tagId is the TagBack ID (the stable
@@ -338,8 +351,15 @@ service cloud.firestore {
       // transaction, which must flip the tag back to 'registered' in the
       // same write (otherwise the tag would be stuck 'claimed' with no owner).
       allow update: if false;
-      allow delete: if ownsTag(tagId)
-        && getAfter(/databases/$(database)/documents/tags/$(tagId)).data.status == 'registered';
+      // Or: the owner deletes their account (SYSTEM_AUDIT_ROUND4 C1) while
+      // the tag is blacklisted — it can't be released, so it stays
+      // blacklisted with no owner (Inventory's Unblacklist then restores it
+      // to 'registered').
+      allow delete: if (ownsTag(tagId)
+          && getAfter(/databases/$(database)/documents/tags/$(tagId)).data.status == 'registered')
+        || (ownsTag(tagId)
+          && get(/databases/$(database)/documents/tags/$(tagId)).data.status == 'blacklisted'
+          && getAfter(/databases/$(database)/documents/tags/$(tagId)).data.status == 'blacklisted');
     }
 
     // ---- reports: a finder (unauthenticated) files a found report. ----
@@ -493,6 +513,25 @@ service cloud.firestore {
     //      as a general admin-only bucket for any future singleton doc. ----
     match /meta/{docId} {
       allow read, write: if isAdmin();
+    }
+
+    // ---- clientErrors: crashes reported from browsers (lib/errorLog.js),
+    //      read on admin/Errors.jsx. SYSTEM_AUDIT_ROUND4.md E1 — there was
+    //      no error monitoring at all. Anyone may report (finders have no
+    //      account), but only this exact, size-bounded shape, stamped with
+    //      server time and with a uid that is either absent or the caller. ----
+    match /clientErrors/{errorId} {
+      allow create: if request.resource.data.keys().hasOnly(['message', 'stack', 'url', 'userAgent', 'uid', 'at'])
+        && withinLength(request.resource.data.message, 500)
+        && (!('stack' in request.resource.data) || request.resource.data.stack == null
+            || withinLength(request.resource.data.stack, 4000))
+        && withinLength(request.resource.data.url, 300)
+        && (!('userAgent' in request.resource.data) || withinLength(request.resource.data.userAgent, 300))
+        && (!('uid' in request.resource.data) || request.resource.data.uid == null
+            || (isSignedIn() && request.resource.data.uid == request.auth.uid))
+        && request.resource.data.at == request.time;
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
   }
 }

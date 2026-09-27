@@ -155,18 +155,51 @@ port 8080: stop it, or run `npx vitest run` to use it.
 
 ## 9. Smoke test after a deploy
 
+Run this right after every deploy (`DEPLOY.md`). The quick version is
+steps 1–5. The **full pass** (all steps, with DevTools → **Console** open
+the whole time) is also the check before switching the Content Security
+Policy from report-only to enforced (`docs/SYSTEM_AUDIT_ROUND4.md` E2).
+Copy any line that starts with `[Report Only]` or mentions
+`Content-Security-Policy`.
+
 1. **Admin:** Admin → NFC Register → register a sticker. Or, without NFC
    hardware, use the "Development fallback" shown on non-NFC browsers.
    Note the TagBack ID.
 2. **Owner:** sign up at `/register` → **Claim** that ID → it should appear
    on Dashboard and My Items → turn on Lost Mode.
-3. **Finder:** open `/nfc/<TagBack ID>` in a private window → file a report
-   → send a chat message.
+3. **Finder:** open `/nfc/<TagBack ID>` in a private window → share
+   location → file a report → send a chat message.
 4. **Owner:**
-   - The report card shows on the Dashboard.
+   - The report card shows on the Dashboard, with a **map**.
    - The chat shows in Messages.
    - The alert shows in Notifications, and the tab title shows the unread
      count.
    - Reply in the chat → **Mark as recovered**.
 5. **Admin:** Tag Content → edit the tag → reopen the finder link to see
    the change.
+
+Full pass, continued:
+
+6. **Profile card:** set the tag to *Profile card* → open the finder link
+   → **Save contact** downloads a `.vcf`.
+7. **Redirect:** set the tag to *Redirect*. The owner-set version shows
+   the "You're leaving TagBack" page; the admin-set version is instant.
+8. **Moderation:** report the chat from each side → Admin → Moderation
+   shows both → **Ban token** / **Look up owner** / **Mark reviewed**.
+9. **Owners page:** look up the tag's owner; set the admin signup passcode
+   (Generate → Set) → sign up a second admin at `/admin/register` → then
+   **Turn off**.
+10. **Inventory:** ⋯ menu → Copy URL, Blacklist → the finder page says
+    "no longer active" → Unblacklist.
+11. **Errors:** Admin → Errors loads, empty or not.
+12. **Release and delete:** owner → My Items → **Release tag**; then
+    Settings → **Delete my account** (type DELETE + password) → you are
+    signed out, and the account can't sign in again.
+13. **Privacy page:** `/privacy` opens from the landing footer and signup.
+14. **Real device (once per sticker model):** on an Android phone with
+    Chrome over HTTPS:
+    - Admin → NFC Register → **Start NFC scan** → tap a real NTAG sticker
+      → Register → **Write NFC tag**.
+    - Then, as an owner, **Claim** by tapping the sticker.
+    - Then tap it with another phone (an iPhone too) → it opens the finder
+      page.

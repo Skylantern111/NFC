@@ -17,23 +17,10 @@
 // firestore.rules entirely — this is the same credential setup as
 // scripts/setAdmin.js.
 
-import admin from 'firebase-admin';
-
 const dryRun = process.argv.includes('--dry-run');
 
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error(
-    'GOOGLE_APPLICATION_CREDENTIALS is not set. Point it at your service-account JSON key, e.g.\n' +
-      '  GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json node scripts/migrateUnclaimedTags.js'
-  );
-  process.exit(1);
-}
-
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-});
-
-const db = admin.firestore();
+// Loaded after the argument checks so a usage error doesn't need credentials.
+const { db, FieldValue } = await import('./_firebaseAdmin.js');
 
 // Firestore batched writes cap at 500 ops — chunk rather than assume every
 // project's `tags` collection is small enough for one batch.
@@ -66,7 +53,7 @@ async function main() {
     for (const doc of chunk) {
       batch.update(doc.ref, {
         status: 'registered',
-        batchNumber: admin.firestore.FieldValue.delete(),
+        batchNumber: FieldValue.delete(),
       });
     }
     await batch.commit();

@@ -6,11 +6,12 @@ import { auth, db, firebaseReady } from '../firebase/config';
 
 const AuthContext = createContext({ user: null, loading: true, logout: () => {} });
 
-// Set by auth/Register.jsx while it creates the account + users/{uid} doc,
-// so the "missing profile" repair below doesn't race it and create the doc
-// first (which would turn Register's admin-grant create into a rejected
-// update).
-export const signupInProgress = { current: false };
+// Pauses the "missing profile" repair below. Set by components/SignupForm.jsx
+// while it creates the account + users/{uid} doc (so the repair can't create
+// the doc first and turn the admin-grant create into a rejected update), and
+// by lib/account.js#deleteMyAccount (so a just-deleted profile isn't
+// re-created before the Auth account itself is deleted).
+export const profileRepairPaused = { current: false };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -48,13 +49,12 @@ export function AuthProvider({ children }) {
       // (Settings, nudge dismissals) failed with it. Create a plain, non-admin
       // profile once. Skipped from the cache-only first snapshot, where a
       // missing doc may just not be loaded yet.
-      if (!snap.exists() && !snap.metadata.fromCache && !repaired && !signupInProgress.current) {
+      if (!snap.exists() && !snap.metadata.fromCache && !repaired && !profileRepairPaused.current) {
         repaired = true;
         setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email || '',
           displayName: user.displayName || '',
-          phone: '',
           notificationPrefs: { inApp: true, email: true },
           isAdmin: false,
           createdAt: serverTimestamp(),

@@ -10,17 +10,11 @@
 // Read-only. Requires a Firebase service-account key (see
 // scripts/setAdmin.js's header). NEVER commit that file.
 
-import admin from 'firebase-admin';
-
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error('GOOGLE_APPLICATION_CREDENTIALS is not set. Point it at your service-account JSON key.');
-  process.exit(1);
-}
-
-admin.initializeApp({ credential: admin.credential.applicationDefault() });
+// Loaded after the argument checks so a usage error doesn't need credentials.
+const { db } = await import('./_firebaseAdmin.js');
 
 async function main() {
-  const snap = await admin.firestore().collection('users').where('isAdmin', '==', true).get();
+  const snap = await db.collection('users').where('isAdmin', '==', true).get();
   if (snap.empty) {
     console.log('No self-serve admins (users with isAdmin: true).');
     return;

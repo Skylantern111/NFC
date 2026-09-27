@@ -18,7 +18,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase/config';
-import { inventoryToCsv, tagUrl, TAG_STATUS_BADGE } from '../../lib/tags';
+import { inventoryToCsv, normalizeTagbackId, tagUrl, TAG_STATUS_BADGE } from '../../lib/tags';
 import { contentLabel } from '../../lib/tagContent';
 import { findOwnerByTag } from '../../lib/adminOwners';
 import { chunk, relativeTimeFromMs, toMillis } from '../../lib/utils';
@@ -276,9 +276,16 @@ export default function Inventory() {
   async function onUnblacklist(tag) {
     setUnblacklistBusy(tag.tagId);
     try {
-      const adminSnap = await getDoc(doc(db, 'tagAdmin', tag.tagId));
-      const fromStatus =
+      const [adminSnap, ownerSnap] = await Promise.all([
+        getDoc(doc(db, 'tagAdmin', tag.tagId)),
+        getDoc(doc(db, 'itemOwners', tag.tagId)),
+      ]);
+      let fromStatus =
         (adminSnap.exists() && adminSnap.data().blacklistedFromStatus) || tag.blacklistedFromStatus || 'registered';
+      // The owner may have deleted their account while it was blacklisted
+      // (SYSTEM_AUDIT_ROUND4 C1): no owner left means back to stock, not an
+      // ownerless 'claimed' tag.
+      if (fromStatus === 'claimed' && !ownerSnap.exists()) fromStatus = 'registered';
       const wb = writeBatch(db);
       wb.update(doc(db, 'tags', tag.tagId), {
         status: fromStatus,
@@ -334,7 +341,9 @@ export default function Inventory() {
       try {
         const tagsRef = collection(db, 'tags');
         const queries = [
-          getDocs(query(tagsRef, where('tagId', '==', term.toUpperCase()), limit(1))),
+          // normalizeTagbackId: 'tbabcd2345' or 'TB ABCD 2345' also finds
+          // TB-ABCD-2345 (SYSTEM_AUDIT_ROUND4.md B2).
+          getDocs(query(tagsRef, where('tagId', '==', normalizeTagbackId(term).toUpperCase()), limit(1))),
           getDocs(query(tagsRef, where('physicalUid', '==', term.toUpperCase().replace(/:/g, '')), limit(1))),
         ];
         const snaps = await Promise.all(queries);
@@ -644,7 +653,7 @@ export default function Inventory() {
                         {t.status !== 'claimed' ? (
                           '—'
                         ) : lookup?.owner ? (
-                          <span className="text-xs">{lookup.owner.email || lookup.owner.uid}</span>
+                          <span className="text-xs" title="Sign-up email (checked against the login by the database rules)">{lookup.owner.email || lookup.owner.uid}</span>
                         ) : (
                           <Button
                             variant="ghost"

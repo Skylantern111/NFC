@@ -55,9 +55,10 @@ Defined in `src/App.jsx`. Dashboard and admin pages are lazy-loaded chunks.
 | `/login`, `/register` | `auth/Login.jsx`, `auth/Register.jsx` (owner signup only) | public |
 | `/nfc/:tagId` | `public/NfcLanding.jsx` | public — what a tap opens |
 | `/chat/:chatId` | `public/Chat.jsx` | public; role decided per chat (§8.4) |
+| `/privacy` | `Privacy.jsx` | public |
 | `/dashboard` (+ `items`, `items/claim`, `nfc-setup`, `messages`, `notifications`, `settings`) | `dashboard/*` under `DashboardLayout.jsx` | `ProtectedRoute` (signed in) |
 | `/admin/login`, `/admin/register` | `admin/AdminLogin.jsx`, `admin/AdminRegister.jsx` | public |
-| `/admin` (+ `inventory`, `nfc-register`, `tags`, `tags/:tagId`, `moderation`, `owners`) | `admin/*` under `AdminLayout.jsx` | `AdminGate` inside `AdminLayout` |
+| `/admin` (+ `inventory`, `nfc-register`, `tags`, `tags/:tagId`, `moderation`, `owners`, `errors`) | `admin/*` under `AdminLayout.jsx` | `AdminGate` inside `AdminLayout` |
 
 `AdminGate` sends signed-out users to `/admin/login` and lets in only
 admins (`lib/adminAuth.js#checkIsAdmin`, which mirrors the rules'
@@ -75,7 +76,10 @@ env vars are present. When `false`, the same hooks return hard-coded
 setup.
 
 Owner data is joined **from the owner's side**:
-1. `useOwnerTagIds` lists `itemOwners` where `ownerUid == me`.
+1. `useOwnerTagIds` lists `itemOwners` where `ownerUid == me`. Under
+   `DashboardLayout` this is **one shared listener**
+   (`OwnerTagIdsProvider`) for every owner page and the badge; outside it
+   (e.g. `Chat.jsx`) the hook opens its own.
 2. Items, reports, chats and notifications are fetched by those tag IDs
    (`where('tagId', 'in', …)`, chunked by 30).
 
@@ -96,19 +100,20 @@ they know its ID; **listing** the collection is restricted.
 
 | Collection | Access | Contents |
 |---|---|---|
-| `users/{uid}` | owner + admin; never deleted | profile, phone, notification prefs, `isAdmin` (fixed at creation, passcode-checked), `disabled` (admin-set) |
+| `users/{uid}` | owner + admin; the owner may delete it unless disabled | `email` (must equal the sign-in email), displayName, notification prefs, `isAdmin` (fixed at creation, passcode-checked), `disabled` (admin-set) |
 | `tags/{tagId}` | public by ID; list + write admin; owner may flip status on claim/release | TagBack ID, `status` (`registered` / `claimed` / `blacklisted`), optional `physicalUid`, `chipType`, `writeStatus` |
 | `tags/{tagId}/scans/{id}` | public create (real tag, server time); owner/admin read | tap counter + `landingMode` shown |
 | `tagAdmin/{tagId}` | admin only | `registeredBy`, blacklist reason / who / prior status |
 | `items/{tagId}` | public by ID; list owner/admin; owner write (field whitelist + bounds) | itemName, category, isLostMode, lostMessage, rewardAmount, lostSince |
 | `tagProfiles/{tagId}` | public by ID; list admin; owner or admin write | what a tap shows: `landingMode`, `displayName`, `bio`, links, `contactUrl`, `redirectUrl`, toggles, `updatedBy`, `editorRole` |
 | `itemOwners/{tagId}` | owner get + list of own rows; admin | `ownerUid` — the only tag → owner map |
-| `reports/{id}` | public create (exact fields); owner read/resolve/delete | finder's report: message, optional location |
+| `reports/{id}` | public create (exact fields); owner read/resolve/delete | finder's report: message, optional location (rounded to ~11 m; cleared when resolved) |
 | `chats/{id}` | get by ID public; list owner/admin; create by finder (exact fields) | thread metadata, `unreadFor`, `resolved`, `reportedByOwner` / `reportedByFinder`, `reviewedAt` |
 | `chats/{id}/messages/{id}` | read by chat ID; create by owner or matching finder token (server time, exact fields) | `sender`, `text` |
 | `notifications/{id}` | create by anyone for an existing item (exact fields, known types); owner read/update/delete | `type` (`report` / `message` / `moderation_resolved`), `chatId`, `read` |
 | `blockedTokens/{token}` | admin only | finder bans |
 | `meta/adminSignup` | admin only | admin signup passcode |
+| `clientErrors/{id}` | anyone creates (exact fields, size-bounded, server time, own uid or none); admin read/delete | browser crash reports (`lib/errorLog.js`) |
 
 Key rule mechanisms (`firestore.rules`):
 - **`ownsTag(tagId)`**: `itemOwners/{tagId}.ownerUid == caller`, and the
@@ -129,6 +134,13 @@ Key rule mechanisms (`firestore.rules`):
   - `itemOwners` delete ⇔ `claimed → registered`
 - **Admin-managed tags:** an unclaimed tag whose profile is `profile` or
   `redirect` can't be claimed.
+- **Profile deletion is safe:** a user may delete their own
+  `users/{uid}`, except while disabled. So deleting and re-creating it
+  can't shed `disabled`, and a re-created profile still needs the passcode
+  for `isAdmin`.
+- **Email check:** `users/{uid}.email` must equal the sign-in token's
+  email, on create and whenever it changes. The admin console displays
+  it.
 
 ## 6. Auth and admin
 
@@ -147,6 +159,7 @@ Key rule mechanisms (`firestore.rules`):
   - every owner and admin rule refuses the account
   - an open session is signed out client-side
   - Firebase Auth sign-in itself isn't revoked (no backend)
+- **Deleting an account** (Settings) is §8.9.
 - **Finders** have no account: `lib/finderSession.js` token in
   `localStorage`.
 
@@ -265,7 +278,30 @@ same Firestore calls against the rules.
 - **Blacklist:** the tag is set to `blacklisted`. The reason, the admin and
   the prior status go to `tagAdmin`. The finder page then says the tag is
   inactive, and the rules refuse new reports, chats and messages on it.
-- **Unblacklist** restores the prior status.
+- **Unblacklist** restores the prior status. It restores `registered`
+  instead of `claimed` if the owner has since deleted their account.
+
+### 8.9 User: delete my account (`Settings.jsx` → `lib/account.js#deleteMyAccount`)
+1. Confirm (type `DELETE`) and re-enter the password. Firebase only
+   deletes a recently signed-in user.
+2. For every owned tag:
+   - **claimed:** `releaseTag`, which clears the tag's history and returns
+     it to stock.
+   - **blacklisted:** clear the history, then delete the item, profile and
+     ownership. The tag stays blacklisted with no owner.
+3. Delete `users/{uid}`, then the Auth user.
+
+`AuthContext`'s "missing profile" repair is paused during this
+(`profileRepairPaused`), so the profile isn't re-created mid-deletion.
+
+### 8.10 Error reporting (`lib/errorLog.js` → `admin/Errors.jsx`)
+- React error boundaries and `window` error / `unhandledrejection` events
+  call `reportError`.
+- It writes to `clientErrors` at most 5 times per page load, one report
+  per distinct message. It sends the path only (no query string) and never
+  throws.
+- Admins see the latest 100 grouped by message on **Admin → Errors**, and
+  can clear them.
 
 ## 9. Hosting and deploy
 
@@ -276,6 +312,8 @@ same Firestore calls against the rules.
 - **Security headers:** `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy` and `Permissions-Policy` (geolocation for this site
   only).
+- **`X-Robots-Tag: noindex`** for `/chat`, `/dashboard` and `/admin`,
+  plus `public/robots.txt` disallowing them.
 - **Content-Security-Policy:** sent as **report-only** for now. It allows
   this site, Firebase APIs, Google Fonts and OpenStreetMap tiles. The theme
   script is a file (`public/theme-init.js`), not inline, so the policy can
@@ -284,21 +322,19 @@ same Firestore calls against the rules.
   `public/og-image.png`. Every link shares one preview; per-tag previews
   need server rendering.
 
-Deploy:
-```bash
-npm run build
-firebase deploy --only firestore:rules,firestore:indexes,hosting
-```
-Rules, the notifications index (`firestore.indexes.json`) and the app
-change together, so they're deployed together.
+Deploy: see [`DEPLOY.md`](DEPLOY.md). Only from `main` with CI green.
+Rules, the notifications index (`firestore.indexes.json`) and hosting are
+deployed together, followed by the smoke test and, if needed, a rollback.
 
 ## 10. Testing
 
-`npm test` starts the Firestore emulator and runs:
+`npm test` starts the Firestore emulator (CI runs it on every push and
+pull request, `.github/workflows/ci.yml`) and runs:
 - `tests/firestore.rules.test.js`: individual rules (claim, release,
   bounds, tag content, reports, admin signup, audit fixes).
 - `tests/flows.test.js`: §8's workflows as a real owner (with a profile
-  doc), an anonymous finder and a passcode admin. Added after two bugs that
+  doc), an anonymous finder and a passcode admin, through to error
+  reporting and account deletion. Added after two bugs that
   blocked every real owner passed the single-rule tests.
 
 ## 11. Known gaps
@@ -308,7 +344,12 @@ change together, so they're deployed together.
   - anyone holding a chat link can act as that chat's finder
   - notifications can be spammed
 
-  All three need Firebase App Check.
+  All three need Firebase App Check. A single token is kept across a
+  finder's chats on purpose: admin bans are keyed on it.
+- **Finders can't delete their own reports.** The owner's release or
+  account deletion removes them.
+- **No staging project** yet: deploys go straight to production (CI and
+  the smoke test are the safeguards).
 - **No push or email notifications**, and link previews are the same for
   every tag (both need Cloud Functions, i.e. the Blaze plan).
 - **Web NFC** only works in Chrome on Android. iPhones can open tag links
@@ -317,3 +358,5 @@ change together, so they're deployed together.
 - **`react-router` 6.x** has two moderate advisories; the fix is the v7
   upgrade.
 - **Backups** are manual: `scripts/exportFirestore.js` (local JSON).
+- **No usage alerts** on the free plan: check Firestore usage by hand
+  (`DEPLOY.md`).

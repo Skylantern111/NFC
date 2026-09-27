@@ -75,7 +75,6 @@ describe('1. sign up (components/SignupForm.jsx)', () => {
         uid: ADMIN,
         email: 'admin@example.com',
         displayName: 'Admin',
-        phone: '',
         notificationPrefs: { inApp: true, email: true },
         createdAt: serverTimestamp(),
         isAdmin: true,
@@ -91,7 +90,6 @@ describe('1. sign up (components/SignupForm.jsx)', () => {
         uid: OWNER,
         email: 'owner@example.com',
         displayName: 'Owner',
-        phone: '',
         notificationPrefs: { inApp: true, email: true },
         createdAt: serverTimestamp(),
         isAdmin: false,
@@ -200,7 +198,8 @@ describe('3. owner claims and sets up the item (ClaimTag, Items, NfcSetup)', () 
 
   test('tap count, settings, stale-nudge dismissal', async () => {
     await assertSucceeds(getCountFromServer(collection(owner(), 'tags', TAG, 'scans')));
-    await assertSucceeds(updateDoc(doc(owner(), 'users', OWNER), { phone: '555', notificationPrefs: { inApp: true, email: true } }));
+    // Settings clears the old, unused phone field (ROUND4 C2).
+    await assertSucceeds(updateDoc(doc(owner(), 'users', OWNER), { phone: deleteField() }));
     await assertSucceeds(updateDoc(doc(owner(), 'users', OWNER), { [`staleNudgeDismissed.${TAG}`]: 123 }));
   });
 });
@@ -225,7 +224,7 @@ describe('4. finder taps, reports and chats (NfcLanding, Chat)', () => {
         finderSessionToken: TOKEN,
         initialMessage: 'Found it at the station',
         locationNote: null,
-        location: { lat: 1.5, lng: 2.5, accuracy: 10 },
+        location: { lat: 1.5123, lng: 2.5123, accuracy: 11 },
         status: 'open',
         timestamp: serverTimestamp(),
       })
@@ -386,7 +385,10 @@ describe('7. owner recovers and releases (Chat, Items, lib/ownerItems#releaseTag
   test('mark recovered (item, chat, report)', async () => {
     await assertSucceeds(updateDoc(doc(owner(), 'items', TAG), { isLostMode: false, lostSince: null }));
     await assertSucceeds(updateDoc(doc(owner(), 'chats', ids.chat), { resolved: true }));
-    await assertSucceeds(updateDoc(doc(owner(), 'reports', ids.report), { status: 'resolved' }));
+    // Resolving also drops the finder's location (ROUND4 C3).
+    await assertSucceeds(
+      updateDoc(doc(owner(), 'reports', ids.report), { status: 'resolved', location: null, locationNote: null })
+    );
   });
 
   test('clear read notifications', async () => {
@@ -442,5 +444,28 @@ describe('8. admin blacklist round trip (Inventory.jsx)', () => {
       { merge: true }
     );
     await assertSucceeds(b2.commit());
+  });
+});
+
+describe('9. errors and account deletion (lib/errorLog.js, lib/account.js)', () => {
+  test('a finder\'s browser reports a crash; the admin reads and clears it', async () => {
+    const ref = await assertSucceeds(
+      addDoc(collection(finder(), 'clientErrors'), {
+        message: 'TypeError: flow test',
+        stack: null,
+        url: `/nfc/${TAG}`,
+        userAgent: 'flows.test.js',
+        uid: null,
+        at: serverTimestamp(),
+      })
+    );
+    await assertSucceeds(getDocs(query(collection(admin(), 'clientErrors'), orderBy('at', 'desc'), limit(100))));
+    await assertSucceeds(deleteDoc(doc(admin(), 'clientErrors', ref.id)));
+  });
+
+  test('the owner (no tags left after release) deletes their account profile', async () => {
+    const owned = await assertSucceeds(getDocs(query(collection(owner(), 'itemOwners'), where('ownerUid', '==', OWNER))));
+    if (owned.size !== 0) throw new Error('expected no owned tags after release');
+    await assertSucceeds(deleteDoc(doc(owner(), 'users', OWNER)));
   });
 });

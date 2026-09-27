@@ -151,7 +151,10 @@ export default function Landing() {
           </div>
         </section>
 
-        <footer className="mx-auto w-full max-w-4xl px-5 pb-8 text-center">
+        <footer className="mx-auto flex w-full max-w-4xl flex-wrap justify-center gap-4 px-5 pb-8 text-center">
+          <Link to="/privacy" className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+            Privacy
+          </Link>
           <Link to="/admin" className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
             Admin console →
           </Link>

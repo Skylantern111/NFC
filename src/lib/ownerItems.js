@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, createElement, useContext, useEffect, useMemo, useState } from 'react';
 import {
   addDoc,
   arrayRemove,
@@ -104,14 +104,27 @@ export function ownerNotificationsMock() {
 // every hook below that needs to join another collection ("my chats", "my
 // notifications") against the owner's own tags, since none of those docs
 // carry ownerUid directly (itemOwners stays private — see firestore.rules).
-export function useOwnerTagIds(user) {
+//
+// One listener per page (SYSTEM_AUDIT_ROUND4.md E4): DashboardLayout mounts
+// <OwnerTagIdsProvider>, and every useOwnerTagIds call under it reads that
+// shared result instead of opening its own itemOwners listener (the
+// Dashboard alone used to open four). Outside the provider (e.g. Chat.jsx)
+// the hook falls back to its own listener.
+const OwnerTagIdsContext = createContext(null);
+
+function useOwnerTagIdsListener(user, enabled) {
+  const uid = user?.uid || null;
   const [tagIds, setTagIds] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!firebaseReady || !user) return;
+    if (!enabled || !firebaseReady || !uid) {
+      setTagIds([]);
+      setLoaded(false);
+      return;
+    }
     setLoaded(false);
-    const q = query(collection(db, 'itemOwners'), where('ownerUid', '==', user.uid));
+    const q = query(collection(db, 'itemOwners'), where('ownerUid', '==', uid));
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -121,12 +134,26 @@ export function useOwnerTagIds(user) {
       () => setLoaded(true)
     );
     return unsub;
-  }, [user]);
+  }, [enabled, uid]);
+
+  return { uid, tagIds, loaded };
+}
+
+export function OwnerTagIdsProvider({ user, children }) {
+  const value = useOwnerTagIdsListener(user, true);
+  return createElement(OwnerTagIdsContext.Provider, { value }, children);
+}
+
+export function useOwnerTagIds(user) {
+  const shared = useContext(OwnerTagIdsContext);
+  const useShared = !!shared && shared.uid === (user?.uid || null);
+  const own = useOwnerTagIdsListener(user, !useShared);
 
   if (!firebaseReady) {
     return { tagIds: ownerItemsMock().map((i) => i.tagId), loaded: true };
   }
-  return { tagIds, loaded };
+  const src = useShared ? shared : own;
+  return { tagIds: src.tagIds, loaded: src.loaded };
 }
 
 // Live join: itemOwners (ownerUid == uid) -> items/{tagId}, plus each tag's
@@ -479,7 +506,11 @@ export async function markRecovered(tagId, chatId, reportId) {
   if (!firebaseReady) return;
   await updateDoc(doc(db, 'items', tagId), { isLostMode: false, lostSince: null });
   if (chatId) await updateDoc(doc(db, 'chats', chatId), { resolved: true });
-  if (reportId) await updateDoc(doc(db, 'reports', reportId), { status: 'resolved' });
+  // The finder's location is only needed until the item is back
+  // (SYSTEM_AUDIT_ROUND4.md C3; stated on the /privacy page).
+  if (reportId) {
+    await updateDoc(doc(db, 'reports', reportId), { status: 'resolved', location: null, locationNote: null });
+  }
 }
 
 // Owner flags a chat for the admin moderation queue (see admin/Moderation.jsx).
@@ -582,6 +613,28 @@ export async function applyTagProfileToMany(tagIds, profile) {
 // this owner still owns the tag: reports and notifications are deleted,
 // chats are deleted unless reported (those stay for the admin moderation
 // queue, marked archivedAt so no owner inbox shows them).
+// Deletes a tag's reports and notifications, and its chats — except
+// reported ones, which get archivedAt and stay for the admin moderation
+// queue (hidden from owner inboxes). Must run while the caller still owns
+// the tag: the rules only let the current owner delete these. Used by
+// releaseTag and lib/account.js#deleteMyAccount.
+export async function clearTagHistory(tagId) {
+  const byTag = (name) => getDocs(query(collection(db, name), where('tagId', '==', tagId)));
+  const [reportSnap, notifSnap, chatSnap] = await Promise.all([byTag('reports'), byTag('notifications'), byTag('chats')]);
+  const ops = [
+    ...reportSnap.docs.map((d) => (b) => b.delete(d.ref)),
+    ...notifSnap.docs.map((d) => (b) => b.delete(d.ref)),
+    ...chatSnap.docs.map((d) =>
+      d.data().blocked ? (b) => b.update(d.ref, { archivedAt: serverTimestamp() }) : (b) => b.delete(d.ref)
+    ),
+  ];
+  for (const group of chunk(ops, 400)) {
+    const batch = writeBatch(db);
+    group.forEach((op) => op(batch));
+    await batch.commit();
+  }
+}
+
 export async function releaseTag(tagId) {
   if (!firebaseReady) return;
   // Check first, delete second (SYSTEM_AUDIT_ROUND3.md C1): the release
@@ -597,20 +650,7 @@ export async function releaseTag(tagId) {
     err.code = 'release-not-allowed';
     throw err;
   }
-  const byTag = (name) => getDocs(query(collection(db, name), where('tagId', '==', tagId)));
-  const [reportSnap, notifSnap, chatSnap] = await Promise.all([byTag('reports'), byTag('notifications'), byTag('chats')]);
-  const ops = [
-    ...reportSnap.docs.map((d) => (b) => b.delete(d.ref)),
-    ...notifSnap.docs.map((d) => (b) => b.delete(d.ref)),
-    ...chatSnap.docs.map((d) =>
-      d.data().blocked ? (b) => b.update(d.ref, { archivedAt: serverTimestamp() }) : (b) => b.delete(d.ref)
-    ),
-  ];
-  for (const group of chunk(ops, 400)) {
-    const batch = writeBatch(db);
-    group.forEach((op) => op(batch));
-    await batch.commit();
-  }
+  await clearTagHistory(tagId);
   // The history above is already gone at this point (the rules only let
   // the current owner delete it, so it can't wait until after). Retry the
   // release itself a few times rather than leave the owner with a tag that

@@ -14,21 +14,15 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import admin from 'firebase-admin';
 
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error('GOOGLE_APPLICATION_CREDENTIALS is not set. Point it at your service-account JSON key.');
-  process.exit(1);
-}
-
-admin.initializeApp({ credential: admin.credential.applicationDefault() });
-const db = admin.firestore();
+// Loaded after the argument checks so a usage error doesn't need credentials.
+const { db, Timestamp, DocumentReference } = await import('./_firebaseAdmin.js');
 
 const outDir = process.argv[2] || path.join('backups', new Date().toISOString().replace(/[:.]/g, '-'));
 
 function plain(value) {
-  if (value instanceof admin.firestore.Timestamp) return value.toDate().toISOString();
-  if (value instanceof admin.firestore.DocumentReference) return value.path;
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (value instanceof DocumentReference) return value.path;
   if (Array.isArray(value)) return value.map(plain);
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));

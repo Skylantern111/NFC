@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Check, Circle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { toast } from 'sonner';
 import { deleteField, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase/config';
-import { signupInProgress } from '../context/AuthContext';
+import { profileRepairPaused } from '../context/AuthContext';
 import { friendlyAuthError, passwordRequirementResults, passwordStrength } from '../lib/utils';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -65,7 +65,7 @@ export default function SignupForm({ admin = false }) {
       return;
     }
     setBusy(true);
-    signupInProgress.current = true;
+    profileRepairPaused.current = true;
     try {
       const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
       await updateProfile(cred.user, { displayName: form.displayName });
@@ -75,9 +75,10 @@ export default function SignupForm({ admin = false }) {
       const userRef = doc(db, 'users', cred.user.uid);
       const profile = {
         uid: cred.user.uid,
-        email: form.email,
+        // The login's own (normalized) email — firestore.rules only accepts
+        // an email that matches the sign-in token (SYSTEM_AUDIT_ROUND4 B1).
+        email: cred.user.email,
         displayName: form.displayName,
-        phone: '',
         notificationPrefs: { inApp: true, email: true },
         createdAt: serverTimestamp(),
       };
@@ -104,7 +105,7 @@ export default function SignupForm({ admin = false }) {
     } catch (e) {
       setErr(friendlyAuthError(e));
     } finally {
-      signupInProgress.current = false;
+      profileRepairPaused.current = false;
       setBusy(false);
     }
   }
@@ -222,6 +223,12 @@ export default function SignupForm({ admin = false }) {
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
         {busy ? 'Creating…' : admin ? 'Create admin account' : 'Create account'}
       </Button>
+      <p className="text-center text-xs text-slate-400 dark:text-slate-500">
+        See what we store and how to delete it:{' '}
+        <Link to="/privacy" className="font-semibold text-purple-600 hover:text-pink-600">
+          Privacy
+        </Link>
+      </p>
     </form>
   );
 }

@@ -33,6 +33,9 @@ Plans, audits and change logs are in [`docs/`](docs/README.md).
 - Dashboard, Messages and Notifications (in-app; unread count in the sidebar
   and browser tab). Release a tag, which also clears its reports, chats and
   alerts.
+- Settings → **Delete my account**: removes the account, items, tag pages and
+  every report, chat and alert on their tags. What is stored is listed at
+  `/privacy`.
 
 **Finder** (no account)
 - Tap page at `/nfc/:tagId`: item status, the owner's links, a found-item
@@ -50,6 +53,7 @@ Plans, audits and change logs are in [`docs/`](docs/README.md).
 - Moderation: reported chats (either direction), finder token bans.
 - Owners: look up a tag's owner, disable an account, set the admin signup
   passcode.
+- Errors: crashes reported from people's browsers (`lib/errorLog.js`).
 
 ## Run
 
@@ -78,10 +82,16 @@ CLI.
 - `tests/flows.test.js` — replays the app's real Firestore calls in order as
   a normal owner, an anonymous finder and a passcode admin (sign-up →
   register → claim → report → chat → moderation → recovery → release →
-  blacklist). Added after two bugs that blocked every real owner slipped past
-  the single-rule tests.
+  blacklist → error log → account deletion). Added after two bugs that
+  blocked every real owner slipped past the single-rule tests.
+
+**CI** (`.github/workflows/ci.yml`) runs the build and both test files on
+every push and pull request.
 
 ## Deploy
+
+See **[`DEPLOY.md`](DEPLOY.md)**: deploy only from `main` with CI green,
+then run the smoke test; it also has the rollback commands. In short:
 
 ```bash
 npm run build
@@ -96,9 +106,9 @@ Content-Security-Policy is currently **report-only** (see
 
 ## Routes
 
-Public: `/`, `/login`, `/register`, `/nfc/:tagId`, `/chat/:chatId`
+Public: `/`, `/login`, `/register`, `/nfc/:tagId`, `/chat/:chatId`, `/privacy`
 Owner (signed in): `/dashboard`, `/dashboard/items`, `/dashboard/items/claim`, `/dashboard/nfc-setup`, `/dashboard/messages`, `/dashboard/notifications`, `/dashboard/settings`
-Admin: `/admin/login`, `/admin/register`, `/admin/inventory`, `/admin/nfc-register`, `/admin/tags`, `/admin/tags/:tagId`, `/admin/moderation`, `/admin/owners`
+Admin: `/admin/login`, `/admin/register`, `/admin/inventory`, `/admin/nfc-register`, `/admin/tags`, `/admin/tags/:tagId`, `/admin/moderation`, `/admin/owners`, `/admin/errors`
 
 ## Design system
 
@@ -116,7 +126,7 @@ knows its ID; listing the collection is restricted.
 
 | Collection | Access | Contents |
 |---|---|---|
-| `users/{uid}` | owner + admin; not deletable | email, displayName, phone, notificationPrefs, `isAdmin` (fixed at creation), `disabled` (admin-set) |
+| `users/{uid}` | owner + admin; the owner may delete it unless disabled | email (must match the sign-in email), displayName, notificationPrefs, `isAdmin` (fixed at creation), `disabled` (admin-set) |
 | `tags/{tagId}` | public **by ID**, list/write admin | TagBack ID (not the chip UID), status (`registered`/`claimed`/`blacklisted`), optional `physicalUid`, `chipType`, `writeStatus` |
 | `tagAdmin/{tagId}` | admin only | who registered it, blacklist reason / who / prior status |
 | `items/{tagId}` | public **by ID**, owner write | itemName, isLostMode, lostMessage, rewardAmount — **no PII, no ownerUid** |
@@ -126,6 +136,7 @@ knows its ID; listing the collection is restricted.
 | `chats/{id}` + `messages` | open by ID; list: owner/admin | anonymous thread; per-side reports |
 | `notifications/{id}` | owner | report / message / moderation alerts |
 | `blockedTokens/{token}`, `meta/*` | admin only | finder bans; admin signup passcode |
+| `clientErrors/{id}` | anyone creates (exact, bounded shape); admin reads | browser crash reports |
 
 A finder reading `items/{tagId}` can never resolve the owner. See
 [`firestore.rules`](firestore.rules).
@@ -159,12 +170,16 @@ identity model (physical UID vs. TagBack ID vs. NDEF URL).
 
 ## Scripts (`scripts/`, Admin SDK, need `GOOGLE_APPLICATION_CREDENTIALS`)
 
+All scripts share `scripts/_firebaseAdmin.js` (firebase-admin 14's modular
+API).
+
 | Script | Does |
 |---|---|
 | `setAdmin.js <uid-or-email>` | Grant the admin custom claim |
 | `revokeSelfServeAdmin.js <uid-or-email>` | Set `users/{uid}.isAdmin` to false |
 | `listSelfServeAdmins.js` | List passcode-created admins (read-only) |
 | `setAdminSignupPasscode.js <passcode> \| --off` | Set or clear the admin signup passcode |
+| `listEmailMismatches.js` | List profiles whose stored email doesn't match their sign-in email (read-only) |
 | `exportFirestore.js [outDir]` | Back up every collection to local JSON (`backups/`, git-ignored) — the free-plan substitute for managed backups |
 | `migrateUnclaimedTags.js` | One-off: old `status: 'unclaimed'` docs → current schema (`--dry-run` first) |
 
@@ -172,7 +187,10 @@ identity model (physical UID vs. TagBack ID vs. NDEF URL).
 
 - Finder identity is a browser-local token: bans are easy to bypass, and
   anyone holding a chat link can act as its finder. Notification spam is
-  possible. Both need Firebase App Check.
+  possible. Both need Firebase App Check. One token is reused across a
+  finder's chats — kept on purpose, because admin bans are keyed on it.
+- Finders can't delete their own reports (the owner's release or account
+  deletion removes them).
 - No push or email notifications, and link previews are the same for every
   tag — both need server-side code (Cloud Functions, i.e. the paid Blaze
   plan).

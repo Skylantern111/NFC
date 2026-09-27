@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './ui/button';
+import { reportError } from '../lib/errorLog';
 
 // Guards the lazy-loaded dashboard/admin routes in App.jsx: if a chunk
 // import() fails (stale deploy, offline mid-navigation), React's default
@@ -11,6 +12,10 @@ export default class RouteErrorBoundary extends Component {
 
   static getDerivedStateFromError() {
     return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    reportError(error, 'RouteErrorBoundary');
   }
 
   render() {

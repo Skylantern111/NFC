@@ -140,7 +140,7 @@ export default function Owners() {
                     {owner.disabled && <Badge variant="destructive">Disabled</Badge>}
                   </CardTitle>
                   <CardDescription className="text-slate-500 dark:text-slate-400">
-                    {owner.email || 'No email on file'}
+                    {owner.email ? `Sign-up email: ${owner.email}` : 'No email on file'}
                   </CardDescription>
                 </div>
                 <Button

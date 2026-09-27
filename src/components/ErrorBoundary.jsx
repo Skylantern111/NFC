@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Component } from "react";
+import { reportError } from "@/lib/errorLog";
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -10,6 +11,10 @@ class ErrorBoundary extends Component {
 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
+  }
+
+  componentDidCatch(error) {
+    reportError(error, "ErrorBoundary");
   }
 
   render() {

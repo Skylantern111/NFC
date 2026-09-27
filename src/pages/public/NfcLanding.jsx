@@ -194,7 +194,7 @@ export default function NfcLanding() {
       setLocation(loc);
       setLocStatus('done');
       if (wasAutoFilled) {
-        setLocationNote(`${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`);
+        setLocationNote(`${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
       }
     } else {
       setLocStatus('unavailable');

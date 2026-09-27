@@ -41,6 +41,8 @@ const Moderation = lazy(() => import('./pages/admin/Moderation'));
 const Owners = lazy(() => import('./pages/admin/Owners'));
 const TagContent = lazy(() => import('./pages/admin/TagContent'));
 const TagContentIndex = lazy(() => import('./pages/admin/TagContentIndex'));
+const Errors = lazy(() => import('./pages/admin/Errors'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 
 // Same loading-screen convention already used by ProtectedRoute/AdminGate
 // while they resolve the auth check — a lazy chunk still loading reads the
@@ -66,6 +68,7 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/nfc/:tagId" element={<NfcLanding />} />
       <Route path="/chat/:chatId" element={<Chat />} />
+      <Route path="/privacy" element={<Privacy />} />
 
       {/* Owner (protected) */}
       <Route
@@ -102,6 +105,7 @@ export default function App() {
         <Route path="owners" element={<Owners />} />
         <Route path="tags" element={<TagContentIndex />} />
         <Route path="tags/:tagId" element={<TagContent />} />
+        <Route path="errors" element={<Errors />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

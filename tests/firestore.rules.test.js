@@ -35,6 +35,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 
 let testEnv;
@@ -541,11 +542,11 @@ describe('SYSTEM_AUDIT_PLAN.md fixes', () => {
   });
 
   test('A1: a plain non-admin profile can still be created', async () => {
-    const user = testEnv.authenticatedContext('u4');
+    const user = testEnv.authenticatedContext('u4', { email: 'a@b.c' });
     await assertSucceeds(setDoc(doc(user.firestore(), 'users', 'u4'), { email: 'a@b.c', isAdmin: false }));
   });
 
-  test('A1/A2: a user cannot delete their own profile (the delete-and-recreate escalation)', async () => {
+  test('A1/A2: a DISABLED user cannot delete their profile (the delete-and-recreate escape)', async () => {
     await seed((db) => setDoc(doc(db, 'users', 'u5'), { email: 'a@b.c', disabled: true }));
     const user = testEnv.authenticatedContext('u5');
     await assertFails(deleteDoc(doc(user.firestore(), 'users', 'u5')));
@@ -873,5 +874,110 @@ describe('real user profiles (A0)', () => {
     });
     const db = testEnv.authenticatedContext('real-3').firestore();
     await assertFails(updateDoc(doc(db, 'items', tagId), { isLostMode: true }));
+  });
+});
+
+describe('SYSTEM_AUDIT_ROUND4.md fixes', () => {
+  // ---- B1: the admin console shows users/{uid}.email ----
+  test('B1: a profile can only store the real sign-in email', async () => {
+    const ok = testEnv.authenticatedContext('e1', { email: 'real@example.com' }).firestore();
+    await assertSucceeds(setDoc(doc(ok, 'users', 'e1'), { email: 'real@example.com', isAdmin: false }));
+    const fake = testEnv.authenticatedContext('e2', { email: 'real@example.com' }).firestore();
+    await assertFails(setDoc(doc(fake, 'users', 'e2'), { email: 'ceo@example.com', isAdmin: false }));
+  });
+
+  test('B1: changing the stored email later is refused; other self-updates still work', async () => {
+    await seed((db) => setDoc(doc(db, 'users', 'e3'), { email: 'old-spoof@example.com', phone: '1' }));
+    const db = testEnv.authenticatedContext('e3', { email: 'real@example.com' }).firestore();
+    await assertFails(updateDoc(doc(db, 'users', 'e3'), { email: 'other@example.com' }));
+    // An old doc whose stored email differs must not lock the user out of other edits.
+    await assertSucceeds(updateDoc(doc(db, 'users', 'e3'), { notificationPrefs: { inApp: true } }));
+    await assertSucceeds(updateDoc(doc(db, 'users', 'e3'), { email: 'real@example.com' }));
+  });
+
+  // ---- C1: delete my account ----
+  test('C1: a user can delete their own profile; not someone else\'s', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users', 'd1'), { email: 'd1@example.com' });
+      await setDoc(doc(db, 'users', 'd2'), { email: 'd2@example.com' });
+    });
+    const db = testEnv.authenticatedContext('d1').firestore();
+    await assertFails(deleteDoc(doc(db, 'users', 'd2')));
+    await assertSucceeds(deleteDoc(doc(db, 'users', 'd1')));
+  });
+
+  test('C1: after deleting, a re-created profile still cannot self-grant admin', async () => {
+    const db = testEnv.authenticatedContext('d3', { email: 'd3@example.com' }).firestore();
+    await assertFails(setDoc(doc(db, 'users', 'd3'), { email: 'd3@example.com', isAdmin: true }));
+  });
+
+  test('C1: an owner can drop ownership of a blacklisted tag (it stays blacklisted); a stranger cannot', async () => {
+    const tagId = 'TB-DDDD-0001';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'blacklisted' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'd4' });
+      await setDoc(doc(db, 'items', tagId), { tagId, itemName: 'Bag', isLostMode: false });
+    });
+    const stranger = testEnv.authenticatedContext('d5').firestore();
+    await assertFails(deleteDoc(doc(stranger, 'itemOwners', tagId)));
+    const owner = testEnv.authenticatedContext('d4').firestore();
+    const batch = writeBatch(owner);
+    batch.delete(doc(owner, 'items', tagId));
+    batch.delete(doc(owner, 'itemOwners', tagId));
+    await assertSucceeds(batch.commit());
+  });
+
+  test('C1: ownership of a claimed tag still cannot be dropped without releasing it', async () => {
+    const tagId = 'TB-DDDD-0002';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'd6' });
+    });
+    const owner = testEnv.authenticatedContext('d6').firestore();
+    await assertFails(deleteDoc(doc(owner, 'itemOwners', tagId)));
+  });
+
+  // ---- C3: location cleared on recovery ----
+  test('C3: the owner can clear a report\'s location when resolving it', async () => {
+    const tagId = 'TB-DDDD-0003';
+    await seed(async (db) => {
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'd7' });
+      await setDoc(doc(db, 'reports', 'rep-c3'), {
+        tagId, finderSessionToken: 't', status: 'open', location: { lat: 1.2345, lng: 2.3456, accuracy: 11 },
+      });
+    });
+    const owner = testEnv.authenticatedContext('d7').firestore();
+    await assertSucceeds(
+      updateDoc(doc(owner, 'reports', 'rep-c3'), { status: 'resolved', location: null, locationNote: null })
+    );
+  });
+
+  // ---- E1: client error log ----
+  test('E1: anyone can report an error in the exact shape; only admins read it', async () => {
+    const anon = testEnv.unauthenticatedContext().firestore();
+    const ref = await assertSucceeds(
+      addDoc(collection(anon, 'clientErrors'), {
+        message: 'TypeError: x is undefined',
+        stack: 'at foo (app.js:1:1)',
+        url: '/nfc/TB-AAAA-1111',
+        userAgent: 'test',
+        uid: null,
+        at: serverTimestamp(),
+      })
+    );
+    await assertFails(getDoc(doc(anon, 'clientErrors', ref.id)));
+    const admin = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(admin, 'clientErrors', ref.id)));
+    await assertSucceeds(deleteDoc(doc(admin, 'clientErrors', ref.id)));
+  });
+
+  test('E1: oversized, extra-field, fake-time or someone-else\'s-uid reports are refused', async () => {
+    const db = testEnv.authenticatedContext('e9').firestore();
+    const base = { message: 'boom', stack: null, url: '/', userAgent: 'ua', uid: 'e9', at: serverTimestamp() };
+    await assertSucceeds(addDoc(collection(db, 'clientErrors'), base));
+    await assertFails(addDoc(collection(db, 'clientErrors'), { ...base, message: 'x'.repeat(501) }));
+    await assertFails(addDoc(collection(db, 'clientErrors'), { ...base, junk: 1 }));
+    await assertFails(addDoc(collection(db, 'clientErrors'), { ...base, at: new Date('2000-01-01') }));
+    await assertFails(addDoc(collection(db, 'clientErrors'), { ...base, uid: 'someone-else' }));
   });
 });

@@ -12,8 +12,6 @@
 // Requires a Firebase service-account key (see scripts/setAdmin.js's header
 // for how to get one). NEVER commit that file.
 
-import admin from 'firebase-admin';
-
 const arg = process.argv[2];
 
 if (!arg) {
@@ -24,21 +22,18 @@ if (arg !== '--off' && arg.length < 8) {
   console.error('The passcode must be at least 8 characters (firestore.rules rejects shorter ones).');
   process.exit(1);
 }
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error('GOOGLE_APPLICATION_CREDENTIALS is not set. Point it at your service-account JSON key.');
-  process.exit(1);
-}
 
-admin.initializeApp({ credential: admin.credential.applicationDefault() });
+// Loaded after the argument checks so a usage error doesn't need credentials.
+const { db, FieldValue } = await import('./_firebaseAdmin.js');
 
 async function main() {
-  const ref = admin.firestore().collection('meta').doc('adminSignup');
+  const ref = db.collection('meta').doc('adminSignup');
   if (arg === '--off') {
     await ref.delete();
     console.log('Self-serve admin signup turned off (meta/adminSignup deleted).');
     return;
   }
-  await ref.set({ passcode: arg, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: 'script' });
+  await ref.set({ passcode: arg, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'script' });
   console.log('Admin signup passcode set.');
 }
 

@@ -9,7 +9,7 @@
 // grant) — it only affects the self-serve isAdmin flag set at signup via
 // admin/AdminRegister.jsx's passcode field. If the account you're revoking also
 // has a real custom claim, that needs a separate
-// admin.auth().setCustomUserClaims(uid, { admin: false }) call — this
+// getAuth().setCustomUserClaims(uid, { admin: false }) call — this
 // script does not do that for you, to avoid silently touching a grant that
 // may have been made through the secure path on purpose.
 //
@@ -21,8 +21,6 @@
 // Requires a Firebase service-account key (see scripts/setAdmin.js's header
 // for how to get one). NEVER commit that file.
 
-import admin from 'firebase-admin';
-
 const identifier = process.argv[2];
 
 if (!identifier) {
@@ -30,24 +28,13 @@ if (!identifier) {
   process.exit(1);
 }
 
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error(
-    'GOOGLE_APPLICATION_CREDENTIALS is not set. Point it at your service-account JSON key, e.g.\n' +
-      '  GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json node scripts/revokeSelfServeAdmin.js you@example.com'
-  );
-  process.exit(1);
-}
-
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-});
+// Loaded after the argument checks so a usage error doesn't need credentials.
+const { db, resolveUid } = await import('./_firebaseAdmin.js');
 
 async function main() {
-  const uid = identifier.includes('@')
-    ? (await admin.auth().getUserByEmail(identifier)).uid
-    : identifier;
+  const uid = await resolveUid(identifier);
 
-  const userRef = admin.firestore().collection('users').doc(uid);
+  const userRef = db.collection('users').doc(uid);
   const snap = await userRef.get();
 
   if (!snap.exists) {

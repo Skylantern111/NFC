@@ -1,52 +1,55 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Loader2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendEmailVerification } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { deleteMyAccount } from '../../lib/account';
 import { friendlyAuthError, friendlyFirestoreError } from '../../lib/utils';
 import GlassCard from '../../components/GlassCard';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
-import { Skeleton } from '../../components/ui/skeleton';
-
-const DEFAULT_PREFS = { inApp: true, email: true };
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
 
 export default function Settings() {
   const { user, refreshUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [prefs, setPrefs] = useState(DEFAULT_PREFS);
-  const [phone, setPhone] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const nav = useNavigate();
   const [resending, setResending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [password, setPassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [progress, setProgress] = useState('');
+
+  // SYSTEM_AUDIT_ROUND4.md C2: a private phone number used to be collected
+  // here, but nothing ever used it. The field is gone; an old stored value is
+  // cleared quietly the next time Settings opens.
   useEffect(() => {
-    if (!firebaseReady || !user) {
-      setLoading(false);
-      return;
-    }
-    let live = true;
+    if (!firebaseReady || !user) return;
     getDoc(doc(db, 'users', user.uid))
       .then((snap) => {
-        if (!live || !snap.exists()) return;
-        const data = snap.data();
-        setPhone(data.phone || '');
-        setPrefs({ ...DEFAULT_PREFS, ...(data.notificationPrefs || {}) });
+        if (snap.exists() && 'phone' in snap.data()) {
+          return updateDoc(doc(db, 'users', user.uid), { phone: deleteField() });
+        }
+        return null;
       })
-      .finally(() => {
-        if (live) setLoading(false);
-      });
-    return () => {
-      live = false;
-    };
+      .catch(() => {});
   }, [user]);
-
 
   async function onResendVerification() {
     if (!user) return;
@@ -70,22 +73,23 @@ export default function Settings() {
     }
   }
 
-  async function onSave() {
-    if (!firebaseReady || !user) {
-      toast.error('Sign in required to save settings.');
-      return;
-    }
-    setSaving(true);
+  async function onDeleteAccount(e) {
+    e.preventDefault();
+    if (confirmText !== 'DELETE' || !password) return;
+    setDeleting(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        phone,
-        notificationPrefs: prefs,
-      });
-      toast.success('Settings saved.');
+      await deleteMyAccount(password, setProgress);
+      toast.success('Your account and its data were deleted.');
+      nav('/', { replace: true });
     } catch (err) {
-      toast.error(friendlyFirestoreError(err, 'Could not save settings. Try again.'));
+      setProgress('');
+      toast.error(
+        err?.code?.startsWith?.('auth/')
+          ? friendlyAuthError(err)
+          : friendlyFirestoreError(err, 'Could not delete everything. Try again, or contact the admin.')
+      );
     } finally {
-      setSaving(false);
+      setDeleting(false);
     }
   }
 
@@ -139,59 +143,105 @@ export default function Settings() {
         </GlassCard>
       )}
 
-      {loading ? (
-        <>
-          <GlassCard>
-            <Skeleton className="mb-3 h-5 w-32" />
-            <Skeleton className="h-9 w-full" />
-          </GlassCard>
-          <GlassCard>
-            <Skeleton className="mb-3 h-5 w-32" />
-            <Skeleton className="mb-2 h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-          </GlassCard>
-        </>
-      ) : (
-        <>
-          <GlassCard>
-            <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Contact (private)</h2>
-            <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-              Only used to reach you. Never shown to finders.
-            </p>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">Phone (optional)</Label>
-              <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-          </GlassCard>
+      <GlassCard>
+        <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
+        {/* SYSTEM_AUDIT_ROUND2.md B6: there used to be an "In-app alerts"
+            switch here that nothing read — alerts always showed. */}
+        <p className="py-2 text-sm text-slate-600 dark:text-slate-300">
+          In-app alerts are always on: the bell badge and the browser tab show new reports and messages.
+        </p>
+        {/* No email-sending backend exists in this project (no Cloud Function,
+            no email service). Disabled, so it can't imply a channel that
+            doesn't exist. */}
+        <label className="flex items-center justify-between py-2 opacity-60">
+          <span className="text-slate-600 dark:text-slate-300">Email alerts (coming soon)</span>
+          <Switch checked={false} disabled />
+        </label>
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          Email delivery isn't set up yet — for now, alerts only show up in-app.
+        </p>
+      </GlassCard>
 
-          <GlassCard>
-            <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
-            {/* SYSTEM_AUDIT_ROUND2.md B6: there used to be an "In-app alerts"
-                switch here that nothing read — alerts always showed. It's a
-                plain statement now instead of a control that does nothing. */}
-            <p className="py-2 text-sm text-slate-600 dark:text-slate-300">
-              In-app alerts are always on: the bell badge and the browser tab show new reports and messages.
-            </p>
-            {/* No email-sending backend exists in this project (no Cloud
-                Function, no email service — see IMPROVEMENT_PLAN.md Round 10
-                #4). Disabled rather than left toggleable, so turning it "on"
-                can't imply a delivery channel that doesn't exist. The
-                underlying notificationPrefs.email field is untouched — this is
-                copy/UI only, ready to re-enable once a real send path exists. */}
-            <label className="flex items-center justify-between py-2 opacity-60">
-              <span className="text-slate-600 dark:text-slate-300">Email alerts (coming soon)</span>
-              <Switch checked={false} disabled />
-            </label>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Email delivery isn't set up yet — for now, alerts only show up in-app.
-            </p>
-            <Button className="mt-3 w-full gap-1.5" onClick={onSave} disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-          </GlassCard>
-        </>
+      {user && (
+        <GlassCard>
+          <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Privacy</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            What TagBack stores and for how long:{' '}
+            <Link to="/privacy" className="font-semibold text-purple-600 hover:text-pink-600">
+              Privacy
+            </Link>
+            .
+          </p>
+          <Button variant="outline" className="mt-4 w-full text-rose-600" onClick={() => setDeleteOpen(true)}>
+            Delete my account
+          </Button>
+        </GlassCard>
       )}
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (deleting) return;
+          setDeleteOpen(open);
+          if (!open) {
+            setConfirmText('');
+            setPassword('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TriangleAlert className="h-5 w-5 text-rose-600" /> Delete your account?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes your account, your items and their NFC profiles, and every finder report, chat
+              and notification on your tags. Your tags return to stock (blacklisted tags stay blacklisted). This can't be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onDeleteAccount} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="delete-confirm">
+                Type <span className="font-mono font-bold">DELETE</span> to confirm
+              </Label>
+              <Input
+                id="delete-confirm"
+                autoComplete="off"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                disabled={deleting}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="delete-password">Your password</Label>
+              <Input
+                id="delete-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={deleting}
+              />
+            </div>
+            {progress && <p className="text-sm text-slate-500 dark:text-slate-400">{progress}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                className="gap-1.5"
+                disabled={deleting || confirmText !== 'DELETE' || !password}
+              >
+                {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {deleting ? 'Deleting…' : 'Delete account'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
