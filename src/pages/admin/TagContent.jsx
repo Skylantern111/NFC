@@ -9,7 +9,7 @@ import {
   deleteTagProfile,
   getPublicItem,
   getTagProfile,
-  getTagScanCount,
+  getTagScanBreakdown,
   saveTagProfile,
 } from '../../lib/ownerItems';
 import { EMPTY_PROFILE, formToProfile, profileToForm, validateProfile } from '../../lib/tagContent';
@@ -81,7 +81,7 @@ export default function TagContent() {
           getDoc(doc(db, 'tags', tagId)),
           getTagProfile(tagId),
           getPublicItem(tagId),
-          getTagScanCount(tagId),
+          getTagScanBreakdown(tagId),
         ]);
         if (!live) return;
         setTag(tagSnap.exists() ? tagSnap.data() : null);
@@ -213,8 +213,13 @@ export default function TagContent() {
                   {tag.status}
                 </Badge>
                 {scanCount !== null && (
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {scanCount} tap{scanCount === 1 ? '' : 's'} recorded
+                  <span
+                    className="text-xs text-slate-500 dark:text-slate-400"
+                    title="Taps before tag content existed have no mode, so the parts can add up to less than the total."
+                  >
+                    {scanCount.total} tap{scanCount.total === 1 ? '' : 's'} recorded
+                    {scanCount.total > 0 &&
+                      ` · Lost & Found ${scanCount.lostfound} · Profile ${scanCount.profile} · Redirect ${scanCount.redirect}`}
                   </span>
                 )}
               </div>

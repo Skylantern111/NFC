@@ -9,7 +9,7 @@ all routes, data flows, and page structure are unchanged.
 ## §1 — System functions
 
 No code changes (§1 is documentation only). It's now surfaced in
-[`README.md`](README.md) under "System functions" so the current vs. planned
+[`README.md`](../README.md) under "System functions" so the current vs. planned
 function set is visible without opening the full plan.
 
 ## §2 — Design system

@@ -7,25 +7,49 @@ owner and share a location — all without either party ever seeing the
 other's name, phone, email, or address. Identity stays separated at the
 database level, not just hidden in the UI.
 
-Stack: React + Vite, Tailwind (light neumorphism + glassmorphism), Firebase
-(Firestore + Auth), React Router, Google Maps, Recharts, nanoid.
+Stack: React + Vite, Tailwind 3 (light neumorphism + glassmorphism), Radix
+UI primitives, Firebase (Firestore + Auth + Hosting), React Router 6,
+Leaflet + OpenStreetMap (report location map), nanoid.
 
-For how the pieces fit together (routing, data layers, Firestore schema,
+Live: https://nfc-lost-and-found.web.app
+
+For how the pieces fit together (routing, data layer, Firestore schema,
 security rules, NFC write flow) see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+Plans, audits and change logs are in [`docs/`](docs/README.md).
 
 ## System functions
 
-**Core (implemented):**
-- Owner account (email/password via Firebase Auth).
-- Claim a registered NFC tag to an item (name, category) via NFC tap or by entering its TagBack ID.
-- Arm / disarm "Lost Mode" on an item, with a message to the finder and an optional reward.
-- Public tap page: anyone who taps a tag sees item status, the owner's enabled social links, and can file a "found it" report with a message and optional GPS location.
-- My NFC Profile page: choose what a tap shows (lost & found page, profile card, or redirect) plus social/contact links for a claimed tag (`tagProfiles/{tagId}`) — the physical tag identity itself is admin-registered, not owner-editable. Admins edit the same content at `/admin/tags/:tagId`.
-- Anonymous two-way chat between owner and finder, keyed by a private session token (finder) / Firebase Auth (owner) — never by contact info.
-- Mark an item "Recovered" from chat, closing the report and clearing Lost Mode.
-- Admin: register physical NFC stickers by tapping them (reads the chip's hardware UID when the browser exposes one, mints a stable TagBack ID either way — see [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md)), write their TagBack URL, track claim lifecycle, blacklist compromised/lost tags.
+**Owner**
+- Account (email/password via Firebase Auth) at `/register`.
+- Claim a registered tag to an item (name, category) by NFC tap or by typing
+  its TagBack ID. A hardware-ID mismatch with the registered sticker shows a
+  warning.
+- Arm / disarm Lost Mode with a message and an optional reward.
+- My NFC Profile: choose what a tap shows — Lost & Found page, a profile card
+  (display name, bio, social links, contact link, "Save contact"), or a
+  redirect — and edit it any time; the sticker is never rewritten.
+- Anonymous two-way chat with the finder; mark the item recovered (closes the
+  report); report an abusive finder.
+- Dashboard, Messages and Notifications (in-app; unread count in the sidebar
+  and browser tab). Release a tag, which also clears its reports, chats and
+  alerts.
 
-**Planned** (see [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md) for the full spec — self-serve NFC Setup, Messages hub, Notifications hub, sidebar owner nav, scan/tap log, real moderation, admin analytics, tag grouping, data export/deletion, theme toggle, and more). Nothing in that plan is implemented yet beyond the design-system pass logged in [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md).
+**Finder** (no account)
+- Tap page at `/nfc/:tagId`: item status, the owner's links, a found-item
+  report with a message and optional GPS location, then a chat. Can report
+  an abusive owner. Owner-set redirects show a "You're leaving TagBack"
+  page first.
+
+**Admin** (`/admin`, separate sign-up at `/admin/register`)
+- NFC Register: tap a sticker to register it (hardware UID when the browser
+  exposes one, a TagBack ID either way) and write its TagBack link.
+- Inventory: lifecycle table, search, CSV export, per-row ⋯ menu (edit
+  content, copy URL, retry write, re-register, blacklist).
+- Tag Content: edit what any tag shows, one tag or many at once; tap counts
+  per mode.
+- Moderation: reported chats (either direction), finder token bans.
+- Owners: look up a tag's owner, disable an account, set the admin signup
+  passcode.
 
 ## Run
 
@@ -35,89 +59,123 @@ cp .env.example .env   # fill in Firebase keys (optional for preview)
 npm run dev
 ```
 
-Without Firebase keys the app runs in **placeholder mode**: auth is stubbed and
-public/finder pages render mock data, so every screen is previewable.
+Without Firebase keys the app runs in **placeholder mode**: auth is stubbed
+and pages render mock data, so every screen is previewable.
 
-### Tests
+## Tests
 
 ```bash
 npm test
 ```
 
-Runs `tests/firestore.rules.test.js` against a local Firestore emulator
-(`firebase emulators:exec --only firestore "vitest run"`) — never touches
-the real project. Covers the claim transaction, admin-only registration,
-tag release, `tagProfiles` validation, and the chat report-direction rules.
-Requires Java (the emulator's runtime) and the Firebase CLI, both already
-needed for `firebase deploy`.
+Starts a local Firestore emulator (`firebase emulators:exec --only firestore
+"vitest run"`) — never touches the real project. Needs Java and the Firebase
+CLI.
+
+- `tests/firestore.rules.test.js` — individual rules: claim, release,
+  registration, field bounds, tag content, chat reports, admin signup, and
+  the audit fixes.
+- `tests/flows.test.js` — replays the app's real Firestore calls in order as
+  a normal owner, an anonymous finder and a passcode admin (sign-up →
+  register → claim → report → chat → moderation → recovery → release →
+  blacklist). Added after two bugs that blocked every real owner slipped past
+  the single-rule tests.
+
+## Deploy
+
+```bash
+npm run build
+firebase deploy --only firestore:rules,firestore:indexes,hosting
+```
+
+Deploy rules, indexes and hosting together — the app and the rules change
+in step. Hosting sends `no-cache` for pages (so a deploy shows up
+immediately), long-lived caching for `/assets/*`, and security headers; the
+Content-Security-Policy is currently **report-only** (see
+`firebase.json`).
 
 ## Routes
 
 Public: `/`, `/login`, `/register`, `/nfc/:tagId`, `/chat/:chatId`
-Owner (protected): `/dashboard`, `/dashboard/items`, `/dashboard/items/claim`, `/dashboard/nfc-setup`, `/dashboard/messages`, `/dashboard/notifications`, `/dashboard/settings`
-Admin: `/admin/inventory`, `/admin/moderation`
+Owner (signed in): `/dashboard`, `/dashboard/items`, `/dashboard/items/claim`, `/dashboard/nfc-setup`, `/dashboard/messages`, `/dashboard/notifications`, `/dashboard/settings`
+Admin: `/admin/login`, `/admin/register`, `/admin/inventory`, `/admin/nfc-register`, `/admin/tags`, `/admin/tags/:tagId`, `/admin/moderation`, `/admin/owners`
 
 ## Design system
 
 Brand: **TagBack** — purple (`#a855f7`) → pink (`#ec4899`) gradient accent on a
 pale lavender (`#e9edf5`) canvas, soft neumorphic (extruded/pressed) surfaces
 plus near-opaque white glass cards, pill-shaped buttons/badges. Full spec in
-[`LIGHT_NEUMORPHIC_REDESIGN_PLAN.md`](LIGHT_NEUMORPHIC_REDESIGN_PLAN.md)
-(supersedes the original dark theme in [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md#2-design-system-derived-from-the-tagback-landing-screenshot)).
+[`docs/LIGHT_NEUMORPHIC_REDESIGN_PLAN.md`](docs/LIGHT_NEUMORPHIC_REDESIGN_PLAN.md).
 
 ## Data model &amp; privacy
 
-PII isolation is enforced at document granularity (Firestore can't filter fields
-on read), so public-safe data and owner-linking data live in separate collections:
+PII isolation is enforced at document granularity (Firestore can't filter
+fields on read), so public-safe data and owner-linking data live in separate
+collections. "By ID" means a single document can be opened by anyone who
+knows its ID; listing the collection is restricted.
 
-| Collection | Visibility | Fields |
+| Collection | Access | Contents |
 |---|---|---|
-| `users/{uid}` | private (owner) | email, displayName, phone, notificationPrefs |
-| `tags/{tagId}` | public read, **admin write** | `tagId` is the TagBack ID minted at registration (not the physical chip UID); `physicalUid` (optional, only if the registering device's browser exposed one), status (`registered`/`claimed`/`blacklisted`), `chipType`, `writeStatus` (`not_written`/`writing`/`written`/`write_failed`), `flagReason` (optional string, set by admin when blacklisting) |
-| `items/{tagId}` | **public read** | tagId, itemName, isLostMode, lostMessage, rewardAmount — **no PII, no ownerUid** |
-| `tagProfiles/{tagId}` | **public read**, owner or admin write | landingMode, displayName, bio, website/instagram/facebook/tiktok/linkedin/youtube, contactUrl, redirectUrl, contactEnabled, lostFoundEnabled, updatedAt/updatedBy — **no PII, no ownerUid** |
-| `itemOwners/{tagId}` | private (owner) | ownerUid — the tag→owner map |
-| `reports/{id}` | owner read | tagId, finderSessionToken, initialMessage, location, status |
-| `chats/{id}` + `messages` | party read | anonymous two-way thread |
+| `users/{uid}` | owner + admin; not deletable | email, displayName, phone, notificationPrefs, `isAdmin` (fixed at creation), `disabled` (admin-set) |
+| `tags/{tagId}` | public **by ID**, list/write admin | TagBack ID (not the chip UID), status (`registered`/`claimed`/`blacklisted`), optional `physicalUid`, `chipType`, `writeStatus` |
+| `tagAdmin/{tagId}` | admin only | who registered it, blacklist reason / who / prior status |
+| `items/{tagId}` | public **by ID**, owner write | itemName, isLostMode, lostMessage, rewardAmount — **no PII, no ownerUid** |
+| `tagProfiles/{tagId}` | public **by ID**, owner or admin write | what a tap shows: landingMode, displayName, bio, links, contactUrl, redirectUrl — **no PII, no ownerUid** |
+| `itemOwners/{tagId}` | owner + admin | ownerUid — the only tag → owner map |
+| `reports/{id}` | owner read/resolve; public create (exact fields) | finder report with optional location |
+| `chats/{id}` + `messages` | open by ID; list: owner/admin | anonymous thread; per-side reports |
+| `notifications/{id}` | owner | report / message / moderation alerts |
+| `blockedTokens/{token}`, `meta/*` | admin only | finder bans; admin signup passcode |
 
 A finder reading `items/{tagId}` can never resolve the owner. See
 [`firestore.rules`](firestore.rules).
 
 ### Admin access
 
-`tags/{tagId}` writes require a Firebase Auth custom claim (`admin: true`) —
-there is no in-app way to grant it, by design. One-time setup per admin:
+Two ways to be an admin (both lose access if the account is disabled):
 
-1. In the Firebase console, go to Project settings -> Service accounts ->
-   Generate new private key. Save the JSON file somewhere outside the repo
-   (it must never be committed).
-2. Point `GOOGLE_APPLICATION_CREDENTIALS` at that file and run the grant
-   script:
+1. **Admin signup** at `/admin/register` with the admin signup passcode
+   (8+ characters). An existing admin sets or turns off the passcode on
+   **Admin → Owners** ("Generate" makes a random one). The passcode is
+   checked by the database rules — it's stored in `meta/adminSignup`, never
+   in the app bundle. Turn it off when nobody is being onboarded.
+2. **Custom claim** (for the first admin, or without a passcode): download a
+   service-account key (Firebase console → Project settings → Service
+   accounts → Generate new private key; never commit it), then
    ```bash
    GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json \
      node scripts/setAdmin.js you@example.com
    ```
-   (a UID also works in place of the email).
-3. The affected user must sign out and back in (or otherwise refresh their
-   ID token) for the new claim to take effect — `AdminLayout` checks
-   `(await user.getIdTokenResult()).claims.admin` on every load and redirects
-   non-admins to `/login`.
+   The user signs out and back in to pick up the claim.
 
-TagBack IDs are `TB-XXXX-XXXX`, drawn from an unambiguous 31-character
-alphabet (no `0`/`O`, `1`/`I`/`L`) — short enough to read off a sticker and
-type by hand, still ~40 bits of entropy against enumeration. Minted by
-TagBack at registration, never by the physical chip. See
-[`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md) for the full
+Signed-out visitors to `/admin/*` are sent to `/admin/login`.
+
+TagBack IDs are `TB-XXXX-XXXX`, from an unambiguous 31-character alphabet
+(no `0`/`O`, `1`/`I`/`L`) — short enough to type off a sticker, ~40 bits of
+entropy. Tag IDs can't be listed publicly, so they can't be harvested and
+claimed remotely. See
+[`docs/NFC_REARCHITECTURE_PLAN.md`](docs/NFC_REARCHITECTURE_PLAN.md) for the
 identity model (physical UID vs. TagBack ID vs. NDEF URL).
 
-## Build status by sprint
+## Scripts (`scripts/`, Admin SDK, need `GOOGLE_APPLICATION_CREDENTIALS`)
 
-- **Done:** design system, routing, security rules, geolocation helper, finder session tokens.
-- **Done:** admin auth (Firebase custom claim `admin: true`, `scripts/setAdmin.js`, `AdminLayout` guard) and real `tags/{tagId}` persistence (admin-gated writes in `firestore.rules`).
-- **Done:** real Firestore reads/writes for claim (`ClaimTag.jsx` transaction), the owner items/dashboard live queries, finder reports + anonymous chat.
-- **Done:** hardware-identity NFC registration (`admin/nfc-register`) — admin taps a physical sticker, reads its UID when the browser exposes one, mints a TagBack ID, writes the TagBack URL; owner claims by TagBack ID and configures `tagProfiles/{tagId}` at `dashboard/nfc-setup`. See [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md).
-- **Done:** TagBack rebrand + design-system pass (color tokens, pill buttons/badges, gradient accents) — see [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md).
-- **Done:** navigation shell — owner/admin left sidebars, public `TopNav`, and `NFC Setup`/`Messages`/`Notifications` pages — see [`REDESIGN_CHANGES.md`](REDESIGN_CHANGES.md#3--global-navigation-pattern).
-- **Done:** Dashboard/Items/Messages/Notifications/Chat all read and write live Firestore via `lib/ownerItems.js` (the earlier `localStorage` mock layer, `lib/api.js`, has been removed); claiming a tag now also flips `tags/{tagId}.status` to `claimed`. See [`ARCHITECTURE.md`](ARCHITECTURE.md#4-one-data-layer-live-or-mocked-by-firebaseready).
-- **TODO:** verify `NDEFReadingEvent.serialNumber` support on real target hardware (Android + Chrome + the actual NTAG stock) — no NFC read/write path has been tested on a physical device yet. Also not implemented: the optional serial-number cross-check on claim-by-tap, and real moderation depth/admin analytics/the other net-new functions in [`REDESIGN_PLAN.md`](REDESIGN_PLAN.md). See [`ARCHITECTURE.md`](ARCHITECTURE.md#8-known-gaps--inconsistencies) and [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md#13-open-questions--resolved-implementation-status) for the current gap list.
-- **Migration:** any pre-existing `tags/{tagId}` doc with the old `status: 'unclaimed'` needs `scripts/migrateUnclaimedTags.js` run against it (`--dry-run` first) before it'll match the current rules/claim path — not needed if the project has no such docs yet.
+| Script | Does |
+|---|---|
+| `setAdmin.js <uid-or-email>` | Grant the admin custom claim |
+| `revokeSelfServeAdmin.js <uid-or-email>` | Set `users/{uid}.isAdmin` to false |
+| `listSelfServeAdmins.js` | List passcode-created admins (read-only) |
+| `setAdminSignupPasscode.js <passcode> \| --off` | Set or clear the admin signup passcode |
+| `exportFirestore.js [outDir]` | Back up every collection to local JSON (`backups/`, git-ignored) — the free-plan substitute for managed backups |
+| `migrateUnclaimedTags.js` | One-off: old `status: 'unclaimed'` docs → current schema (`--dry-run` first) |
+
+## Known limitations
+
+- Finder identity is a browser-local token: bans are easy to bypass, and
+  anyone holding a chat link can act as its finder. Notification spam is
+  possible. Both need Firebase App Check.
+- No push or email notifications, and link previews are the same for every
+  tag — both need server-side code (Cloud Functions, i.e. the paid Blaze
+  plan).
+- NFC read/write needs Android + Chrome (Web NFC).
+- See [`ARCHITECTURE.md`](ARCHITECTURE.md#8-known-gaps--inconsistencies) and
+  the audits in [`docs/`](docs/README.md).

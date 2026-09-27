@@ -584,6 +584,19 @@ export async function applyTagProfileToMany(tagIds, profile) {
 // queue, marked archivedAt so no owner inbox shows them).
 export async function releaseTag(tagId) {
   if (!firebaseReady) return;
+  // Check first, delete second (SYSTEM_AUDIT_ROUND3.md C1): the release
+  // transaction below only succeeds on a 'claimed' tag. Without this, a
+  // blacklisted tag lost its history here and then failed to release.
+  const tagSnap = await getDoc(doc(db, 'tags', tagId));
+  if (!tagSnap.exists() || tagSnap.data().status !== 'claimed') {
+    const err = new Error(
+      tagSnap.exists() && tagSnap.data().status === 'blacklisted'
+        ? 'This tag is blacklisted and cannot be released. Contact the admin.'
+        : 'This tag cannot be released right now.'
+    );
+    err.code = 'release-not-allowed';
+    throw err;
+  }
   const byTag = (name) => getDocs(query(collection(db, name), where('tagId', '==', tagId)));
   const [reportSnap, notifSnap, chatSnap] = await Promise.all([byTag('reports'), byTag('notifications'), byTag('chats')]);
   const ops = [
@@ -651,6 +664,26 @@ export async function getTagScanCount(tagId) {
   } catch {
     return 0;
   }
+}
+
+// Taps split by what they showed (SYSTEM_AUDIT_ROUND3.md C2): scans record
+// `landingMode` since the tag-content change; older scans have none and only
+// count toward the total. Returns { total, lostfound, profile, redirect }.
+export async function getTagScanBreakdown(tagId) {
+  const empty = { total: 0, lostfound: 0, profile: 0, redirect: 0 };
+  if (!firebaseReady || !tagId) return empty;
+  const scans = collection(db, 'tags', tagId, 'scans');
+  const count = (q) =>
+    getCountFromServer(q)
+      .then((s) => s.data().count)
+      .catch(() => 0);
+  const [total, lostfound, profile, redirect] = await Promise.all([
+    count(scans),
+    count(query(scans, where('landingMode', '==', 'lostfound'))),
+    count(query(scans, where('landingMode', '==', 'profile'))),
+    count(query(scans, where('landingMode', '==', 'redirect'))),
+  ]);
+  return { total, lostfound, profile, redirect };
 }
 
 // Live single chat doc, for Chat.jsx (owner or finder view).

@@ -19,18 +19,9 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="TagBack — tap to reach the owner privately" />
     <meta name="twitter:card" content="summary_large_image" />
-    <script>
-      // Apply the stored theme before first paint so toggling dark mode is
-      // instant on reload too — without this, the page would flash light
-      // then snap to dark once React mounts and ThemeContext's effect runs.
-      (function () {
-        try {
-          if (localStorage.getItem('theme') === 'dark') {
-            document.documentElement.classList.add('dark');
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <!-- Theme applied before first paint (separate file, not inline, so the
+         Content-Security-Policy in firebase.json can use script-src 'self'). -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

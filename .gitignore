@@ -14,3 +14,6 @@ dist-ssr
 # Never commit these.
 *service-account*.json
 *-firebase-adminsdk-*.json
+
+# Local Firestore backups from scripts/exportFirestore.js (private data).
+backups/

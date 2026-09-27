@@ -86,7 +86,9 @@ export default function Items() {
       toast.success('Tag released — it can be re-claimed or re-provisioned now.');
     } catch (err) {
       toast.error(
-        err.code === 'release-partial'
+        err.code === 'release-not-allowed'
+          ? err.message
+          : err.code === 'release-partial'
           ? "This tag's reports, chats and alerts were cleared, but releasing it failed. It's still yours — try Release again."
           : friendlyFirestoreError(err, 'Could not release this tag. Try again.')
       );
@@ -252,13 +254,17 @@ export default function Items() {
                 >
                   NFC profile
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => setReleaseDialog({ tagId: it.tagId, name: it.itemName })}
-                  className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400"
-                >
-                  <Unlink className="h-3 w-3" /> Release tag
-                </button>
+                {/* SYSTEM_AUDIT_ROUND3.md C1: the rules refuse to release a
+                    blacklisted tag, so don't offer it (releaseTag also checks). */}
+                {it.tagStatus !== 'blacklisted' && (
+                  <button
+                    type="button"
+                    onClick={() => setReleaseDialog({ tagId: it.tagId, name: it.itemName })}
+                    className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400"
+                  >
+                    <Unlink className="h-3 w-3" /> Release tag
+                  </button>
+                )}
               </div>
             </div>
             <label className="flex shrink-0 items-center gap-2">

@@ -2,7 +2,7 @@
 
 System-level reference for how the app is put together. For product scope see
 [`README.md`](README.md); for UI token/component spec see
-[`REDESIGN_PLAN.md`](REDESIGN_PLAN.md) and [`LIGHT_NEUMORPHIC_REDESIGN_PLAN.md`](LIGHT_NEUMORPHIC_REDESIGN_PLAN.md).
+[`REDESIGN_PLAN.md`](docs/REDESIGN_PLAN.md) and [`LIGHT_NEUMORPHIC_REDESIGN_PLAN.md`](docs/LIGHT_NEUMORPHIC_REDESIGN_PLAN.md).
 
 ## 1. Shape of the system
 
@@ -88,12 +88,12 @@ resolve who owns a tag.
 | Collection | Visibility | Notes |
 |---|---|---|
 | `users/{uid}` | private (owner) | profile, phone, notification prefs. Can't be deleted by its owner; `isAdmin: true` only accepted on create with the passcode in `meta/adminSignup` |
-| `tags/{tagId}` | public read, admin write | NFC asset registry — `tagId` is the TagBack ID (minted at registration, not the physical chip UID); status: `registered` / `claimed` / `blacklisted`; optional `physicalUid` when the registering device's browser exposed one |
+| `tags/{tagId}` | public **by ID** (get), list + write admin | NFC asset registry — `tagId` is the TagBack ID (minted at registration, not the physical chip UID); status: `registered` / `claimed` / `blacklisted`; optional `physicalUid` when the registering device's browser exposed one |
 | `tags/{tagId}/scans/{scanId}` | public create (real tags, server time), owner/admin read | anonymous tap counter + `landingMode` shown, immutable |
 | `tagAdmin/{tagId}` | admin only | `registeredBy`, blacklist reason/who/prior status — kept off the public `tags` doc |
-| `items/{tagId}` | **public read** | itemName, isLostMode, lostMessage, rewardAmount — no PII, no ownerUid |
-| `tagProfiles/{tagId}` | **public read**, owner or admin write | what a tap shows: `landingMode` (`lostfound`/`profile`/`redirect`), `displayName`, `bio`, social links, `contactUrl`, `redirectUrl`, toggles, `updatedAt`/`updatedBy` — no PII, no ownerUid. An unclaimed tag set to `profile`/`redirect` is admin-managed and can't be claimed |
-| `itemOwners/{tagId}` | private (owner) | the only tag → owner map; never public. Created only together with `tags.status → claimed`, deleted only together with `→ registered`, never edited |
+| `items/{tagId}` | public **by ID** (get); list: owner/admin | itemName, isLostMode, lostMessage, rewardAmount — no PII, no ownerUid |
+| `tagProfiles/{tagId}` | public **by ID** (get), list admin; owner or admin write | what a tap shows: `landingMode` (`lostfound`/`profile`/`redirect`), `displayName`, `bio`, social links, `contactUrl`, `redirectUrl`, toggles, `updatedAt`/`updatedBy` — no PII, no ownerUid. An unclaimed tag set to `profile`/`redirect` is admin-managed and can't be claimed |
+| `itemOwners/{tagId}` | private: owner (get, and list of their own rows) + admin | the only tag → owner map; never public. Created only together with `tags.status → claimed`, deleted only together with `→ registered`, never edited |
 | `reports/{id}` | owner read/resolve/delete, public create (exact fields) | a finder's "found it" report, keyed by `finderSessionToken`; closed on "Mark as recovered"; deleted when the tag is released |
 | `chats/{id}` + `messages` | get by id: public; list: tag owner/admin | anonymous two-way thread, no `ownerUid` on the doc; `reportedByOwner`/`reportedByFinder` for moderation |
 | `notifications/{id}` | owner read (via tagId join) | written by whoever triggers the event |
@@ -124,7 +124,7 @@ Full rule logic: [`firestore.rules`](firestore.rules). Key mechanisms:
 ## 7. NFC tag lifecycle
 
 The physical NFC sticker owns its identity — the admin does not generate
-it. Full rationale and phased rollout: [`NFC_REARCHITECTURE_PLAN.md`](NFC_REARCHITECTURE_PLAN.md).
+it. Full rationale and phased rollout: [`NFC_REARCHITECTURE_PLAN.md`](docs/NFC_REARCHITECTURE_PLAN.md).
 Three distinct identifiers are in play and must never be conflated:
 
 - **Physical UID** — the chip's own hardware serial, read via

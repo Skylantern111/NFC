@@ -310,7 +310,17 @@ service cloud.firestore {
       // owns it, to check "already claimed?". Non-owner/non-admin read is
       // only safe while the doc doesn't exist yet — no data to leak — and
       // this clause self-revokes the instant a claim creates the doc.
-      allow read: if ownsTag(tagId) || isAdmin() || (isSignedIn() && resource == null);
+      allow get: if ownsTag(tagId) || isAdmin() || (isSignedIn() && resource == null);
+      // SYSTEM_AUDIT_ROUND3.md A1: this used to be one `read` rule. For a
+      // query, {tagId} has no value, so ownsTag(tagId) failed with a null
+      // error and denied the owner's own "my tags" query
+      // (lib/ownerItems.js#useOwnerTagIds: where ownerUid == my uid) — every
+      // owner page came up empty. A query is allowed when it can only return
+      // the caller's own rows (or for an admin).
+      allow list: if isAdmin()
+        || (isSignedIn()
+            && resource.data.ownerUid == request.auth.uid
+            && !isDisabledOwner(request.auth.uid));
       // Claim: create allowed only if the tag is currently registered
       // (admin has provisioned it, no owner yet), the caller assigns
       // themselves as owner, AND the same write flips tags.status to
