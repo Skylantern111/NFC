@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { LoadingState } from '../../components/States';
 import AdminSidebar from '../../components/nav/AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
 import { checkIsAdmin } from '../../lib/adminAuth';
@@ -34,11 +34,7 @@ function AdminGate({ children }) {
   }, [firebaseReady, loading, user]);
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500 dark:text-slate-400">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-      </div>
-    );
+    return <LoadingState variant="page" label="Checking admin access…" />;
   }
 
   // Placeholder mode: no real auth yet, let the admin console render for dev preview.
@@ -47,11 +43,7 @@ function AdminGate({ children }) {
   if (!user) return <Navigate to="/admin/login" state={{ from: location }} replace />;
 
   if (checkingClaim) {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500 dark:text-slate-400">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-      </div>
-    );
+    return <LoadingState variant="page" label="Checking admin access…" />;
   }
 
   if (!isAdmin) {
@@ -72,9 +64,9 @@ export default function AdminLayout() {
     <AdminGate>
       <div className="min-h-screen bg-base">
         <AdminSidebar />
-        <div className="px-4 py-6 sm:px-8 sm:py-8 md:ml-56">
+        <main id="main" tabIndex={-1} className="px-4 py-6 outline-none sm:px-8 sm:py-8 md:ml-56">
           <Outlet />
-        </div>
+        </main>
       </div>
     </AdminGate>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   collection,
@@ -22,6 +22,10 @@ import {
   tagUrl,
 } from '../../lib/tags';
 import { Button } from '@/components/ui/button';
+import NfcScanPanel from '@/components/NfcScanPanel';
+import PageHeader from '@/components/PageHeader';
+import { LoadingState } from '@/components/States';
+import { friendlyFirestoreError } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +69,9 @@ export default function NfcRegister() {
   const [phase, setPhase] = useState('idle');
   const [loadingExisting, setLoadingExisting] = useState(!!rewriteTagId);
   const [scanError, setScanError] = useState('');
+  // UI_UX_IMPROVEMENT_PLAN.md ADM6: why the last scan failed, for the shared
+  // scan panel — 'error' | 'denied' | 'timeout' | null.
+  const [scanFailure, setScanFailure] = useState(null);
   const [reading, setReading] = useState(null); // { physicalUid, nfcCapability, matchedTagId }
   const [existingTag, setExistingTag] = useState(null);
   const [chipType, setChipType] = useState('NTAG215');
@@ -155,8 +162,16 @@ export default function NfcRegister() {
     return null;
   }
 
+  const onScanTimeout = useCallback(() => {
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+    setPhase('idle');
+    setScanFailure('timeout');
+  }, []);
+
   async function startScan() {
     setScanError('');
+    setScanFailure(null);
     setPhase('scanning');
     stopScan();
     const controller = new AbortController();
@@ -182,23 +197,19 @@ export default function NfcRegister() {
             setPhase('preview');
           }
         } catch (err) {
-          setScanError(err.message || 'Could not check registration status.');
+          setScanError(friendlyFirestoreError(err, 'Could not check whether this sticker is registered. Try again.'));
           setPhase('idle');
         }
       };
       reader.onreadingerror = () => {
         stopScan();
-        setScanError('No NFC tag detected. Hold the phone closer to the sticker and try again.');
+        setScanFailure('error');
         setPhase('idle');
       };
       await reader.scan({ signal: controller.signal });
     } catch (err) {
       if (err.name === 'AbortError') return;
-      setScanError(
-        err.name === 'NotAllowedError'
-          ? 'NFC permission was denied. Please allow NFC access and try again.'
-          : err.message || 'Could not start NFC scan.'
-      );
+      setScanFailure(err.name === 'NotAllowedError' ? 'denied' : 'error');
       setPhase('idle');
     }
   }
@@ -263,7 +274,7 @@ export default function NfcRegister() {
         setPhase('registered');
       }
     } catch (err) {
-      setRegisterError(err.message || 'Failed to register tag.');
+      setRegisterError(err?.code ? friendlyFirestoreError(err, 'Could not register the tag. Try again.') : err.message);
     } finally {
       setRegistering(false);
     }
@@ -338,7 +349,7 @@ export default function NfcRegister() {
       });
       setDevTagId(tagId);
     } catch (err) {
-      setDevError(err.message || 'Failed to register tag.');
+      setDevError(err?.code ? friendlyFirestoreError(err, 'Could not register the tag. Try again.') : err.message);
     } finally {
       setDevBusy(false);
     }
@@ -346,46 +357,39 @@ export default function NfcRegister() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">
-          {reregisterTagId ? 'Re-register physical sticker' : rewriteTagId ? 'Retry NFC write' : 'NFC tag registration'}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {reregisterTagId ? (
+      <PageHeader
+        title={reregisterTagId ? 'Re-register a sticker' : rewriteTagId ? 'Retry NFC write' : 'Register tags'}
+        description={
+          reregisterTagId ? (
             <>Tap the replacement sticker to re-point <span className="font-mono">{reregisterTagId}</span> at it.</>
           ) : rewriteTagId ? (
-            <>Re-write the TagBack URL for <span className="font-mono">{rewriteTagId}</span> — no new tap needed.</>
+            <>Re-write the TagBack link for <span className="font-mono">{rewriteTagId}</span> — no new tap needed.</>
           ) : (
-            "Tap a physical NFC sticker to read it, register it, and write its TagBack URL."
-          )}
-        </p>
-      </div>
+            'Tap a blank sticker to read it, register it, and write its TagBack link. Owners claim it later with its TagBack ID.'
+          )
+        }
+        documentTitle="Register tags"
+      />
 
-      {loadingExisting && (
-        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
-          <CardContent className="flex items-center justify-center gap-2 p-8 text-sm text-slate-500 dark:text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading tag…
-          </CardContent>
-        </Card>
-      )}
+      {loadingExisting && <LoadingState label="Loading tag…" />}
 
       {!loadingExisting && (
       <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
         <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
           {phase === 'idle' && (
             <>
-              <Nfc className="h-10 w-10 text-purple-600" />
               {nfcSupported ? (
-                <>
-                  <p className="font-semibold text-slate-800 dark:text-slate-100">
-                    {reregisterTagId ? 'Tap the new sticker' : 'Tap NFC sticker to register it'}
-                  </p>
-                  <Button onClick={startScan} className="gap-2">
-                    <Nfc className="h-4 w-4" /> Start NFC scan
-                  </Button>
-                </>
+                <div className="w-full">
+                  <NfcScanPanel
+                    status={scanFailure || 'idle'}
+                    onStart={startScan}
+                    idleTitle={reregisterTagId ? 'Tap the new sticker' : 'Tap a sticker to register it'}
+                    idleHint="Hold the sticker against the back of this phone after you start."
+                    startLabel="Start NFC scan"
+                  />
+                </div>
               ) : (
-                <div className="flex flex-col items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <div className="flex flex-col items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                   <TriangleAlert className="h-5 w-5 text-amber-500" />
                   <p>
                     NFC reading is not supported in this browser. Please use Android + Chrome over
@@ -393,27 +397,25 @@ export default function NfcRegister() {
                   </p>
                 </div>
               )}
-              {scanError && <p className="text-sm text-red-500">{scanError}</p>}
+              {scanError && (
+                <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+                  {scanError}
+                </p>
+              )}
             </>
           )}
 
           {phase === 'scanning' && (
-            <>
-              <Loader2 className="h-10 w-10 animate-spin text-purple-600" />
-              <p className="font-semibold text-slate-800 dark:text-slate-100">Waiting for NFC…</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Hold the sticker against the back of the device.
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => {
+            <div className="w-full">
+              <NfcScanPanel
+                status="scanning"
+                onCancel={() => {
                   stopScan();
                   setPhase('idle');
                 }}
-              >
-                Cancel
-              </Button>
-            </>
+                onTimeout={onScanTimeout}
+              />
+            </div>
           )}
 
           {phase === 'existing' && existingTag && (
@@ -423,9 +425,9 @@ export default function NfcRegister() {
                 This NFC tag is already registered.
               </p>
               <div className="w-full space-y-1 rounded-xl bg-base p-4 text-left text-sm shadow-neu-pressed-sm">
-                <p><span className="text-slate-500 dark:text-slate-400">Tag ID:</span> <span className="font-mono">{existingTag.tagId}</span></p>
-                <p><span className="text-slate-500 dark:text-slate-400">Status:</span> <Badge variant="outline">{existingTag.status}</Badge></p>
-                <p><span className="text-slate-500 dark:text-slate-400">Write status:</span> {existingTag.writeStatus || 'not_written'}</p>
+                <p><span className="text-slate-600 dark:text-slate-400">Tag ID:</span> <span className="font-mono">{existingTag.tagId}</span></p>
+                <p><span className="text-slate-600 dark:text-slate-400">Status:</span> <Badge variant="outline">{existingTag.status}</Badge></p>
+                <p><span className="text-slate-600 dark:text-slate-400">Write status:</span> {existingTag.writeStatus || 'not_written'}</p>
               </div>
               <Button variant="outline" onClick={reset} className="gap-2">
                 <RotateCcw className="h-4 w-4" /> Scan another tag
@@ -439,11 +441,11 @@ export default function NfcRegister() {
               <p className="font-semibold text-slate-800 dark:text-slate-100">Tag read successfully</p>
               <div className="w-full space-y-1 rounded-xl bg-base p-4 text-left text-sm shadow-neu-pressed-sm">
                 <p>
-                  <span className="text-slate-500 dark:text-slate-400">Physical UID:</span>{' '}
+                  <span className="text-slate-600 dark:text-slate-400">Physical UID:</span>{' '}
                   <span className="font-mono">{reading.physicalUid || 'not exposed by this browser/tag'}</span>
                 </p>
-                <p><span className="text-slate-500 dark:text-slate-400">NFC capability:</span> {reading.nfcCapability}</p>
-                <p><span className="text-slate-500 dark:text-slate-400">Status:</span> Unregistered</p>
+                <p><span className="text-slate-600 dark:text-slate-400">NFC capability:</span> {reading.nfcCapability}</p>
+                <p><span className="text-slate-600 dark:text-slate-400">Status:</span> Unregistered</p>
               </div>
               <div className="w-full space-y-2 text-left">
                 <Label>Chip type</Label>
@@ -455,7 +457,7 @@ export default function NfcRegister() {
                   ))}
                 </RadioGroup>
               </div>
-              {registerError && <p className="text-sm text-red-500">{registerError}</p>}
+              {registerError && <p className="text-sm text-red-700 dark:text-red-300">{registerError}</p>}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={reset}>Cancel</Button>
                 <Button onClick={onRegister} disabled={registering} className="gap-2">
@@ -480,7 +482,7 @@ export default function NfcRegister() {
                 <div className="rounded-xl bg-base p-3 font-mono text-xs text-slate-600 dark:text-slate-300 shadow-neu-pressed-sm">
                   {tagUrl(tag.tagId)}
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
                   The sticker only holds this link. What a tap shows (lost &amp; found page, profile
                   card, or a redirect) is set in the tag's content and can change any time without
                   rewriting the sticker.
@@ -559,7 +561,7 @@ export default function NfcRegister() {
             <Button variant="outline" onClick={onDevRegister} disabled={devBusy}>
               {devBusy ? 'Registering…' : 'Register tag (dev fallback)'}
             </Button>
-            {devError && <p className="text-sm text-red-500">{devError}</p>}
+            {devError && <p className="text-sm text-red-700 dark:text-red-300">{devError}</p>}
             {devTagId && (
               <p className="text-sm text-slate-600 dark:text-slate-300">
                 Registered: <span className="font-mono">{devTagId}</span>

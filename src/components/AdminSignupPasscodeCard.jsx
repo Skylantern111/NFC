@@ -78,7 +78,7 @@ export default function AdminSignupPasscodeCard() {
         <CardTitle className="flex items-center gap-2 text-base">
           <KeyRound className="h-4 w-4" /> Admin signup passcode
         </CardTitle>
-        <CardDescription className="text-slate-500 dark:text-slate-400">
+        <CardDescription className="text-slate-600 dark:text-slate-400">
           Anyone who types this passcode on the admin signup page (/admin/register) becomes an admin. Checked by the database rules, never shipped to browsers. Turn it off when nobody is being
           onboarded. Status: {enabled === null ? 'loading…' : enabled ? 'on' : 'off (no passcode set)'}.
         </CardDescription>

@@ -1,14 +1,12 @@
 import { cn } from "@/lib/utils";
 
-// Was `bg-accent` — that token is the brand "signal" pink at 50% lightness
-// (see index.css), meant for badges/highlights, not a shimmer placeholder.
-// Reused here it read as a bright hot-pink flash instead of a loading
-// placeholder — swapped for a dedicated light pink in both themes.
+// Neutral, not brand-tinted: a pink placeholder read as content
+// (UI_UX_IMPROVEMENT_PLAN.md DS8).
 function Skeleton({ className, ...props }) {
   return (
     <div
       data-slot="skeleton"
-      className={cn("bg-pink-100 dark:bg-pink-500/10 animate-pulse rounded-md", className)}
+      className={cn("bg-slate-200/80 dark:bg-white/5 animate-pulse rounded-md", className)}
       {...props}
     />
   );

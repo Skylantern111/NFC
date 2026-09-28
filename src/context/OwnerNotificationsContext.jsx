@@ -1,28 +1,42 @@
-import { createContext, useContext, useEffect } from 'react';
+import { createContext, useContext, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { useOwnerNotifications } from '../lib/ownerItems';
+import { useOwnerChats, useOwnerNotifications } from '../lib/ownerItems';
+import { setTitleBadge } from '../lib/pageTitle';
 
 const OwnerNotificationsContext = createContext(null);
 
-const BASE_TITLE = document.title;
+// A chat is unread for the owner while 'owner' is in its unreadFor.
+export function isChatUnreadForOwner(chat) {
+  return Array.isArray(chat.unreadFor) ? chat.unreadFor.includes('owner') : chat.unreadFor === 'owner';
+}
 
-// Single onSnapshot listener shared by DashboardSidebar (unread badge) and
-// Notifications.jsx (full list) instead of each mounting its own — both are
-// mounted together under DashboardLayout whenever any dashboard page is open.
+// One notifications listener and one chats listener, shared by the nav
+// badges and every owner page under DashboardLayout, instead of each
+// mounting its own.
+//
+// UI_UX_IMPROVEMENT_PLAN.md NAV3: Messages is the inbox, so the one number
+// badge is unread chats; unread notifications only get a dot on Alerts.
 export function OwnerNotificationsProvider({ children }) {
   const { user } = useAuth();
-  const value = useOwnerNotifications(user);
+  const notifications = useOwnerNotifications(user);
+  const chats = useOwnerChats(user);
+  const unreadChatCount = useMemo(() => chats.chats.filter(isChatUnreadForOwner).length, [chats.chats]);
 
-  // §R2.5 — a badge in the sidebar is invisible from a background tab.
-  // No other page in this app ever sets document.title, so this can't
-  // clobber anything — restored on unmount so it doesn't leak past a
-  // sign-out into a page that never wanted a badge.
+  // §R2.5 — a nav badge is invisible from a background tab.
   useEffect(() => {
-    document.title = value.unreadCount > 0 ? `(${value.unreadCount}) ${BASE_TITLE}` : BASE_TITLE;
-    return () => {
-      document.title = BASE_TITLE;
-    };
-  }, [value.unreadCount]);
+    setTitleBadge(unreadChatCount);
+    return () => setTitleBadge(0);
+  }, [unreadChatCount]);
+
+  const value = useMemo(
+    () => ({
+      ...notifications,
+      chats: chats.chats,
+      chatsLoading: chats.loading,
+      unreadChatCount,
+    }),
+    [notifications, chats.chats, chats.loading, unreadChatCount]
+  );
 
   return <OwnerNotificationsContext.Provider value={value}>{children}</OwnerNotificationsContext.Provider>;
 }

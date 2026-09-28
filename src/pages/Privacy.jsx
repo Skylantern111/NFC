@@ -1,6 +1,7 @@
 import AmbientBackground from '../components/AmbientBackground';
 import TopNav from '../components/nav/TopNav';
 import GlassCard from '../components/GlassCard';
+import PageHeader from '../components/PageHeader';
 
 // Plain-language privacy note (SYSTEM_AUDIT_ROUND4.md C1). Keep in step with
 // firestore.rules and lib/account.js#deleteMyAccount.
@@ -38,11 +39,30 @@ export default function Privacy() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" />
         <main className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-5 py-8">
-          <h1 className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">Privacy</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            TagBack is built so the owner and the finder never see each other&apos;s name, phone, email or address.
-            This page lists what is stored.
-          </p>
+          <PageHeader
+            title="Privacy"
+            description="TagBack is built so the owner and the finder never see each other's name, phone, email or address. This page lists what is stored."
+          />
+          {/* UI_UX_IMPROVEMENT_PLAN.md C.14: the short answer first. */}
+          <GlassCard>
+            <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">In short</h2>
+            <dl className="grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="font-semibold text-slate-800 dark:text-slate-100">What we store</dt>
+                <dd className="text-slate-700 dark:text-slate-300">Your account, your items, and the chats about them.</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-slate-800 dark:text-slate-100">Who sees it</dt>
+                <dd className="text-slate-700 dark:text-slate-300">
+                  Finders see only the item page. Owners see only what finders send.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-slate-800 dark:text-slate-100">How to delete it</dt>
+                <dd className="text-slate-700 dark:text-slate-300">Release a tag, or delete your account in Settings.</dd>
+              </div>
+            </dl>
+          </GlassCard>
           {SECTIONS.map((s) => (
             <GlassCard key={s.title}>
               <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">{s.title}</h2>

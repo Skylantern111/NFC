@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, UserX, UserCheck, Loader2 } from 'lucide-react';
+import { Search, UserX, UserCheck } from 'lucide-react';
 import AdminSignupPasscodeCard from '../../components/AdminSignupPasscodeCard';
 import { toast } from 'sonner';
+import PageHeader from '@/components/PageHeader';
+import StatusBadge from '@/components/StatusBadge';
+import { FormError } from '@/components/FormField';
+import { EmptyState } from '@/components/States';
 import { findOwnerByTag, listOwnerTags, setOwnerDisabled } from '../../lib/adminOwners';
-import { normalizeTagbackId, TAG_STATUS_BADGE } from '../../lib/tags';
-import { relativeTimeFromMs, toMillis } from '../../lib/utils';
+import { normalizeTagbackId } from '../../lib/tags';
+import { friendlyFirestoreError, relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,7 +69,7 @@ export default function Owners() {
       const tags = await listOwnerTags(result.ownerUid);
       setOwnerTags(tags);
     } catch (err) {
-      setError(err.message || 'Lookup failed.');
+      setError(friendlyFirestoreError(err, 'Lookup failed. Try again.'));
     } finally {
       setSearching(false);
       setTagsLoading(false);
@@ -99,7 +102,7 @@ export default function Owners() {
       setDisableReason('');
       toast.success(next ? 'Account disabled.' : 'Account re-enabled.');
     } catch (err) {
-      toast.error('Could not update account: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not update the account. Try again.'));
     } finally {
       setDisableBusy(false);
     }
@@ -107,27 +110,29 @@ export default function Owners() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Owners</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Look up which account holds a tag, see their other tags, and disable an abusive owner.
-        </p>
-      </div>
+      <PageHeader
+        title="Owners"
+        description="Look up which account holds a tag, see their other tags, and disable an abusive owner."
+      />
 
       <form onSubmit={onSearch} className="flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Paste a TagBack ID…"
+          aria-label="TagBack ID"
+          placeholder="Paste a TagBack ID, e.g. TB-ABCD-2345"
           value={tagId}
           onChange={(e) => setTagId(e.target.value)}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
           className="max-w-md font-mono text-sm"
         />
-        <Button type="submit" disabled={searching || !tagId.trim()} className="gap-1.5">
-          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+        <Button type="submit" variant="primary" disabled={!tagId.trim()} loading={searching} className="gap-1.5">
+          {!searching && <Search className="h-4 w-4" />}
           {searching ? 'Looking up…' : 'Look up owner'}
         </Button>
       </form>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      <FormError>{error}</FormError>
 
       {owner && (
         <>
@@ -137,9 +142,9 @@ export default function Owners() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     {owner.displayName || owner.email || 'Owner'}
-                    {owner.disabled && <Badge variant="destructive">Disabled</Badge>}
+                    {owner.disabled && <StatusBadge state="banned" label="Disabled" />}
                   </CardTitle>
-                  <CardDescription className="text-slate-500 dark:text-slate-400">
+                  <CardDescription className="text-slate-600 dark:text-slate-400">
                     {owner.email ? `Sign-up email: ${owner.email}` : 'No email on file'}
                   </CardDescription>
                 </div>
@@ -157,15 +162,15 @@ export default function Owners() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Owner UID</p>
+                <p className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Owner UID</p>
                 <p className="font-mono text-xs text-slate-600 dark:text-slate-300">{owner.uid}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Phone</p>
+                <p className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Phone</p>
                 <p className="text-slate-600 dark:text-slate-300">{owner.phone || '—'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Member since</p>
+                <p className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Member since</p>
                 <p className="text-slate-600 dark:text-slate-300">
                   {owner.createdAt ? relativeTimeFromMs(toMillis(owner.createdAt)) : '—'}
                 </p>
@@ -178,21 +183,21 @@ export default function Owners() {
               <CardTitle>
                 Tags owned
                 {ownerTags.length > 0 && (
-                  <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">({ownerTags.length})</span>
+                  <span className="ml-1.5 font-normal text-slate-600 dark:text-slate-400">({ownerTags.length})</span>
                 )}
               </CardTitle>
-              <CardDescription className="text-slate-500 dark:text-slate-400">
+              <CardDescription className="text-slate-600 dark:text-slate-400">
                 Every tag registered to this account.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto rounded-xl bg-base shadow-neu-pressed-sm">
-                <Table>
+              <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
+                <Table className="stack-table">
                   <TableHeader>
                     <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                      <TableHead className="text-slate-500 dark:text-slate-400">Tag ID</TableHead>
-                      <TableHead className="text-slate-500 dark:text-slate-400">Item</TableHead>
-                      <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Tag ID</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Item</TableHead>
+                      <TableHead className="text-slate-600 dark:text-slate-400">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -208,21 +213,19 @@ export default function Owners() {
                       ))}
                     {!tagsLoading && ownerTags.length === 0 && (
                       <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                        <TableCell colSpan={3} className="py-6 text-center text-slate-500 dark:text-slate-400">
+                        <TableCell colSpan={3} className="py-6 text-center text-slate-600 dark:text-slate-400">
                           No tags found for this owner.
                         </TableCell>
                       </TableRow>
                     )}
                     {ownerTags.map((t) => (
                       <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60">
-                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
+                        <TableCell data-label="Tag ID" className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
                           {t.tagId}
                         </TableCell>
-                        <TableCell className="text-slate-600 dark:text-slate-300">{t.itemName || '—'}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.registered}>
-                            {t.status || 'unknown'}
-                          </Badge>
+                        <TableCell data-label="Item" className="text-slate-700 dark:text-slate-200">{t.itemName || '—'}</TableCell>
+                        <TableCell data-label="Status">
+                          <StatusBadge state={t.status || 'registered'} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -235,19 +238,11 @@ export default function Owners() {
       )}
 
       {!searched && (
-        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
-          <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
-            <Search className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            <p className="font-bold text-slate-800 dark:text-slate-100">Look up an owner.</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Paste a tag ID above to find the account behind it.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState icon={Search} title="Look up an owner" description="Paste a TagBack ID above to find the account behind it." />
       )}
 
       {searched && !searching && !owner && !error && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">No result.</p>
+        <p role="status" className="text-sm text-slate-600 dark:text-slate-400">No owner found for that tag.</p>
       )}
 
       <Dialog
@@ -290,9 +285,9 @@ export default function Owners() {
             </Button>
             <Button
               type="button"
-              variant={owner?.disabled ? 'default' : 'destructive'}
+              variant={owner?.disabled ? 'primary' : 'destructive'}
               onClick={onConfirmDisable}
-              disabled={disableBusy}
+              loading={disableBusy}
             >
               {disableBusy ? 'Saving…' : owner?.disabled ? 'Re-enable' : 'Disable account'}
             </Button>

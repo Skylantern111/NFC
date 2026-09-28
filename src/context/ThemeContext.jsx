@@ -22,6 +22,10 @@ export function ThemeProvider({
     } else {
       root.classList.remove("dark");
     }
+    // Browser-bar color follows the theme (UI_UX_IMPROVEMENT_PLAN.md DS14).
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", theme === "dark" ? "#0D0A1A" : "#E9EDF5");
 
     if (switchable) {
       localStorage.setItem("theme", theme);

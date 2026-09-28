@@ -83,7 +83,7 @@ export function ProfileCard({ profile, onReport, preview = false }) {
       </div>
       <div>
         <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">{name || 'Your name'}</h2>
-        {bio && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{bio}</p>}
+        {bio && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{bio}</p>}
       </div>
       <LinkPills profile={profile} interactive={!preview} />
       <Button
@@ -96,13 +96,11 @@ export function ProfileCard({ profile, onReport, preview = false }) {
         <UserPlus className="h-3.5 w-3.5" /> Save contact
       </Button>
       {onReport && (
-        <button
-          type="button"
-          onClick={preview ? undefined : onReport}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-pink-600"
-        >
-          Found this item? Report it <ArrowRight className="h-3 w-3" />
-        </button>
+        // A finder's way in from a profile card — a real button, not small
+        // link text (UI_UX_IMPROVEMENT_PLAN.md C.8).
+        <Button type="button" variant="primary" className="mt-2 w-full gap-1.5" onClick={preview ? undefined : onReport}>
+          Found this item? Message the owner <ArrowRight className="h-4 w-4" />
+        </Button>
       )}
     </div>
   );
@@ -113,7 +111,7 @@ export function TapPreview({ profile }) {
   const mode = profile.landingMode || 'lostfound';
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
         Preview — what a tap shows
       </p>
       <div className="rounded-2xl bg-base p-5 shadow-neu-pressed-sm">
@@ -129,13 +127,13 @@ export function TapPreview({ profile }) {
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Lost &amp; Found item page</p>
             <LinkPills profile={profile} />
             {profile.lostFoundEnabled === false && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">Found-item reporting is off.</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Found-item reporting is off.</p>
             )}
           </div>
         )}
       </div>
       {mode !== 'lostfound' && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-slate-600 dark:text-slate-400">
           When the item is marked lost, a tap always shows the Lost &amp; Found page instead.
         </p>
       )}
@@ -164,7 +162,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
               <RadioGroupItem value={m.value} className="mt-0.5" />
               <span>
                 <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{m.label}</span>
-                <span className="block text-xs text-slate-500 dark:text-slate-400">{m.description}</span>
+                <span className="block text-xs text-slate-600 dark:text-slate-400">{m.description}</span>
               </span>
             </label>
           ))}
@@ -180,7 +178,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
             value={profile.redirectUrl || ''}
             onChange={(e) => set('redirectUrl', e.target.value)}
           />
-          {errors.redirectUrl && <p className="text-xs text-red-500">{errors.redirectUrl}</p>}
+          {errors.redirectUrl && <p className="text-xs text-red-700 dark:text-red-300">{errors.redirectUrl}</p>}
         </div>
       )}
 
@@ -195,7 +193,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
               value={profile.displayName || ''}
               onChange={(e) => set('displayName', e.target.value)}
             />
-            {errors.displayName && <p className="text-xs text-red-500">{errors.displayName}</p>}
+            {errors.displayName && <p className="text-xs text-red-700 dark:text-red-300">{errors.displayName}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="bio">Short bio (optional)</Label>
@@ -207,7 +205,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
               value={profile.bio || ''}
               onChange={(e) => set('bio', e.target.value)}
             />
-            {errors.bio && <p className="text-xs text-red-500">{errors.bio}</p>}
+            {errors.bio && <p className="text-xs text-red-700 dark:text-red-300">{errors.bio}</p>}
           </div>
         </div>
       )}
@@ -217,7 +215,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
           <div className={cn(BOX, 'flex items-center justify-between gap-3')}>
             <div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Lost &amp; Found reporting</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 {mode === 'profile'
                   ? 'Show a "Found this item? Report it" link on the card (claimed tags only).'
                   : 'Let finders report the item and message the owner.'}
@@ -230,7 +228,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Contact link</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Show a way to reach you beyond anonymous chat.</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Show a way to reach you beyond anonymous chat.</p>
               </div>
               <Switch checked={profile.contactEnabled} onCheckedChange={(v) => set('contactEnabled', v)} />
             </div>
@@ -243,11 +241,11 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
                   value={profile.contactUrl || ''}
                   onChange={(e) => set('contactUrl', e.target.value)}
                 />
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
                   A link, not a raw phone/email — e.g. a WhatsApp click-to-chat URL. Account phone/email
                   (Settings) is never shown publicly.
                 </p>
-                {errors.contactUrl && <p className="text-xs text-red-500">{errors.contactUrl}</p>}
+                {errors.contactUrl && <p className="text-xs text-red-700 dark:text-red-300">{errors.contactUrl}</p>}
               </div>
             )}
           </div>
@@ -262,7 +260,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
                   value={profile[key] || ''}
                   onChange={(e) => set(key, e.target.value)}
                 />
-                {errors[key] && <p className="text-xs text-red-500">{errors[key]}</p>}
+                {errors[key] && <p className="text-xs text-red-700 dark:text-red-300">{errors[key]}</p>}
               </div>
             ))}
           </div>

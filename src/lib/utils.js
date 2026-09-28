@@ -50,7 +50,7 @@ const AUTH_ERROR_MESSAGES = {
   'auth/invalid-credential': 'Incorrect email or password.',
   'auth/too-many-requests': 'Too many attempts. Wait a moment and try again.',
   'auth/email-already-in-use': 'An account already exists with that email.',
-  'auth/weak-password': 'Password should be at least 6 characters.',
+  'auth/weak-password': 'That password is too weak. Use at least 8 characters with upper- and lowercase letters, a number and a symbol.',
   'auth/network-request-failed': 'Network error — check your connection and try again.',
 };
 
@@ -100,4 +100,11 @@ export function passwordStrength(password) {
   if (metCount <= 2) return 'weak';
   if (metCount <= 4) return 'medium';
   return 'strong';
+}
+
+// Rewards are shown in Philippine pesos (UI_UX_IMPROVEMENT_PLAN.md ITEM4).
+// Display only — the stored rewardAmount stays a plain number.
+const PESO = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 });
+export function formatReward(amount) {
+  return PESO.format(Number(amount) || 0);
 }

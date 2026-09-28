@@ -242,6 +242,16 @@ describe('4. finder taps, reports and chats (NfcLanding, Chat)', () => {
       })
     );
     ids.chat = chat.id;
+    // The report message is also the thread's first message
+    // (UI_UX_IMPROVEMENT_PLAN.md BUG3).
+    await assertSucceeds(
+      addDoc(collection(finder(), 'chats', ids.chat, 'messages'), {
+        sender: 'finder',
+        text: 'Found it at the station',
+        timestamp: serverTimestamp(),
+        finderSessionToken: TOKEN,
+      })
+    );
     await assertSucceeds(
       addDoc(collection(finder(), 'notifications'), {
         type: 'report',

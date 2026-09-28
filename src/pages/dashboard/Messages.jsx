@@ -1,28 +1,30 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { MessageSquare } from 'lucide-react';
+import { useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ChevronRight, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useOwnerChats, useOwnerItems, markChatRead } from '../../lib/ownerItems';
+import { isChatUnreadForOwner, useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
+import { useOwnerItems, markChatRead } from '../../lib/ownerItems';
 import { CATEGORY_ICON } from '../../lib/categories';
-import { relativeTimeFromMs, toMillis } from '../../lib/utils';
-import { Card, CardContent } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
-import { Skeleton } from '../../components/ui/skeleton';
-
-const glass = 'bg-white/70 dark:bg-white/5 backdrop-blur-xl rounded-3xl';
+import { cn, relativeTimeFromMs, toMillis } from '../../lib/utils';
+import PageHeader from '../../components/PageHeader';
+import StatusBadge from '../../components/StatusBadge';
+import { EmptyState, SkeletonList } from '../../components/States';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'open', label: 'Open' },
-  { value: 'resolved', label: 'Resolved' },
+  { value: 'resolved', label: 'Recovered' },
 ];
 
+// The owner's inbox (UI_UX_IMPROVEMENT_PLAN.md NAV3): one row per chat with
+// a finder, unread rows in bold, status as a badge.
 export default function Messages() {
   const { user } = useAuth();
-  const { chats, loading: chatsLoading } = useOwnerChats(user);
+  const { chats, chatsLoading, unreadChatCount } = useOwnerNotificationsContext();
   const { items, loading: itemsLoading } = useOwnerItems(user);
   const loading = chatsLoading || itemsLoading;
-  const [filter, setFilter] = useState('all');
+  const [params, setParams] = useSearchParams();
+  const filter = FILTERS.some((f) => f.value === params.get('filter')) ? params.get('filter') : 'all';
 
   const itemsByTag = useMemo(() => Object.fromEntries(items.map((i) => [i.tagId, i])), [items]);
   const visibleChats = useMemo(() => {
@@ -36,47 +38,40 @@ export default function Messages() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Messages</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Conversations with people who found your items.</p>
-      </div>
+      <PageHeader
+        title="Messages"
+        description={
+          unreadChatCount > 0
+            ? `${unreadChatCount} conversation${unreadChatCount === 1 ? '' : 's'} with new messages.`
+            : 'Private chats with people who found your items.'
+        }
+      />
 
-      {loading && (
-        <div className="space-y-2">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-16 rounded-3xl" />
-          ))}
-        </div>
-      )}
+      {loading && <SkeletonList count={3} className="h-16" />}
 
       {!loading && chats.length === 0 && (
-        <Card className={glass}>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
-              <MessageSquare className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            </span>
-            <div>
-              <p className="font-bold text-slate-800 dark:text-slate-100">No conversations yet.</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                When someone reports finding your item, the chat will appear here.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={MessageSquare}
+          title="No conversations yet"
+          description="When someone finds your item and sends a message, the chat shows up here."
+        />
       )}
 
-      {chats.length > 0 && (
-        <div className="flex gap-1.5">
+      {!loading && chats.length > 0 && (
+        <div role="tablist" aria-label="Filter conversations" className="flex gap-2">
           {FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
-              onClick={() => setFilter(f.value)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
+              role="tab"
+              aria-selected={filter === f.value}
+              onClick={() => setParams(f.value === 'all' ? {} : { filter: f.value })}
+              className={cn(
+                'min-h-9 rounded-full px-3.5 text-sm font-medium transition-shadow',
                 filter === f.value
-                  ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
-                  : 'bg-base text-slate-500 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
-              }`}
+                  ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-200 shadow-neu-pressed-sm'
+                  : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
+              )}
             >
               {f.label}
             </button>
@@ -84,65 +79,70 @@ export default function Messages() {
         </div>
       )}
 
-      {chats.length > 0 && visibleChats.length === 0 && (
-        <Card className={glass}>
-          <CardContent className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
-            No {filter} conversations.
-          </CardContent>
-        </Card>
+      {!loading && chats.length > 0 && visibleChats.length === 0 && (
+        <EmptyState
+          icon={MessageSquare}
+          title={filter === 'open' ? 'No open conversations' : 'No recovered items yet'}
+        />
       )}
 
-      {visibleChats.length > 0 && (
-        <Card className={glass}>
-          <CardContent className="divide-y divide-slate-200/70 p-0">
-            {visibleChats.map((chat) => {
-              const item = itemsByTag[chat.tagId];
-              const unread = Array.isArray(chat.unreadFor)
-                ? chat.unreadFor.includes('owner')
-                : chat.unreadFor === 'owner';
-              const resolved = !!chat.resolved;
-              const Icon = CATEGORY_ICON[item?.category] || MessageSquare;
-              return (
+      {!loading && visibleChats.length > 0 && (
+        <ul className="glass divide-y divide-slate-200/70 dark:divide-white/10 overflow-hidden p-0">
+          {visibleChats.map((chat) => {
+            const item = itemsByTag[chat.tagId];
+            const unread = isChatUnreadForOwner(chat);
+            const Icon = CATEGORY_ICON[item?.category] || MessageSquare;
+            return (
+              <li key={chat.id}>
                 <Link
-                  key={chat.id}
                   to={`/chat/${chat.id}`}
                   onClick={() => onOpenChat(chat.id)}
-                  className="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5"
+                  className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5"
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
-                      <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
+                    <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'truncate text-sm text-slate-800 dark:text-slate-100',
+                          unread ? 'font-bold' : 'font-medium'
+                        )}
+                      >
                         {item?.itemName || 'Unknown item'}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
-                        {chat.lastMessageText || 'No messages yet.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <span className="text-xs text-slate-400 dark:text-slate-500">
-                      {relativeTimeFromMs(toMillis(chat.lastMessageAt))}
-                    </span>
-                    <div className="flex items-center gap-1.5">
+                      </span>
                       {unread && (
-                        <span className="flex h-2 w-2 items-center justify-center rounded-full bg-purple-400">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-pink-600">
                           <span className="sr-only">Unread</span>
                         </span>
                       )}
-                      {chat.blocked && !resolved && <Badge variant="destructive">Reported</Badge>}
-                      <Badge variant={resolved ? 'secondary' : 'outline'}>
-                        {resolved ? 'Resolved' : 'Open'}
-                      </Badge>
-                    </div>
-                  </div>
+                    </span>
+                    <span
+                      className={cn(
+                        'mt-0.5 block truncate text-sm',
+                        unread ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'
+                      )}
+                    >
+                      {chat.lastMessageText || 'No messages yet.'}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span className="text-xs text-slate-600 dark:text-slate-400">
+                      {relativeTimeFromMs(toMillis(chat.lastMessageAt))}
+                    </span>
+                    {chat.blocked && !chat.resolved ? (
+                      <StatusBadge state="review" />
+                    ) : (
+                      <StatusBadge state={chat.resolved ? 'recovered' : 'open'} />
+                    )}
+                  </span>
+                  <ChevronRight className="hidden h-4 w-4 shrink-0 text-slate-400 sm:block" aria-hidden="true" />
                 </Link>
-              );
-            })}
-          </CardContent>
-        </Card>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

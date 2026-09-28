@@ -21,7 +21,7 @@ export default class RouteErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-screen flex-col items-center justify-center gap-3 bg-base px-4 text-center text-slate-500 dark:text-slate-400">
+        <div className="flex h-screen flex-col items-center justify-center gap-3 bg-base px-4 text-center text-slate-600 dark:text-slate-400">
           <AlertTriangle className="h-6 w-6 text-amber-500" />
           <p className="font-semibold text-slate-800 dark:text-slate-100">Failed to load this page.</p>
           <p className="text-sm">Check your connection and try again.</p>

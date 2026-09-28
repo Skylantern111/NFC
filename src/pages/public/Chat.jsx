@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { ArrowDown, Ban, CheckCircle2, Loader2, MessagesSquare, Send, Eye } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { AlertCircle, ArrowDown, Ban, Check, CheckCircle2, Clock, Copy, Eye, MapPin, MessagesSquare, RefreshCw, Send } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import {
   useChat,
@@ -16,12 +17,12 @@ import {
 import { hasReportFrom } from '../../lib/moderation';
 import { getFinderToken } from '../../lib/finderSession';
 import { checkIsAdmin } from '../../lib/adminAuth';
-import { firebaseReady } from '../../firebase/config';
+import { isInAppBrowser } from '../../lib/inAppBrowser';
+import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import AmbientBackground from '../../components/AmbientBackground';
 import BackButton from '../../components/BackButton';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -32,14 +33,38 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn, friendlyFirestoreError, relativeTimeFromMs, toMillis } from '@/lib/utils';
+import { LoadingState } from '@/components/States';
+import StatusStepper, { recoveryStep } from '@/components/StatusStepper';
+import { setPageTitle } from '@/lib/pageTitle';
+
+// Leaflet is heavy and only the owner's report card needs it — keep it out
+// of this eagerly-loaded public page's bundle.
+const ReportLocationMap = lazy(() => import('../../components/ReportLocationMap'));
 
 // Shared frosted-glass treatment applied over the ported ui/ primitives so
 // this page keeps the app's light glassmorphism language.
 const GLASS = 'rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-lg';
 
 // Canned strings only — purely a UX convenience that inserts text into the
-// real message input. Not a separate system, nothing fake is implied.
-const QUICK_REPLIES = ['I am here now', 'Thank you so much!', 'Left at reception desk', 'Heading over now'];
+// real message input. Different for each side (UI_UX_IMPROVEMENT_PLAN.md CHAT5).
+const QUICK_REPLIES = {
+  owner: ['Thank you so much!', 'Where can I pick it up?', "I'm on my way", 'Can you leave it at a guard house?'],
+  finder: ['I have your item', 'I left it at the front desk', "I'm here now", 'When can you pick it up?'],
+};
+
+// "Today" / "Yesterday" / a date — separators between days (CHAT4).
+function dayLabel(ms) {
+  const d = new Date(ms);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
+function timeLabel(ms) {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
 
 // Anonymous two-way chat. The owner is identified by Firebase Auth; the finder
 // by their localStorage session token. Neither party sees the other's PII.
@@ -81,13 +106,17 @@ export default function Chat() {
 
   const previewTagId = !firebaseReady && chatId?.startsWith('preview-') ? chatId.slice(8) : null;
 
-  const { chat: liveChat, loading: chatLoading } = useChat(firebaseReady ? chatId : null);
+  const { chat: liveChat, loading: chatLoading, error: chatError, retry: retryChat } = useChat(firebaseReady ? chatId : null);
   // SYSTEM_AUDIT_PLAN.md B1: signed in != owner. A TagBack user who finds
   // someone ELSE's item is the finder in that chat; treating every signed-in
   // viewer as the owner showed them owner buttons and got their messages
   // rejected by firestore.rules. Owner = this chat's tag is one of theirs.
   const { tagIds: ownTagIds, loaded: ownTagsLoaded } = useOwnerTagIds(user);
-  const { messages: liveMessages } = useChatMessages(firebaseReady ? chatId : null);
+  const {
+    messages: liveMessages,
+    error: messagesError,
+    retry: retryMessages,
+  } = useChatMessages(firebaseReady ? chatId : null);
   const [mockChat, setMockChat] = useState(() => (previewTagId ? { id: chatId, tagId: previewTagId } : null));
   const [mockMessages, setMockMessages] = useState([]);
   const [item, setItem] = useState(previewTagId ? previewItem(previewTagId) : null);
@@ -97,7 +126,10 @@ export default function Chat() {
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockReason, setBlockReason] = useState('');
   const [blocking, setBlocking] = useState(false);
-  const [sending, setSending] = useState(false);
+  // Sends that the server rejected, shown as "Not sent — Retry" (CHAT2).
+  const [failed, setFailed] = useState([]);
+  const [report, setReport] = useState(null);
+  const composerRef = useRef(null);
   const endRef = useRef(null);
   const scrollRef = useRef(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -108,10 +140,48 @@ export default function Chat() {
   const loading = firebaseReady ? chatLoading : false;
 
   const ownsChat = !!user && !!chat?.tagId && ownTagIds.includes(chat.tagId);
-  const role = isAdminUser && !ownsChat ? 'admin' : ownsChat ? 'owner' : 'finder';
-  // Until the admin/owner checks finish, `role` may still flip — don't act
-  // on it (e.g. mark the wrong side read) before then.
-  const roleReady = !firebaseReady || !user || (adminChecked && ownTagsLoaded && !!chat);
+  // UI_UX_IMPROVEMENT_PLAN.md BUG4: the finder is whoever holds this chat's
+  // token, which lives in the browser that filed the report. Anyone else —
+  // the finder on another browser (e.g. Messenger's in-app one), or a
+  // signed-out owner — is a read-only 'viewer' instead of a "finder" whose
+  // every send the rules reject.
+  const holdsFinderToken = !firebaseReady || (!!chat?.finderSessionToken && chat.finderSessionToken === getFinderToken());
+  const role =
+    isAdminUser && !ownsChat ? 'admin' : ownsChat ? 'owner' : holdsFinderToken ? 'finder' : 'viewer';
+  const canWrite = role === 'owner' || role === 'finder';
+  // Until the chat and the admin/owner checks load, `role` may still flip —
+  // don't act on it (e.g. mark the wrong side read) before then.
+  const roleReady = !firebaseReady || (!!chat && (!user || (adminChecked && ownTagsLoaded)));
+  const listenerError = chatError || messagesError;
+
+  const finderTipKey = `tagback_finder_tip_hidden_${chatId}`;
+  const [finderTipHidden, setFinderTipHidden] = useState(() => {
+    try {
+      return localStorage.getItem(finderTipKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+  function hideFinderTip() {
+    setFinderTipHidden(true);
+    try {
+      localStorage.setItem(finderTipKey, '1');
+    } catch {
+      // Storage blocked: hidden for this visit only.
+    }
+  }
+  async function copyChatLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success('Link copied.');
+    } catch {
+      toast.error('Could not copy. Copy the address from the browser bar instead.');
+    }
+  }
+  function retryListeners() {
+    retryChat();
+    retryMessages();
+  }
 
   useEffect(() => {
     if (!firebaseReady || !chat?.tagId) return;
@@ -125,6 +195,26 @@ export default function Chat() {
   }, [chat?.tagId]);
 
   useEffect(() => {
+    setPageTitle(item?.itemName ? `Chat · ${item.itemName}` : 'Chat');
+    return () => setPageTitle('');
+  }, [item?.itemName]);
+
+  // CHAT6: the owner sees the finder's report (where, when, map) pinned at
+  // the top. Only the owner may read reports (firestore.rules).
+  useEffect(() => {
+    if (!firebaseReady || role !== 'owner' || !chat?.reportId) return;
+    let live = true;
+    getDoc(doc(db, 'reports', chat.reportId))
+      .then((snap) => {
+        if (live && snap.exists()) setReport(snap.data());
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [role, chat?.reportId]);
+
+  useEffect(() => {
     atBottomRef.current = atBottom;
   }, [atBottom]);
 
@@ -132,7 +222,7 @@ export default function Chat() {
   // bottom — otherwise it yanks someone away from history they're reading.
   useEffect(() => {
     if (atBottomRef.current) endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, failed]);
 
   function handleScroll() {
     const el = scrollRef.current;
@@ -148,34 +238,56 @@ export default function Chat() {
   // Opening the thread counts as reading it — clears the unread marker for
   // whichever side is viewing (drives the dot in dashboard/Messages.jsx).
   useEffect(() => {
-    if (!chatId || !firebaseReady || !roleReady || role === 'admin') return;
+    if (!chatId || !firebaseReady || !roleReady || !canWrite) return;
     markChatRead(chatId, role).catch(() => {});
   }, [chatId, role, roleReady]);
 
-  async function send(e) {
+  // CHAT2: the input clears at once and the message shows as "Sending…"
+  // from Firestore's local copy until the server confirms it. Offline, it
+  // waits and sends on reconnect. If the server refuses it (e.g. a banned
+  // finder token), it comes back as a "Not sent — Retry" bubble instead of
+  // vanishing.
+  function deliver(body) {
+    sendChatMessage(chatId, role, body, role === 'finder' ? getFinderToken() : undefined, chat).catch((err) => {
+      const reason =
+        err.code === 'permission-denied'
+          ? "This device can't send messages in this chat."
+          : friendlyFirestoreError(err, 'Could not send.');
+      setFailed((f) => [...f, { id: `failed_${Date.now()}`, text: body, reason }]);
+    });
+  }
+
+  function send(e) {
     e.preventDefault();
-    if (!text.trim() || sending || !roleReady) return;
+    if (!text.trim() || !roleReady || !canWrite) return;
     const body = text.trim();
     setText('');
+    if (composerRef.current) composerRef.current.style.height = '';
+    setAtBottom(true);
+    atBottomRef.current = true;
     if (firebaseReady) {
-      setSending(true);
-      try {
-        await sendChatMessage(chatId, role, body, role === 'finder' ? getFinderToken() : undefined, chat);
-      } catch (err) {
-        // Restore the draft rather than silently losing it (e.g. a banned
-        // finder token gets rejected by firestore.rules#isBlockedToken).
-        setText(body);
-        toast.error(
-          err.code === 'permission-denied'
-            ? "This device can't send messages right now."
-            : friendlyFirestoreError(err, 'Could not send message. Please try again.')
-        );
-      } finally {
-        setSending(false);
-      }
+      deliver(body);
     } else {
       setMockMessages((m) => [...m, { id: `mock_${Date.now()}`, sender: role, text: body }]);
     }
+  }
+
+  function retryFailed(f) {
+    setFailed((list) => list.filter((x) => x.id !== f.id));
+    deliver(f.text);
+  }
+
+  // CHAT8: grow with the text up to ~4 lines; Enter sends on a keyboard,
+  // but makes a new line on a phone.
+  function onComposerChange(e) {
+    setText(e.target.value);
+    const el = e.target;
+    el.style.height = '';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }
+  function onComposerKeyDown(e) {
+    const hasKeyboard = window.matchMedia?.('(pointer: fine)').matches;
+    if (e.key === 'Enter' && !e.shiftKey && hasKeyboard && !e.nativeEvent.isComposing) send(e);
   }
 
   // Real, state-changing action: clears the item's Lost Mode. Owner-only.
@@ -190,7 +302,7 @@ export default function Chat() {
         setMockChat((c) => ({ ...c, resolved: true }));
       }
       setConfirmOpen(false);
-      toast.success('Marked as recovered.');
+      toast.success('Marked as recovered. Lost Mode is off.');
     } catch (err) {
       toast.error(friendlyFirestoreError(err, 'Could not update recovery status. Try again.'));
     } finally {
@@ -232,114 +344,266 @@ export default function Chat() {
   }
 
   const resolved = !!chat?.resolved;
+  // Messages + failed sends, with a day separator whenever the day changes
+  // and a sender label at the start of each run (CHAT3/CHAT4).
+  const thread = useMemo(() => {
+    const out = [];
+    let lastDay = null;
+    let lastSender = null;
+    const all = [...messages, ...failed.map((f) => ({ ...f, sender: role, failed: true }))];
+    for (const m of all) {
+      const ms = toMillis(m.timestamp) || (m.failed ? Date.now() : null);
+      const day = ms ? new Date(ms).toDateString() : lastDay;
+      if (day && day !== lastDay) {
+        out.push({ kind: 'day', key: `day_${day}`, label: dayLabel(ms) });
+        lastDay = day;
+        lastSender = null;
+      }
+      out.push({ kind: 'message', message: m, ms, firstInRun: m.sender !== lastSender });
+      lastSender = m.sender;
+    }
+    return out;
+  }, [messages, failed, role]);
+
+  // Before the role is known, show the composer disabled ("Connecting…")
+  // rather than letting a Send do nothing (UI_UX_IMPROVEMENT_PLAN.md BUG5).
+  const showComposer = roleReady ? canWrite : true;
+  const inAppBrowser = isInAppBrowser();
+
+  // A chat link that points nowhere (mistyped, or deleted on release).
+  if (firebaseReady && !loading && !chat && !listenerError) {
+    return (
+      <div className="relative flex h-[100dvh] flex-col items-center justify-center gap-3 px-6 text-center">
+        <AmbientBackground />
+        <MessagesSquare className="h-8 w-8 text-slate-400" />
+        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">This conversation isn't available</h1>
+        <p className="max-w-sm text-sm text-slate-600 dark:text-slate-400">
+          The link may be incomplete, or the item's owner released the tag.
+        </p>
+        <Button asChild variant="secondary">
+          <Link to={user ? '/dashboard/messages' : '/'}>{user ? 'Go to Messages' : 'Go to TagBack'}</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-[100dvh] flex-col">
       <AmbientBackground />
-      <header className={cn(GLASS, 'mx-3 mt-3 flex items-center justify-between gap-3 px-4 py-3')}>
-        <div className="flex items-center gap-3">
-          <BackButton fallback={role === 'owner' ? '/dashboard' : '/'} />
-          <div>
-            <h1 className="font-bold text-slate-800 dark:text-slate-100">{item?.itemName || 'Anonymous chat'}</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {role === 'admin'
-                ? 'Viewing as admin — read-only. Contact details stay hidden.'
-                : `You are the ${role}. Contact details stay hidden.`}
-            </p>
-          </div>
+      {/* UI_UX_IMPROVEMENT_PLAN.md BUG7: one compact row that fits a 320 px
+          phone — back, item, status, and an icon-only Report. "Mark as
+          recovered" moved to the bar above the composer. */}
+      <header className={cn(GLASS, 'mx-3 mt-3 flex items-center gap-2 px-2 py-2')}>
+        <BackButton
+          fallback={role === 'owner' ? '/dashboard/messages' : '/'}
+          label=""
+          className="h-11 w-11 shrink-0 justify-center"
+        />
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate font-bold text-slate-800 dark:text-slate-100">{item?.itemName || 'Anonymous chat'}</h1>
+          <p className="truncate text-xs text-slate-600 dark:text-slate-400">
+            {role === 'admin'
+              ? 'Admin view · read-only'
+              : role === 'owner'
+                ? 'Chat with the finder · contact details hidden'
+                : role === 'finder'
+                  ? 'Chat with the owner · contact details hidden'
+                  : 'Read-only'}
+          </p>
         </div>
-        {role === 'admin' && (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 dark:border-slate-700 bg-base px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-            <Eye className="h-3.5 w-3.5" /> Admin view
+        {resolved && (
+          <span className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Recovered
           </span>
         )}
-        {role === 'owner' && (
-          <div className="flex shrink-0 items-center gap-2">
-            {hasReportFrom(chat, 'owner') ? (
-              <span className="flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-500/30 bg-red-50/80 dark:bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-300">
-                <Ban className="h-3.5 w-3.5" /> Reported
-              </span>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setBlockOpen(true)}
-                className="gap-1.5"
-              >
-                <Ban className="h-3.5 w-3.5" /> Report
-              </Button>
-            )}
-            {resolved ? (
-              <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Recovered
-              </span>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setConfirmOpen(true)}
-                className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
-              >
-                <CheckCircle2 className="h-4 w-4" /> Mark as recovered
-              </Button>
-            )}
-          </div>
+        {role === 'admin' && (
+          <span className="flex shrink-0 items-center gap-1 rounded-full border border-slate-300 dark:border-slate-700 bg-base px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <Eye className="h-3.5 w-3.5" /> Admin
+          </span>
         )}
-        {/* Finder's reciprocal report path (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md
-            §5.1) — previously only the owner could report a chat. No
-            "Mark as recovered" here: that's an owner-only action on their
-            own item's Lost Mode. */}
-        {role === 'finder' && (
-          <div className="flex shrink-0 items-center gap-2">
-            {hasReportFrom(chat, 'finder') ? (
-              <span className="flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-500/30 bg-red-50/80 dark:bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-300">
-                <Ban className="h-3.5 w-3.5" /> Reported
-              </span>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setBlockOpen(true)}
-                className="gap-1.5"
-              >
-                <Ban className="h-3.5 w-3.5" /> Report owner
-              </Button>
-            )}
-          </div>
-        )}
+        {/* Either side can report the chat (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md
+            §5.1); "Mark as recovered" stays owner-only. */}
+        {canWrite &&
+          (hasReportFrom(chat, role) ? (
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-red-600 dark:text-red-300"
+              title="You reported this chat"
+            >
+              <Ban className="h-4 w-4" />
+              <span className="sr-only">You reported this chat</span>
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setBlockOpen(true)}
+              aria-label={role === 'finder' ? 'Report the owner' : 'Report this finder'}
+              title={role === 'finder' ? 'Report the owner' : 'Report this finder'}
+              className="h-11 w-11 shrink-0"
+            >
+              <Ban className="h-4 w-4" />
+            </Button>
+          ))}
       </header>
+
+      {listenerError && (
+        <div
+          role="alert"
+          className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/90 dark:bg-amber-500/10 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-200"
+        >
+          <span>Connection problem — new messages may not show.</span>
+          <Button type="button" size="sm" variant="outline" onClick={retryListeners} className="shrink-0 gap-1.5">
+            <RefreshCw className="h-3.5 w-3.5" /> Retry
+          </Button>
+        </div>
+      )}
+
+      {roleReady && role === 'viewer' && (
+        <div
+          role="status"
+          className="mx-3 mt-2 space-y-2 rounded-2xl border border-sky-200 dark:border-sky-500/30 bg-sky-50/90 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-100"
+        >
+          <p className="font-semibold">You can read this chat, but not reply from here.</p>
+          <p>
+            {user
+              ? 'This chat belongs to a different account or device.'
+              : "Replies only work in the browser you used to report the item. If you're the owner, sign in."}
+            {inAppBrowser && ' You opened this link inside another app — open it in Chrome instead (⋯ menu → Open in browser).'}
+          </p>
+          {!user && (
+            <Button asChild size="sm" variant="primary">
+              <Link to="/login" state={{ from: { pathname: `/chat/${chatId}` } }}>
+                Sign in as owner
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* FIND7 / BUG4: a finder has no account — this link, in this browser,
+          is the only way back to the owner's replies. */}
+      {roleReady && role === 'finder' && !finderTipHidden && (
+        <div
+          role="status"
+          className="mx-3 mt-2 space-y-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
+        >
+          <p>
+            <span className="font-semibold">The owner has been notified.</span> Their reply shows up here. Keep this
+            page or save the link, and open it again <span className="font-semibold">in this same browser</span> to
+            reply.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={copyChatLink} className="gap-1.5">
+              <Copy className="h-3.5 w-3.5" /> Copy link
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={hideFinderTip}>
+              Got it
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {resolved && canWrite && (
+        <p className="mx-3 mt-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-800 dark:text-emerald-200">
+          Marked as recovered. You can still message here to finish the handoff.
+        </p>
+      )}
 
       <div className="relative flex-1 overflow-hidden">
         <div ref={scrollRef} onScroll={handleScroll} className="h-full space-y-2 overflow-y-auto px-4 py-4">
-          {loading && (
-            <p className="flex items-center justify-center gap-2 text-center text-sm text-slate-500 dark:text-slate-400">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading conversation…
-            </p>
+          {loading && <LoadingState variant="inline" label="Loading conversation…" className="py-6" />}
+
+          {role === 'owner' && report && (
+            <div className="mx-auto mb-2 max-w-md space-y-3 rounded-2xl bg-white/80 p-4 text-sm shadow-card dark:bg-white/5">
+              <p className="font-semibold text-slate-800 dark:text-slate-100">
+                Finder's report · {relativeTimeFromMs(toMillis(report.timestamp)) || 'just now'}
+              </p>
+              <StatusStepper step={recoveryStep({ chat, hasReport: true })} />
+              {report.locationNote && (
+                <p className="flex items-start gap-1.5 text-slate-700 dark:text-slate-200">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> {report.locationNote}
+                </p>
+              )}
+              {report.location && (
+                <Suspense fallback={<LoadingState variant="inline" label="Loading map…" />}>
+                  <ReportLocationMap location={report.location} />
+                </Suspense>
+              )}
+            </div>
           )}
-          {!loading && messages.length === 0 && (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-slate-500 dark:text-slate-400">
-              <MessagesSquare className="h-6 w-6" />
+
+          {!loading && messages.length === 0 && failed.length === 0 && (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-slate-600 dark:text-slate-400">
+              <MessagesSquare className="h-6 w-6" aria-hidden="true" />
               <p className="text-sm">No messages yet. Say hello to get started.</p>
             </div>
           )}
-          {messages.map((m) => {
-            const mine = m.sender === role;
-            const time = relativeTimeFromMs(toMillis(m.timestamp));
-            return (
-              <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-                <div
-                  className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${
-                    m.sender === 'owner' ? 'bg-purple-600/80 text-white' : 'bg-white/85 dark:bg-white/5 text-slate-800 dark:text-slate-100'
-                  }`}
-                >
-                  {m.text}
-                </div>
-                {time && <span className="mt-0.5 px-1 text-[10px] text-slate-400 dark:text-slate-500">{time}</span>}
-              </div>
-            );
-          })}
+
+          <ol className="space-y-1.5" aria-label="Messages">
+            {thread.map((entry) => {
+              if (entry.kind === 'day') {
+                return (
+                  <li key={entry.key} className="py-2 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    {entry.label}
+                  </li>
+                );
+              }
+              const m = entry.message;
+              // CHAT3: "mine" on the right in brand color, the other side on
+              // the left — whichever role you are.
+              const mine = m.sender === role;
+              const who = m.sender === 'owner' ? 'Owner' : 'Finder';
+              return (
+                <li key={m.id} className={cn('flex flex-col', mine ? 'items-end' : 'items-start', entry.firstInRun && 'pt-2')}>
+                  {entry.firstInRun && !mine && (
+                    <span className="mb-0.5 px-1 text-xs font-semibold text-slate-600 dark:text-slate-400">{who}</span>
+                  )}
+                  <div
+                    className={cn(
+                      'max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm',
+                      mine
+                        ? 'rounded-br-md bg-purple-700 text-white'
+                        : 'rounded-bl-md bg-white text-slate-800 shadow-card dark:bg-white/10 dark:text-slate-100',
+                      m.failed && 'bg-red-50 text-slate-800 ring-1 ring-red-300 dark:bg-red-500/10 dark:text-slate-100'
+                    )}
+                  >
+                    <span className="sr-only">{mine ? 'You' : who}: </span>
+                    {m.text}
+                  </div>
+                  <span className="mt-0.5 flex items-center gap-1 px-1 text-xs text-slate-600 dark:text-slate-400">
+                    {m.failed ? (
+                      <>
+                        <AlertCircle className="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
+                        <span className="text-red-700 dark:text-red-300">Not sent. {m.reason}</span>
+                        <button
+                          type="button"
+                          onClick={() => retryFailed(m)}
+                          className="min-h-8 px-1 font-semibold text-purple-700 underline-offset-2 hover:underline dark:text-purple-300"
+                        >
+                          Retry
+                        </button>
+                      </>
+                    ) : m.pending ? (
+                      <>
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" /> Sending…
+                      </>
+                    ) : (
+                      <>
+                        {entry.ms ? timeLabel(entry.ms) : ''}
+                        {mine && (
+                          <>
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span className="sr-only">Sent</span>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
           <div ref={endRef} />
         </div>
         {!atBottom && (
@@ -354,16 +618,31 @@ export default function Chat() {
         )}
       </div>
 
-      {role !== 'admin' && (
+      {showComposer && (
         <>
+          {role === 'owner' && !resolved && (
+            <div className="mx-3 mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-white/5 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 backdrop-blur-xl">
+              <span>Got your item back?</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="success"
+                onClick={() => setConfirmOpen(true)}
+                className="shrink-0 gap-1.5"
+              >
+                <CheckCircle2 className="h-4 w-4" /> Mark as recovered
+              </Button>
+            </div>
+          )}
           <div className="relative mx-3 mb-2">
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {QUICK_REPLIES.map((reply) => (
+              {(QUICK_REPLIES[role] || QUICK_REPLIES.finder).map((reply) => (
                 <button
                   key={reply}
                   type="button"
                   onClick={() => setText(reply)}
-                  className="shrink-0 rounded-full bg-base px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
+                  disabled={!roleReady}
+                  className="min-h-9 shrink-0 rounded-full bg-base px-3.5 text-sm text-slate-700 dark:text-slate-200 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm disabled:opacity-50"
                 >
                   {reply}
                 </button>
@@ -373,17 +652,35 @@ export default function Chat() {
             <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-base to-transparent" />
           </div>
 
-          <form onSubmit={send} className={cn(GLASS, 'm-3 mt-0 flex gap-2 p-2')}>
-            <Input
+          <form
+            onSubmit={send}
+            className={cn(GLASS, 'mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-end gap-2 p-2')}
+          >
+            <label htmlFor="chat-composer" className="sr-only">
+              Message
+            </label>
+            <textarea
+              id="chat-composer"
+              ref={composerRef}
+              rows={1}
               value={text}
               maxLength={1000}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Type a message…"
-              className="flex-1"
+              onChange={onComposerChange}
+              onKeyDown={onComposerKeyDown}
+              enterKeyHint="send"
+              placeholder={roleReady ? 'Type a message…' : 'Connecting…'}
+              disabled={!roleReady}
+              className="max-h-[120px] min-h-11 flex-1 resize-none rounded-xl bg-base px-3.5 py-2.5 text-base text-slate-800 shadow-neu-pressed-sm outline-none placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-purple-400/40 disabled:opacity-60 dark:text-slate-100 md:text-sm"
             />
-            <Button type="submit" className="gap-1.5 rounded-full" disabled={sending || !text.trim()}>
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Send
+            <Button
+              type="submit"
+              variant="primary"
+              size="icon"
+              className="shrink-0"
+              disabled={!roleReady || !text.trim()}
+              aria-label="Send message"
+            >
+              <Send className="h-4 w-4" />
             </Button>
           </form>
         </>
@@ -393,21 +690,23 @@ export default function Chat() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark this item as recovered?</DialogTitle>
-            <DialogDescription>
-              This turns off Lost Mode on the item. The chat stays open so you can keep
-              coordinating the handoff.
+            <DialogDescription asChild>
+              <div className="space-y-2 text-left text-sm text-slate-600 dark:text-slate-300">
+                <p>This will:</p>
+                <ul className="list-disc space-y-0.5 pl-5">
+                  <li>turn off Lost Mode on the item,</li>
+                  <li>close the finder's report, and</li>
+                  <li>delete the location the finder shared.</li>
+                </ul>
+                <p>The chat stays open so you can finish the handoff.</p>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" autoFocus onClick={() => setConfirmOpen(false)}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={confirmRecovered}
-              disabled={resolving}
-              className="bg-emerald-600 text-white shadow-neu-flat active:shadow-neu-pressed hover:bg-emerald-500"
-            >
+            <Button type="button" onClick={confirmRecovered} loading={resolving} variant="success">
               {resolving ? 'Saving…' : 'Confirm recovered'}
             </Button>
           </DialogFooter>

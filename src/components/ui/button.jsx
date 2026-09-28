@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,12 @@ const buttonVariants = cva(
       variant: {
         default:
           "bg-base shadow-neu-flat active:shadow-neu-pressed [&_svg]:text-purple-600",
+        // Solid brand fill with white text — for the one main action on a
+        // screen (UI_UX_IMPROVEMENT_PLAN.md DS1/BUG2).
+        primary:
+          "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-neu-flat-sm active:shadow-neu-pressed-sm hover:from-purple-500 hover:to-pink-500",
+        success:
+          "bg-emerald-600 text-white shadow-neu-flat-sm active:shadow-neu-pressed-sm hover:bg-emerald-500",
         destructive:
           "bg-destructive text-white shadow-neu-flat active:shadow-neu-pressed hover:bg-destructive/90",
         outline:
@@ -21,13 +28,15 @@ const buttonVariants = cva(
           "text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5",
         link: "text-purple-600 underline-offset-4 hover:underline hover:text-pink-600",
       },
+      // 44 px default/icon: comfortable touch targets
+      // (UI_UX_IMPROVEMENT_PLAN.md DS11). `sm` is for dense rows only.
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-11 px-5 py-2 has-[>svg]:px-4",
+        sm: "h-9 gap-1.5 px-3.5 has-[>svg]:px-3",
+        lg: "h-12 px-6 text-base has-[>svg]:px-5",
+        icon: "size-11",
+        "icon-sm": "size-9",
+        "icon-lg": "size-12",
       },
     },
     defaultVariants: {
@@ -38,7 +47,7 @@ const buttonVariants = cva(
 );
 
 const Button = React.forwardRef(function Button(
-  { className, variant, size, asChild = false, children, ...props },
+  { className, variant, size, asChild = false, loading = false, disabled, children, ...props },
   ref
 ) {
   const Comp = asChild ? Slot : "button";
@@ -53,13 +62,30 @@ const Button = React.forwardRef(function Button(
   // variant button with an icon (Sign in, Look up owner, etc). Non-default
   // variants don't hit this since their children go straight into the
   // outer inline-flex button.
-  const label =
-    !asChild && (variant === "default" || variant === undefined) ? (
-      <span className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+  //
+  // A caller that paints its own fill (`bg-red-600`, `bg-gradient-…`) on a
+  // default button would get invisible gradient text on that fill
+  // (UI_UX_IMPROVEMENT_PLAN.md BUG2), so those keep plain text instead.
+  const ownFill = /(^|\s)bg-(?!base\b|transparent\b|clip-)/.test(className || "");
+  //
+  // `loading` (UI_UX_IMPROVEMENT_PLAN.md B.6): spinner first, disabled, and
+  // aria-busy, so every async button behaves the same.
+  const content =
+    loading && !asChild ? (
+      <>
+        <Loader2 className="animate-spin" aria-hidden="true" />
         {children}
-      </span>
+      </>
     ) : (
       children
+    );
+  const label =
+    !asChild && !ownFill && (variant === "default" || variant === undefined) ? (
+      <span className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+        {content}
+      </span>
+    ) : (
+      content
     );
 
   return (
@@ -67,6 +93,8 @@ const Button = React.forwardRef(function Button(
       ref={ref}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={asChild ? undefined : disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
       {label}

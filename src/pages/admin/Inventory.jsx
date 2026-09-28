@@ -18,14 +18,16 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase/config';
-import { inventoryToCsv, normalizeTagbackId, tagUrl, TAG_STATUS_BADGE } from '../../lib/tags';
+import { inventoryToCsv, normalizeTagbackId, tagUrl } from '../../lib/tags';
+import PageHeader from '@/components/PageHeader';
+import StatusBadge from '@/components/StatusBadge';
+import { FormError } from '@/components/FormField';
 import { contentLabel } from '../../lib/tagContent';
 import { findOwnerByTag } from '../../lib/adminOwners';
-import { chunk, relativeTimeFromMs, toMillis } from '../../lib/utils';
+import { chunk, friendlyFirestoreError, relativeTimeFromMs, toMillis } from '../../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -144,7 +146,7 @@ export default function Inventory() {
       setLastDoc(snap.docs[snap.docs.length - 1] || lastDoc);
       setHasMore(snap.docs.length === ROW_LIMIT);
     } catch (err) {
-      setRowsError(err.message || 'Failed to load more tags.');
+      setRowsError(friendlyFirestoreError(err, 'Could not load more tags. Try again.'));
     } finally {
       setRowsMoreLoading(false);
     }
@@ -190,7 +192,7 @@ export default function Inventory() {
         loadCounts();
       },
       (err) => {
-        setRowsError(err.message || 'Failed to load tags.');
+        setRowsError(friendlyFirestoreError(err, 'Could not load tags. Try again.'));
         setRowsLoading(false);
       }
     );
@@ -217,7 +219,7 @@ export default function Inventory() {
       const { owner } = await findOwnerByTag(tagId);
       setOwnerLookup((prev) => ({ ...prev, [tagId]: { loading: false, owner } }));
     } catch (err) {
-      setOwnerLookup((prev) => ({ ...prev, [tagId]: { loading: false, error: err.message } }));
+      setOwnerLookup((prev) => ({ ...prev, [tagId]: { loading: false, error: friendlyFirestoreError(err, 'Lookup failed.') } }));
     }
   }
 
@@ -260,7 +262,7 @@ export default function Inventory() {
       setFlagReason('');
       await loadCounts();
     } catch (err) {
-      setRowsError(err.message || 'Failed to blacklist tag(s).');
+      setRowsError(friendlyFirestoreError(err, 'Could not blacklist. Try again.'));
     } finally {
       setBlacklistBusy(false);
     }
@@ -307,7 +309,7 @@ export default function Inventory() {
       await wb.commit();
       await loadCounts();
     } catch (err) {
-      setRowsError(err.message || 'Failed to unblacklist tag.');
+      setRowsError(friendlyFirestoreError(err, 'Could not unblacklist. Try again.'));
     } finally {
       setUnblacklistBusy('');
     }
@@ -445,19 +447,17 @@ export default function Inventory() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">NFC inventory</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Registered physical NFC tags and their claim lifecycle.
-          </p>
-        </div>
-        <Button asChild className="gap-2">
-          <Link to="/admin/nfc-register">
-            <Nfc className="h-4 w-4" /> Register a tag
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Inventory"
+        description="Registered NFC stickers and where each one is in its life: registered, claimed or blacklisted."
+        actions={
+          <Button asChild variant="primary" className="gap-2">
+            <Link to="/admin/nfc-register">
+              <Nfc className="h-4 w-4" /> Register tags
+            </Link>
+          </Button>
+        }
+      />
 
       {/* KPI strip — real counts from the tags collection */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -466,7 +466,7 @@ export default function Inventory() {
             <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
               <s.icon className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{s.label}</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">{s.label}</div>
             {counts[s.value] === null ? (
               <Skeleton className="mt-1 h-7 w-12" />
             ) : (
@@ -481,7 +481,7 @@ export default function Inventory() {
       <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-lg">
         <CardHeader>
           <CardTitle>Tag lifecycle</CardTitle>
-          <CardDescription className="text-slate-500 dark:text-slate-400">
+          <CardDescription className="text-slate-600 dark:text-slate-400">
             Most recent {ROW_LIMIT} tags, newest registration first. New rows only ever come from{' '}
             <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
               registering a physical tap
@@ -499,12 +499,12 @@ export default function Inventory() {
                 className="sm:max-w-xs"
               />
               {serverSearching && (
-                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 shadow-neu-pressed-sm">
                   <Search className="h-3 w-3 animate-pulse" /> Searching full inventory…
                 </span>
               )}
               {!serverSearching && serverMatches.length > 0 && (
-                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-500 dark:text-slate-400 shadow-neu-pressed-sm">
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 shadow-neu-pressed-sm">
                   <Search className="h-3 w-3" /> Found beyond the loaded {ROW_LIMIT} — showing full-inventory match.
                 </span>
               )}
@@ -555,20 +555,21 @@ export default function Inventory() {
                   className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
                     statusFilter === s.value
                       ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
-                      : 'bg-base text-slate-500 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
+                      : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
                   }`}
                 >
                   {s.label}
-                  {counts[s.value] !== null && <span className="ml-1 text-slate-400 dark:text-slate-500">({counts[s.value]})</span>}
+                  {counts[s.value] !== null && <span className="ml-1 text-slate-600 dark:text-slate-400">({counts[s.value]})</span>}
                 </button>
               ))}
             </div>
           </div>
 
-          {rowsError && <p className="text-sm text-rose-600">{rowsError}</p>}
+          <FormError>{rowsError}</FormError>
 
-          <div className="overflow-x-auto rounded-xl bg-base shadow-neu-pressed-sm">
-            <Table>
+          {/* ADM3: cards on phones (stack-table), a table from `sm`. */}
+          <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
+            <Table className="stack-table">
               <TableHeader>
                 <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
                   <TableHead className="w-8">
@@ -579,15 +580,15 @@ export default function Inventory() {
                       aria-label="Select all"
                     />
                   </TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">TagBack ID</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Physical UID</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Chip</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Write status</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Content</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Registered</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Owner</TableHead>
-                  <TableHead className="text-right text-slate-500 dark:text-slate-400">Actions</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">TagBack ID</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Physical UID</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Chip</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Status</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Write status</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Content</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Registered</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Owner</TableHead>
+                  <TableHead className="text-right text-slate-600 dark:text-slate-400">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -603,7 +604,7 @@ export default function Inventory() {
                   ))}
                 {!rowsLoading && filteredRows.length === 0 && (
                   <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                    <TableCell colSpan={10} className="py-10 text-center text-slate-500 dark:text-slate-400">
+                    <TableCell colSpan={10} data-full className="py-10 text-center text-slate-600 dark:text-slate-400">
                       No tags match this view.{' '}
                       <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
                         Register a physical tap
@@ -617,7 +618,7 @@ export default function Inventory() {
                   const lookup = ownerLookup[t.tagId];
                   return (
                     <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
-                      <TableCell>
+                      <TableCell data-label="Select">
                         <Checkbox
                           checked={selectedIds.has(t.tagId)}
                           onCheckedChange={() => toggleSelected(t.tagId)}
@@ -625,31 +626,33 @@ export default function Inventory() {
                           aria-label={`Select ${t.tagId}`}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
+                      <TableCell data-label="TagBack ID" className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100" title={t.tagId}>
                         {t.tagId}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-300" title={t.physicalUid || ''}>
+                      <TableCell data-label="Physical UID" className="font-mono text-xs text-slate-600 dark:text-slate-300" title={t.physicalUid || ''}>
                         {t.physicalUid || '—'}
                       </TableCell>
-                      <TableCell className="text-slate-600 dark:text-slate-300">{t.chipType || '—'}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.registered}>
-                          {t.status}
-                        </Badge>
+                      <TableCell data-label="Chip" className="text-slate-600 dark:text-slate-300">{t.chipType || '—'}</TableCell>
+                      <TableCell data-label="Status">
+                        <StatusBadge state={t.status || 'registered'} />
                       </TableCell>
-                      <TableCell className="text-slate-600 dark:text-slate-300">
-                        {WRITE_STATUS_LABEL[t.writeStatus] || WRITE_STATUS_LABEL.not_written}
+                      <TableCell data-label="Write status">
+                        <StatusBadge
+                          state={WRITE_STATUS_LABEL[t.writeStatus] ? t.writeStatus : 'not_written'}
+                          label={WRITE_STATUS_LABEL[t.writeStatus] || WRITE_STATUS_LABEL.not_written}
+                        />
                       </TableCell>
                       <TableCell
+                        data-label="Tap shows"
                         className="max-w-48 truncate text-xs text-slate-600 dark:text-slate-300"
                         title={profiles[t.tagId]?.redirectUrl || contentLabel(profiles[t.tagId])}
                       >
                         {contentLabel(profiles[t.tagId])}
                       </TableCell>
-                      <TableCell className="text-slate-500 dark:text-slate-400" title={created ? created.toLocaleString() : ''}>
+                      <TableCell data-label="Registered" className="text-slate-600 dark:text-slate-400" title={created ? created.toLocaleString() : ''}>
                         {created ? relativeTimeFromMs(toMillis(created)) : '—'}
                       </TableCell>
-                      <TableCell className="text-slate-600 dark:text-slate-300">
+                      <TableCell data-label="Owner" className="text-slate-600 dark:text-slate-300">
                         {t.status !== 'claimed' ? (
                           '—'
                         ) : lookup?.owner ? (
@@ -666,7 +669,7 @@ export default function Inventory() {
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell data-label="Actions" className="text-right">
                         {/* Every row action lives in one ⋯ menu instead of up to
                             five buttons wrapping across lines. */}
                         <DropdownMenu>
@@ -674,7 +677,6 @@ export default function Inventory() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
                               aria-label={`Actions for ${t.tagId}`}
                               disabled={unblacklistBusy === t.tagId}
                             >
@@ -760,7 +762,7 @@ export default function Inventory() {
                 ? 'This marks every selected tag as blacklisted so none of them can be claimed or resolved.'
                 : 'This marks the tag as blacklisted so it can no longer be claimed or resolved.'}
               {blacklistTarget && blacklistTarget !== '__bulk__' && (
-                <span className="mt-1 block font-mono text-xs text-slate-500 dark:text-slate-400">{blacklistTarget}</span>
+                <span className="mt-1 block font-mono text-xs text-slate-600 dark:text-slate-400">{blacklistTarget}</span>
               )}
             </DialogDescription>
           </DialogHeader>

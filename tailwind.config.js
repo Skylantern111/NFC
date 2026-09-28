@@ -50,6 +50,24 @@ export default {
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
+          soft: 'hsl(var(--destructive-soft))',
+        },
+        // State roles (UI_UX_IMPROVEMENT_PLAN.md B.1) — use these instead of
+        // raw emerald/amber/sky so both themes stay in step.
+        success: {
+          DEFAULT: 'hsl(var(--success) / <alpha-value>)',
+          foreground: 'hsl(var(--success-foreground) / <alpha-value>)',
+          soft: 'hsl(var(--success-soft) / <alpha-value>)',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning) / <alpha-value>)',
+          foreground: 'hsl(var(--warning-foreground) / <alpha-value>)',
+          soft: 'hsl(var(--warning-soft) / <alpha-value>)',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info) / <alpha-value>)',
+          foreground: 'hsl(var(--info-foreground) / <alpha-value>)',
+          soft: 'hsl(var(--info-soft) / <alpha-value>)',
         },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -91,6 +109,8 @@ export default {
         'neu-flat-sm': '4px 4px 8px var(--neu-shadow-soft), -4px -4px 8px var(--neu-shadow-soft-light)',
         'neu-pressed': 'inset 6px 6px 12px var(--neu-shadow-strong), inset -6px -6px 12px var(--neu-shadow-strong-light)',
         'neu-pressed-sm': 'inset 3px 3px 6px var(--neu-shadow-soft), inset -3px -3px 6px var(--neu-shadow-soft-light)',
+        // Softer than shadow-lg for glass content cards (UI_UX_IMPROVEMENT_PLAN.md B.5).
+        card: '0 8px 24px -12px rgba(30, 41, 59, 0.18)',
       },
       keyframes: {
         // Slowly drifting ambient orbs. Small translate range = cheap GPU work.

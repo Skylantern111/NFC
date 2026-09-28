@@ -114,7 +114,11 @@ const DialogContent = React.forwardRef(function DialogContent(
         ref={ref}
         data-slot="dialog-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
+          // Phones: a bottom sheet in thumb reach, safe-area aware. From `sm`: the
+          // usual centered dialog (UI_UX_IMPROVEMENT_PLAN.md B.10).
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 grid w-full gap-4 border p-6 shadow-lg duration-200 max-h-[90dvh] overflow-y-auto",
+          "inset-x-0 bottom-0 rounded-t-3xl pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:slide-in-from-bottom-10 data-[state=closed]:slide-out-to-bottom-10",
+          "sm:inset-x-auto sm:bottom-auto sm:top-[50%] sm:left-[50%] sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-3xl sm:pb-6 sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95",
           className
         )}
         onEscapeKeyDown={handleEscapeKeyDown}
@@ -158,7 +162,8 @@ const DialogFooter = React.forwardRef(function DialogFooter(
       ref={ref}
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        // Phones: full-width stack, main (last) action at the bottom.
+        "flex flex-col gap-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto",
         className
       )}
       {...props}
@@ -174,7 +179,7 @@ const DialogTitle = React.forwardRef(function DialogTitle(
     <DialogPrimitive.Title
       ref={ref}
       data-slot="dialog-title"
-      className={cn("text-lg leading-none font-semibold", className)}
+      className={cn("text-lg leading-snug font-semibold", className)}
       {...props}
     />
   );

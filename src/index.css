@@ -47,6 +47,19 @@
   /* --- functional, outside the decorative ratio: state, not brand --- */
   --destructive: 0 72% 51%;        /* danger — 4.80:1 with white text */
   --destructive-foreground: 0 0% 100%;
+  --destructive-soft: 0 86% 97%;
+
+  /* State roles (UI_UX_IMPROVEMENT_PLAN.md B.1). `-soft` is the tinted
+     badge/banner background; text on it uses the plain role color. */
+  --success: 161 94% 24%;          /* 5.60:1 with white, 5.32:1 on success-soft */
+  --success-foreground: 0 0% 100%;
+  --success-soft: 152 81% 96%;
+  --warning: 26 90% 33%;           /* 6.04:1 with white, 5.82:1 on warning-soft */
+  --warning-foreground: 0 0% 100%;
+  --warning-soft: 48 100% 96%;
+  --info: 200 98% 31%;             /* 6.00:1 with white, 5.62:1 on info-soft */
+  --info-foreground: 0 0% 100%;
+  --info-soft: 204 100% 97%;
 
   --radius: 0.65rem;
   --chart-1: 273 67% 52%;          /* brand */
@@ -105,6 +118,17 @@
      was 2.74:1, is now 5.50:1) --- */
   --destructive: 5 100% 69%;
   --destructive-foreground: 0 0% 15%;
+  --destructive-soft: 0 60% 16%;
+
+  --success: 156 60% 55%;
+  --success-foreground: 160 60% 10%;
+  --success-soft: 160 50% 13%;
+  --warning: 38 92% 60%;
+  --warning-foreground: 30 60% 10%;
+  --warning-soft: 35 50% 13%;
+  --info: 199 89% 65%;
+  --info-foreground: 200 60% 10%;
+  --info-soft: 205 50% 14%;
 
   --chart-1: 273 80% 74%;          /* brand */
   --chart-2: 328 85% 74%;          /* signal */
@@ -162,13 +186,73 @@ body {
    component class so admin views can opt out. */
 @layer components {
   .glass {
-    @apply bg-white/70 dark:bg-white/5 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-lg rounded-3xl;
+    @apply bg-white/70 dark:bg-white/5 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-card rounded-3xl;
   }
   /* No dark-wash overlay needed on a light bg — contrast comes from the
      slate-800/slate-500 text sweep instead. Kept as a no-op class so call
      sites don't need to change. */
   .glass-legible {
     @apply relative;
+  }
+}
+
+@layer base {
+  /* One visible focus ring for every interactive element, including the
+     hand-built <button>s (UI_UX_IMPROVEMENT_PLAN.md DS12). */
+  a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible,
+  [role='button']:focus-visible,
+  [role='tab']:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Admin tables on phones (UI_UX_IMPROVEMENT_PLAN.md ADM3): below `sm`
+     each row becomes a card and each cell shows its column name from
+     `data-label`, instead of the table scrolling sideways. */
+  @media (max-width: 639px) {
+    .stack-table thead {
+      display: none;
+    }
+    .stack-table,
+    .stack-table tbody,
+    .stack-table tr,
+    .stack-table td {
+      display: block;
+      width: 100%;
+    }
+    .stack-table tr {
+      margin-bottom: 0.75rem;
+      border-radius: 1rem;
+      border: 1px solid hsl(var(--border));
+      padding: 0.5rem 0.75rem;
+    }
+    .stack-table td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.35rem 0;
+      border: 0;
+      text-align: right;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .stack-table td[data-label]::before {
+      content: attr(data-label);
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: hsl(var(--muted-foreground));
+      text-align: left;
+    }
+    .stack-table td[data-full] {
+      display: block;
+      text-align: left;
+    }
   }
 }
 

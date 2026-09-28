@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import ProtectedRoute from './components/ProtectedRoute';
 import RouteErrorBoundary from './components/RouteErrorBoundary';
 import { Toaster } from './components/ui/sonner';
+import OfflineBanner from './components/OfflineBanner';
+import { LoadingState } from './components/States';
 
 // Public — kept eager. These are the first-paint/entry routes (Landing is
 // "/", NfcLanding/Chat are hit directly off a physical NFC tap or a shared
@@ -48,17 +49,14 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 // while they resolve the auth check — a lazy chunk still loading reads the
 // same as "waiting on something before this route can render."
 function RouteFallback() {
-  return (
-    <div className="flex h-screen items-center justify-center gap-2 bg-base text-slate-500 dark:text-slate-400">
-      <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-    </div>
-  );
+  return <LoadingState variant="page" />;
 }
 
 export default function App() {
   return (
     <>
     <Toaster position="top-center" richColors closeButton />
+    <OfflineBanner />
     <RouteErrorBoundary>
     <Suspense fallback={<RouteFallback />}>
     <Routes>

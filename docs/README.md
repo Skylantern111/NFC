@@ -4,7 +4,7 @@ Plans, audits and change logs, oldest first within each group. The code
 and the two root files ([`../README.md`](../README.md),
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md)) describe the current system;
 these files record how it got there. For the current end-to-end workflows
-(register → claim → report → chat → recover → release → moderate) see
+(register → claim → report → chat → recover → release → moderate) s
 [`../ARCHITECTURE.md` §8](../ARCHITECTURE.md#8-system-workflows). Code comments cite these files by
 name (e.g. "SYSTEM_AUDIT_ROUND2.md A0").
 
@@ -19,6 +19,7 @@ name (e.g. "SYSTEM_AUDIT_ROUND2.md A0").
 | [REDESIGN_PLAN.md](REDESIGN_PLAN.md) | Original dark redesign spec — superseded by the light theme below; its feature list is mostly implemented |
 | [REDESIGN_CHANGES.md](REDESIGN_CHANGES.md) | Change log of the design pass — done |
 | [LIGHT_NEUMORPHIC_REDESIGN_PLAN.md](LIGHT_NEUMORPHIC_REDESIGN_PLAN.md) | Current design system — implemented |
+| [UI_UX_IMPROVEMENT_PLAN.md](UI_UX_IMPROVEMENT_PLAN.md) | UI/UX audit, tester bug fixes and improvement plan — implemented in code; phone/browser checks pending |
 
 ## Features and improvement rounds
 | File | Status |

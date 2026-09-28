@@ -80,19 +80,22 @@ export default function Landing() {
           </p>
           <GlassCard className="w-full max-w-sm">
             <div className="flex flex-col gap-3">
-              <Link to="/login">
-                <Button className="w-full">Owner sign in</Button>
-              </Link>
-              <Link to="/register">
-                <Button variant="ghost" className="w-full">
-                  Create account
-                </Button>
-              </Link>
+              <Button asChild variant="primary" size="lg" className="w-full">
+                <Link to="/register">Create a free account</Link>
+              </Button>
+              <Button asChild variant="secondary" className="w-full">
+                <Link to="/login">I have an account — sign in</Link>
+              </Button>
             </div>
           </GlassCard>
-          <p className="mt-6 text-xs text-slate-500 dark:text-slate-400">
-            Found something? Just tap the tag with your phone.
-          </p>
+          {/* A curious finder may land here too (UI_UX_IMPROVEMENT_PLAN.md C.2). */}
+          <div className="mt-6 flex max-w-sm items-start gap-3 rounded-2xl bg-base px-4 py-3 text-left shadow-neu-pressed-sm">
+            <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-purple-700 dark:text-purple-300" aria-hidden="true" />
+            <p className="text-sm text-slate-700 dark:text-slate-200">
+              <span className="font-semibold">Found something with a TagBack sticker?</span> Hold your phone against
+              the sticker. A page opens where you can message the owner — no app or account needed.
+            </p>
+          </div>
         </main>
 
         {/* What is TagBack — real README/App copy, no invented functionality. */}
@@ -116,7 +119,7 @@ export default function Landing() {
                   </span>
                   <div>
                     <p className="font-bold text-slate-800 dark:text-slate-100">{title}</p>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{detail}</p>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{detail}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -144,7 +147,7 @@ export default function Landing() {
                     <Icon className="h-4 w-4 text-purple-600" />
                     {title}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{detail}</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{detail}</p>
                 </div>
               </div>
             ))}
@@ -152,11 +155,12 @@ export default function Landing() {
         </section>
 
         <footer className="mx-auto flex w-full max-w-4xl flex-wrap justify-center gap-4 px-5 pb-8 text-center">
-          <Link to="/privacy" className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+          <Link to="/privacy" className="min-h-11 px-2 py-3 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             Privacy
           </Link>
-          <Link to="/admin" className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
-            Admin console →
+          {/* NAV7 (decided): a quiet staff link, not an "Admin console" invitation. */}
+          <Link to="/admin/login" className="min-h-11 px-2 py-3 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+            Staff sign-in
           </Link>
         </footer>
       </div>

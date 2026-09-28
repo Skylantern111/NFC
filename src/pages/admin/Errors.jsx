@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, deleteDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { Bug, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { db, firebaseReady } from '../../firebase/config';
-import { relativeTimeFromMs, toMillis } from '../../lib/utils';
+import { friendlyFirestoreError, relativeTimeFromMs, toMillis } from '../../lib/utils';
+import PageHeader from '@/components/PageHeader';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { EmptyState, SkeletonList } from '@/components/States';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +20,8 @@ export default function Errors() {
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
   const [open, setOpen] = useState(null); // message whose details are shown
+  // UI_UX_IMPROVEMENT_PLAN.md ADM2: clearing the log asks first.
+  const [confirmClear, setConfirmClear] = useState(false);
 
   async function load() {
     if (!firebaseReady) {
@@ -28,7 +33,7 @@ export default function Errors() {
       const snap = await getDocs(query(collection(db, 'clientErrors'), orderBy('at', 'desc'), limit(100)));
       setRows(snap.docs.map((d) => ({ id: d.id, ref: d.ref, ...d.data() })));
     } catch (err) {
-      toast.error('Could not load errors: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not load the error log. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -54,9 +59,10 @@ export default function Errors() {
     try {
       await Promise.all(rows.map((r) => deleteDoc(r.ref)));
       setRows([]);
+      setConfirmClear(false);
       toast.success('Error log cleared.');
     } catch (err) {
-      toast.error('Could not clear: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not clear the log. Try again.'));
     } finally {
       setClearing(false);
     }
@@ -64,60 +70,52 @@ export default function Errors() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Errors</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Crashes reported from people&apos;s browsers (latest 100). Each browser reports at most 5 per page load.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={load} disabled={loading}>
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
-          </Button>
-          {rows.length > 0 && (
-            <Button variant="outline" size="sm" className="gap-1.5 text-rose-600" onClick={onClearAll} disabled={clearing}>
-              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              Clear all
+      <PageHeader
+        title="Errors"
+        description="Crashes reported from people's browsers (latest 100). Each browser reports at most 5 per page load."
+        actions={
+          <>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={load} loading={loading}>
+              {!loading && <RefreshCw className="h-3.5 w-3.5" />} Refresh
             </Button>
-          )}
-        </div>
-      </div>
+            {rows.length > 0 && (
+              <Button variant="outline" size="sm" className="gap-1.5 text-red-700 dark:text-red-300" onClick={() => setConfirmClear(true)}>
+                <Trash2 className="h-3.5 w-3.5" /> Clear all
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {loading ? (
-        <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-        </p>
+        <SkeletonList count={3} className="h-20" />
       ) : groups.length === 0 ? (
-        <Card className={CARD}>
-          <CardContent className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
-            No errors reported.
-          </CardContent>
-        </Card>
+        <EmptyState icon={Bug} title="No errors reported" description="Nothing has crashed in anyone's browser recently." />
       ) : (
         groups.map((g) => (
           <Card key={g.message} className={CARD}>
             <CardContent className="space-y-2 p-4">
               <button
                 type="button"
-                className="flex w-full flex-wrap items-center justify-between gap-2 text-left"
+                className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 text-left"
+                aria-expanded={open === g.message}
                 onClick={() => setOpen(open === g.message ? null : g.message)}
               >
                 <span className="font-mono text-sm text-slate-800 dark:text-slate-100 break-all">{g.message}</span>
                 <span className="flex items-center gap-2">
                   <Badge variant="outline">{g.count}×</Badge>
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                  <span className="text-xs text-slate-600 dark:text-slate-400">
                     {relativeTimeFromMs(toMillis(g.latest.at))}
                   </span>
                 </span>
               </button>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Pages: {[...g.pages].join(', ')}</p>
+              <p className="break-all text-xs text-slate-600 dark:text-slate-400">Pages: {[...g.pages].join(', ')}</p>
               {open === g.message && (
-                <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
                   <p>Browser: {g.latest.userAgent || '—'}</p>
                   <p>Signed-in user: {g.latest.uid || 'none'}</p>
                   {g.latest.stack && (
-                    <pre className="max-h-64 overflow-auto rounded-xl bg-base p-3 text-[11px] shadow-neu-pressed-sm whitespace-pre-wrap">
+                    <pre className="max-h-64 overflow-auto rounded-xl bg-base p-3 text-xs shadow-neu-pressed-sm whitespace-pre-wrap">
                       {g.latest.stack}
                     </pre>
                   )}
@@ -127,6 +125,17 @@ export default function Errors() {
           </Card>
         ))
       )}
+      <ConfirmDialog
+        open={confirmClear}
+        onOpenChange={setConfirmClear}
+        title="Clear the whole error log?"
+        description={`Deletes all ${rows.length} reported error${rows.length === 1 ? '' : 's'}.`}
+        irreversible
+        confirmLabel="Clear all"
+        busyLabel="Clearing…"
+        busy={clearing}
+        onConfirm={onClearAll}
+      />
     </div>
   );
 }

@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
-import { ExternalLink, Loader2, TriangleAlert, Users } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
+import { ErrorState, LoadingState } from '@/components/States';
+import { ExternalLink, Users } from 'lucide-react';
 import { db, firebaseReady } from '../../firebase/config';
 import {
   applyTagProfileToMany,
@@ -143,47 +145,40 @@ export default function TagContent() {
   }
 
   if (loading) {
-    return (
-      <div className="flex h-40 items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-      </div>
-    );
+    return <LoadingState label="Loading tag content…" />;
   }
 
   const unavailable = bulk ? bulkIds.length === 0 : !tag || tag.status === 'blacklisted';
   if (unavailable) {
     return (
       <div className="mx-auto max-w-md">
-        <Card className={CARD}>
-          <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-            <TriangleAlert className="h-5 w-5 text-amber-500" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {bulk
-                ? 'No unclaimed tags selected. Select Registered rows in Inventory, then choose "Set content".'
-                : !tag
-                  ? `Tag ${tagId} not found.`
-                  : 'This tag is blacklisted. Unblacklist it in Inventory before editing its content.'}
-            </p>
-            <Button asChild variant="outline">
+        <ErrorState
+          title={bulk ? 'No tags selected' : !tag ? 'Tag not found' : 'This tag is blacklisted'}
+          description={
+            bulk
+              ? 'Select Registered rows in Inventory, then choose "Set content".'
+              : !tag
+                ? `No tag has the ID ${tagId}.`
+                : 'Unblacklist it in Inventory before editing its content.'
+          }
+          action={
+            <Button asChild variant="secondary">
               <Link to="/admin/tags">Back to Tag Content</Link>
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">
-          {bulk ? `Set content for ${bulkIds.length} tag${bulkIds.length === 1 ? '' : 's'}` : 'Tag content'}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          The sticker only holds its TagBack link. What a tap shows is set here and applies on the next tap —
-          no rewrite needed.
-        </p>
-      </div>
+      <PageHeader
+        title={bulk ? `Set content for ${bulkIds.length} tag${bulkIds.length === 1 ? '' : 's'}` : `Tag content · ${tagId}`}
+        description="The sticker only holds its TagBack link. What a tap shows is set here and applies on the next tap — no rewrite needed."
+        backTo="/admin/tags"
+        backLabel="Tag Content"
+      />
 
       <Card className={CARD}>
         <CardContent className="space-y-2 p-6 text-sm">
@@ -192,7 +187,7 @@ export default function TagContent() {
               <p className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
                 <Users className="h-4 w-4" /> {bulkIds.length} unclaimed tag{bulkIds.length === 1 ? '' : 's'}
               </p>
-              <p className="max-h-24 overflow-y-auto font-mono text-xs text-slate-500 dark:text-slate-400">
+              <p className="max-h-24 overflow-y-auto font-mono text-xs text-slate-600 dark:text-slate-400">
                 {bulkIds.join(', ')}
               </p>
               {bulkSkipped > 0 && (
@@ -201,7 +196,7 @@ export default function TagContent() {
                   unclaimed tags, so owners' own content is never overwritten.
                 </p>
               )}
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 Replaces any existing content on these tags.
               </p>
             </>
@@ -214,7 +209,7 @@ export default function TagContent() {
                 </Badge>
                 {scanCount !== null && (
                   <span
-                    className="text-xs text-slate-500 dark:text-slate-400"
+                    className="text-xs text-slate-600 dark:text-slate-400"
                     title="Taps before tag content existed have no mode, so the parts can add up to less than the total."
                   >
                     {scanCount.total} tap{scanCount.total === 1 ? '' : 's'} recorded
@@ -232,7 +227,7 @@ export default function TagContent() {
                 </p>
               )}
               {tag.status === 'registered' && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
                   Unclaimed. Setting Profile card or Redirect makes this a TagBack-managed tag that nobody can claim.
                   Set it back to Lost &amp; Found to hand it out to an owner.
                 </p>
@@ -252,28 +247,27 @@ export default function TagContent() {
           <CardContent className="space-y-5 p-6">
             <TagContentForm profile={profile} setProfile={setProfile} errors={errors} setErrors={setErrors} />
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={saving} className="gap-1.5">
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button type="submit" variant="primary" loading={saving} className="gap-1.5">
                 {saving ? 'Saving…' : bulk ? `Apply to ${bulkIds.length} tag${bulkIds.length === 1 ? '' : 's'}` : 'Save content'}
               </Button>
               <Button type="button" variant="outline" asChild>
                 <Link to="/admin/tags">Back to Tag Content</Link>
               </Button>
               {!bulk && hasSaved && !confirmReset && (
-                <Button type="button" variant="outline" className="text-rose-600" onClick={() => setConfirmReset(true)}>
+                <Button type="button" variant="outline" className="text-red-700 dark:text-red-300" onClick={() => setConfirmReset(true)}>
                   Reset content
                 </Button>
               )}
             </div>
             {confirmReset && (
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50/80 dark:bg-rose-500/10 px-3.5 py-2.5 text-xs text-rose-700 dark:text-rose-300">
+              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 dark:border-red-500/30 bg-destructive-soft px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-100">
                 <span className="flex-1">
                   Delete this tag's content? A tap will show the default Lost &amp; Found page. This can't be undone.
                 </span>
                 <Button type="button" size="sm" variant="outline" onClick={() => setConfirmReset(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button type="button" size="sm" variant="destructive" onClick={onReset} disabled={saving}>
+                <Button type="button" size="sm" variant="destructive" onClick={onReset} loading={saving}>
                   Reset
                 </Button>
               </div>

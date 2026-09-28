@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Eye, Loader2, PackageSearch, SearchX, Unlink } from 'lucide-react';
+import { AlertTriangle, Eye, MessageSquare, MoreVertical, Nfc, PackageSearch, PencilLine, SearchX, ShieldCheck, Unlink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
 import { firebaseReady } from '../../firebase/config';
 import {
   useOwnerItems,
@@ -13,15 +14,10 @@ import {
   getTagScanCount,
 } from '../../lib/ownerItems';
 import { CATEGORY_ICON } from '../../lib/categories';
-import { friendlyFirestoreError } from '../../lib/utils';
-import { Card, CardContent } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
+import { cn, formatReward, friendlyFirestoreError } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
-import { Switch } from '../../components/ui/switch';
-import { Label } from '../../components/ui/label';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
-import { Skeleton } from '../../components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -30,37 +26,67 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../components/ui/dropdown-menu';
+import PageHeader from '../../components/PageHeader';
+import StatusBadge, { itemStatus } from '../../components/StatusBadge';
+import FormField from '../../components/FormField';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { EmptyState, InlineAlert, SkeletonList } from '../../components/States';
 
-const glass = 'bg-white/70 dark:bg-white/5 backdrop-blur-xl';
+// Search only earns its space on a longer list (UI_UX_IMPROVEMENT_PLAN.md ITEM8).
+const SEARCH_MIN_ITEMS = 6;
 
 export default function Items() {
   const { user } = useAuth();
   const { items, loading, updateMockItem } = useOwnerItems(user);
   const { tagIds } = useOwnerTagIds(user);
   const { reports } = useOwnerOpenReports(tagIds);
+  const { chats } = useOwnerNotificationsContext();
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const lostOnly = params.get('filter') === 'lost';
+
+  // Right after a claim (ClaimTag.jsx), highlight the new item and point at
+  // its next step (NFC7 / GUIDE2).
+  const [justClaimed, setJustClaimed] = useState(location.state?.claimed || null);
+  const claimedRef = useRef(null);
+  useEffect(() => {
+    if (justClaimed && claimedRef.current) claimedRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [justClaimed, items.length]);
+
+  // ITEM7: jump from an item straight to the finder's chat.
+  const chatByTag = useMemo(() => {
+    const openReportIds = new Set(reports.map((r) => r.id));
+    const out = {};
+    for (const c of chats) if (c.reportId && openReportIds.has(c.reportId) && !out[c.tagId]) out[c.tagId] = c;
+    return out;
+  }, [reports, chats]);
   const openTagSet = useMemo(() => new Set(reports.map((r) => r.tagId)), [reports]);
 
   const [search, setSearch] = useState('');
   const visibleItems = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return items;
     return items.filter(
-      (it) => it.itemName?.toLowerCase().includes(term) || it.tagId?.toLowerCase().includes(term)
+      (it) =>
+        (!lostOnly || it.isLostMode) &&
+        (!term || it.itemName?.toLowerCase().includes(term) || it.tagId?.toLowerCase().includes(term))
     );
-  }, [items, search]);
+  }, [items, search, lostOnly]);
 
-  // { tagId, name, lostMessage, rewardAmount } while the "declare lost" dialog is open, else null.
-  const [armDialog, setArmDialog] = useState(null);
-  // { tagId, name } while the "turn off lost mode" confirm dialog is open, else null.
-  const [disarmDialog, setDisarmDialog] = useState(null);
-  // { tagId, name } while the "release tag" confirm dialog is open, else null.
-  const [releaseDialog, setReleaseDialog] = useState(null);
+  const [armDialog, setArmDialog] = useState(null); // { tagId, name, lostMessage, rewardAmount }
+  const [disarmDialog, setDisarmDialog] = useState(null); // { tagId, name }
+  const [releaseDialog, setReleaseDialog] = useState(null); // { tagId, name }
   const [saving, setSaving] = useState(false);
   const [disarming, setDisarming] = useState(false);
   const [releasing, setReleasing] = useState(false);
 
-  // Best-effort tap counts (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §4.1) — one
-  // read per visible item, small owner-scale list, not live/real-time.
+  // Best-effort tap counts (MAIN_FUNCTIONS_IMPROVEMENT_PLAN.md §4.1).
   const [scanCounts, setScanCounts] = useState({});
   useEffect(() => {
     if (!firebaseReady) return;
@@ -83,7 +109,7 @@ export default function Items() {
     try {
       await releaseTag(releaseDialog.tagId);
       setReleaseDialog(null);
-      toast.success('Tag released — it can be re-claimed or re-provisioned now.');
+      toast.success('Tag released. It can be claimed again with the same TagBack ID.');
     } catch (err) {
       toast.error(
         err.code === 'release-not-allowed'
@@ -97,22 +123,17 @@ export default function Items() {
     }
   }
 
-  function onToggle(item, checked) {
-    if (checked) {
-      setArmDialog({
-        tagId: item.tagId,
-        name: item.itemName,
-        lostMessage: item.lostMessage || '',
-        rewardAmount: item.rewardAmount || 0,
-      });
-    } else {
-      setDisarmDialog({ tagId: item.tagId, name: item.itemName });
-    }
+  function openArm(item) {
+    setArmDialog({
+      tagId: item.tagId,
+      name: item.itemName,
+      lostMessage: item.lostMessage || '',
+      rewardAmount: item.rewardAmount || 0,
+    });
   }
 
   // Turning Lost Mode off only clears isLostMode/lostSince — the drafted
-  // message and reward are kept so re-arming later prefills them instead of
-  // forcing the owner to retype (armDialog above already reads item.lostMessage/rewardAmount).
+  // message and reward stay so re-arming prefills them.
   async function confirmDisarm() {
     if (!disarmDialog) return;
     setDisarming(true);
@@ -123,7 +144,7 @@ export default function Items() {
         updateMockItem(disarmDialog.tagId, { isLostMode: false, lostSince: null });
       }
       setDisarmDialog(null);
-      toast.success('Lost Mode turned off.');
+      toast.success('Lost Mode is off.');
     } catch (err) {
       toast.error(friendlyFirestoreError(err, 'Could not update item. Try again.'));
     } finally {
@@ -143,7 +164,7 @@ export default function Items() {
         updateMockItem(armDialog.tagId, { ...patch, isLostMode: true, lostSince: { toMillis: () => Date.now() } });
       }
       setArmDialog(null);
-      toast.success('Lost Mode armed.');
+      toast.success('Lost Mode is on. Anyone who taps the tag now sees your message.');
     } catch (err) {
       toast.error(friendlyFirestoreError(err, 'Could not update item. Try again.'));
     } finally {
@@ -153,217 +174,292 @@ export default function Items() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">My items</h1>
-        <Button asChild variant="secondary">
-          <Link to="/dashboard/items/claim">+ Claim a tag</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="My Items"
+        description="Everything with a TagBack tag on it."
+        actions={
+          items.length > 0 && (
+            <Button asChild variant="primary">
+              <Link to="/dashboard/items/claim">
+                <Nfc className="h-4 w-4" /> Claim a tag
+              </Link>
+            </Button>
+          )
+        }
+      />
 
-      {loading && (
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-20 rounded-3xl" />
-          ))}
-        </div>
-      )}
+      {loading && <SkeletonList count={3} className="h-28" />}
 
       {!loading && items.length === 0 && (
-        <Card className={`${glass} rounded-3xl`}>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
-              <PackageSearch className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            </span>
-            <p className="text-sm text-slate-500 dark:text-slate-400">No items yet. Claim your first NFC tag to get started.</p>
-            <Button asChild variant="secondary">
-              <Link to="/dashboard/items/claim">Claim a tag</Link>
+        <EmptyState
+          icon={PackageSearch}
+          title="No items yet"
+          description="Claim an NFC tag to start protecting your belongings."
+          action={
+            <Button asChild variant="primary">
+              <Link to="/dashboard/items/claim">Claim your first tag</Link>
             </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {!loading && items.length > 0 && (
-        <Input
-          placeholder="Search by item name or tag id…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
+          }
         />
       )}
 
-      {!loading && items.length > 0 && visibleItems.length === 0 && (
-        <Card className={`${glass} rounded-3xl`}>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
-              <SearchX className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            </span>
-            <p className="text-sm text-slate-500 dark:text-slate-400">No items match "{search}".</p>
-          </CardContent>
-        </Card>
+      {!loading && items.length > 0 && (items.length >= SEARCH_MIN_ITEMS || lostOnly) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {items.length >= SEARCH_MIN_ITEMS && (
+            <Input
+              type="search"
+              aria-label="Search items"
+              placeholder="Search by item name or TagBack ID…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+          )}
+          {lostOnly && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setParams({})}>
+              Showing lost items only · Show all
+            </Button>
+          )}
+        </div>
       )}
 
-      {visibleItems.map((it) => (
-        <Card
-          key={it.tagId}
-          className={
-            it.isLostMode
-              ? 'rounded-3xl border-2 border-red-400 dark:border-red-500/50 bg-red-50/60 dark:bg-red-500/10 p-6 shadow-[0_0_24px_rgba(239,68,68,0.25)]'
-              : `${glass} rounded-3xl p-6`
-          }
-        >
-          <CardContent className="flex items-center justify-between gap-4 p-0">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="truncate font-bold text-slate-800 dark:text-slate-100">{it.itemName}</p>
-                {it.isLostMode && <Badge variant="destructive">Lost</Badge>}
-                {openTagSet.has(it.tagId) && <Badge variant="outline">Found reported</Badge>}
-                {it.tagStatus === 'blacklisted' && (
-                  <Badge variant="destructive" title="An admin flagged this tag — finders can no longer report or message on it.">
-                    Flagged by admin
-                  </Badge>
-                )}
-                {it.category && (() => {
-                  const Icon = CATEGORY_ICON[it.category];
-                  return (
-                    <Badge variant="outline">
-                      {Icon && <Icon />}
-                      {it.category}
-                    </Badge>
-                  );
-                })()}
+      {!loading && items.length > 0 && visibleItems.length === 0 && (
+        <EmptyState
+          icon={SearchX}
+          title={lostOnly && !search ? 'Nothing is lost' : `No items match "${search}"`}
+          description={lostOnly && !search ? 'None of your items are in Lost Mode.' : undefined}
+        />
+      )}
+
+      <ul className="space-y-3">
+        {visibleItems.map((it) => {
+          const status = itemStatus(it, openTagSet.has(it.tagId));
+          const chat = chatByTag[it.tagId];
+          const CategoryIcon = CATEGORY_ICON[it.category];
+          const flagged = it.tagStatus === 'blacklisted';
+          const highlighted = justClaimed === it.tagId;
+          return (
+            <li
+              key={it.tagId}
+              ref={highlighted ? claimedRef : undefined}
+              className={cn(
+                'glass p-4 sm:p-5',
+                it.isLostMode && 'border-2 border-red-400 dark:border-red-500/50 bg-red-50/70 dark:bg-red-500/10',
+                highlighted && 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent'
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="break-words text-base font-bold text-slate-800 dark:text-slate-100">{it.itemName}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+                    <StatusBadge state={status} />
+                    {it.category && (
+                      <span className="inline-flex items-center gap-1">
+                        {CategoryIcon && <CategoryIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+                        {it.category}
+                      </span>
+                    )}
+                    <span className="font-mono">{it.tagId}</span>
+                    {scanCounts[it.tagId] > 0 && (
+                      <span className="inline-flex items-center gap-1" title="Times this tag's page has been opened">
+                        <Eye className="h-3.5 w-3.5" aria-hidden="true" /> {scanCounts[it.tagId]}
+                        <span className="sr-only">taps</span>
+                      </span>
+                    )}
+                  </div>
+                  {it.isLostMode && (it.lostMessage || it.rewardAmount > 0) && (
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                      {it.rewardAmount > 0 && (
+                        <span className="font-semibold text-warning">Reward {formatReward(it.rewardAmount)}. </span>
+                      )}
+                      {it.lostMessage}
+                    </p>
+                  )}
+                </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" aria-label={`More actions for ${it.itemName}`}>
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link to={`/dashboard/nfc-setup?tagId=${encodeURIComponent(it.tagId)}`}>
+                        <PencilLine className="h-4 w-4" /> Edit tap page
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to={`/nfc/${encodeURIComponent(it.tagId)}?preview=1`} target="_blank" rel="noopener noreferrer">
+                        <Eye className="h-4 w-4" /> Preview what finders see
+                      </Link>
+                    </DropdownMenuItem>
+                    {/* SYSTEM_AUDIT_ROUND3.md C1: the rules refuse to release a
+                        blacklisted tag, so don't offer it (releaseTag also checks). */}
+                    {!flagged && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={() => setReleaseDialog({ tagId: it.tagId, name: it.itemName })}
+                          className="text-red-700 focus:text-red-700 dark:text-red-300"
+                        >
+                          <Unlink className="h-4 w-4" /> Release tag…
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              {it.isLostMode && (it.lostMessage || it.rewardAmount > 0) && (
-                <p className="mt-1 truncate text-xs font-semibold text-amber-600 dark:text-amber-300">
-                  {it.rewardAmount > 0 ? `$${it.rewardAmount} reward` : ''}
-                  {it.rewardAmount > 0 && it.lostMessage ? ' — ' : ''}
-                  {it.lostMessage}
+
+              {highlighted && !it.isLostMode && (
+                <InlineAlert tone="success" className="mt-3" title="Tag claimed">
+                  It's protected now. If it ever goes missing, tap <strong>Report lost</strong>.
+                </InlineAlert>
+              )}
+
+              {/* One clear next action per state (ITEM1/ITEM7). */}
+              {!flagged && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {chat && (
+                    <Button asChild variant="primary" size="sm">
+                      <Link to={`/chat/${chat.id}`}>
+                        <MessageSquare className="h-4 w-4" /> Reply to finder
+                      </Link>
+                    </Button>
+                  )}
+                  {it.isLostMode ? (
+                    <>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => openArm(it)}>
+                        Edit lost message
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDisarmDialog({ tagId: it.tagId, name: it.itemName })}
+                      >
+                        <ShieldCheck className="h-4 w-4" /> I have it back
+                      </Button>
+                    </>
+                  ) : (
+                    !chat && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={highlighted ? 'primary' : 'secondary'}
+                        onClick={() => {
+                          setJustClaimed(null);
+                          openArm(it);
+                        }}
+                      >
+                        <AlertTriangle className="h-4 w-4" /> Report lost
+                      </Button>
+                    )
+                  )}
+                </div>
+              )}
+              {flagged && (
+                <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">
+                  An admin flagged this tag, so finders can't report or message on it. Contact TagBack if this seems wrong.
                 </p>
               )}
-              <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-500 dark:text-slate-400">
-                Tag: {it.tagId}
-                {scanCounts[it.tagId] > 0 && (
-                  <span className="inline-flex items-center gap-1" title="Times this tag's public page has been opened">
-                    <Eye className="h-3 w-3" /> {scanCounts[it.tagId]}
-                  </span>
-                )}
-              </p>
-              <div className="mt-1 flex items-center gap-3">
-                <Link
-                  to={`/dashboard/nfc-setup?tagId=${encodeURIComponent(it.tagId)}`}
-                  className="text-xs font-semibold text-purple-600 hover:text-pink-600"
-                >
-                  NFC profile
-                </Link>
-                {/* SYSTEM_AUDIT_ROUND3.md C1: the rules refuse to release a
-                    blacklisted tag, so don't offer it (releaseTag also checks). */}
-                {it.tagStatus !== 'blacklisted' && (
-                  <button
-                    type="button"
-                    onClick={() => setReleaseDialog({ tagId: it.tagId, name: it.itemName })}
-                    className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400"
-                  >
-                    <Unlink className="h-3 w-3" /> Release tag
-                  </button>
-                )}
-              </div>
-            </div>
-            <label className="flex shrink-0 items-center gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400">{it.isLostMode ? 'Lost mode' : 'Safe'}</span>
-              <Switch checked={it.isLostMode} onCheckedChange={(checked) => onToggle(it, checked)} />
-            </label>
-          </CardContent>
-        </Card>
-      ))}
+            </li>
+          );
+        })}
+      </ul>
 
-      <Dialog open={!!armDialog} onOpenChange={(open) => !open && setArmDialog(null)}>
+      <Dialog open={!!armDialog} onOpenChange={(open) => !open && !saving && setArmDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Declare "{armDialog?.name}" lost</DialogTitle>
+            <DialogTitle>Report "{armDialog?.name}" as lost</DialogTitle>
             <DialogDescription>
-              This message is shown publicly to anyone who taps the tag.
+              Anyone who taps the tag will see that it's lost, plus the message and reward below. They can message
+              you through TagBack — your contact details stay hidden.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={confirmArm} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="lostMessage">Message to finder</Label>
+            <FormField
+              id="lostMessage"
+              label="Message to the finder"
+              optional
+              counter={`${(armDialog?.lostMessage || '').length}/500`}
+              hint="Say where to leave it or how you'd like to get it back."
+            >
               <Textarea
-                id="lostMessage"
                 rows={3}
                 maxLength={500}
                 value={armDialog?.lostMessage || ''}
                 onChange={(e) => setArmDialog((d) => ({ ...d, lostMessage: e.target.value }))}
-                placeholder="e.g. Please call the front desk if found."
+                placeholder="e.g. Please leave it at the guard house. Thank you!"
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rewardAmount">Reward amount (optional)</Label>
+            </FormField>
+            <FormField id="rewardAmount" label="Reward (₱)" optional>
               <Input
-                id="rewardAmount"
                 type="number"
+                inputMode="numeric"
                 min="0"
                 max="1000000"
                 value={armDialog?.rewardAmount || ''}
                 onChange={(e) => setArmDialog((d) => ({ ...d, rewardAmount: e.target.value }))}
-                placeholder="20"
+                placeholder="e.g. 500"
               />
-            </div>
+            </FormField>
+            {(armDialog?.lostMessage || Number(armDialog?.rewardAmount) > 0) && (
+              <div className="rounded-2xl bg-base px-4 py-3 text-sm shadow-neu-pressed-sm">
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Finders will see</p>
+                <p className="mt-1 text-slate-800 dark:text-slate-100">
+                  {Number(armDialog?.rewardAmount) > 0 && <strong>Reward {formatReward(armDialog.rewardAmount)}. </strong>}
+                  {armDialog?.lostMessage}
+                </p>
+              </div>
+            )}
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setArmDialog(null)}>
+              <Button type="button" variant="outline" onClick={() => setArmDialog(null)} disabled={saving}>
                 Cancel
               </Button>
-              <Button type="submit" variant="destructive" disabled={saving} className="gap-1.5">
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                {saving ? 'Saving…' : 'Arm lost mode'}
+              <Button type="submit" variant="primary" loading={saving}>
+                {saving ? 'Saving…' : 'Turn on Lost Mode'}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!disarmDialog} onOpenChange={(open) => !open && setDisarmDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Turn off Lost Mode for "{disarmDialog?.name}"?</DialogTitle>
-            <DialogDescription>
-              The tag page will stop showing it as lost. Your reward and message stay saved and
-              prefill again next time you arm Lost Mode.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="ghost" autoFocus onClick={() => setDisarmDialog(null)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={confirmDisarm} disabled={disarming} className="gap-1.5">
-              {disarming && <Loader2 className="h-4 w-4 animate-spin" />}
-              {disarming ? 'Saving…' : 'Turn off Lost Mode'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!disarmDialog}
+        onOpenChange={(open) => !open && setDisarmDialog(null)}
+        title={`Turn off Lost Mode for "${disarmDialog?.name}"?`}
+        description="The tag page will stop showing it as lost. Your message and reward are kept, so they fill in again next time."
+        confirmLabel="Turn off Lost Mode"
+        busyLabel="Saving…"
+        tone="primary"
+        busy={disarming}
+        onConfirm={confirmDisarm}
+      />
 
-      <Dialog open={!!releaseDialog} onOpenChange={(open) => !open && setReleaseDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Release "{releaseDialog?.name}"?</DialogTitle>
-            <DialogDescription>
-              This unlinks the tag from your account. Deleted for good: the item name, profile
-              links and lost-mode message, plus every finder report, chat and notification for this
-              tag, so the next owner can't see them. The physical sticker itself is unaffected and
-              can be re-claimed (by you or someone else) or re-provisioned by an admin. This can't be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" autoFocus onClick={() => setReleaseDialog(null)}>
-              Cancel
-            </Button>
-            <Button type="button" variant="destructive" onClick={confirmRelease} disabled={releasing} className="gap-1.5">
-              {releasing && <Loader2 className="h-4 w-4 animate-spin" />}
-              {releasing ? 'Releasing…' : 'Release tag'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!releaseDialog}
+        onOpenChange={(open) => !open && setReleaseDialog(null)}
+        title={`Release "${releaseDialog?.name}"?`}
+        description={
+          <>
+            <p>This unlinks the tag from your account and deletes for good:</p>
+            <ul className="list-disc space-y-0.5 pl-5">
+              <li>the item name, tap page and lost message</li>
+              <li>every finder report, chat and notification for this tag</li>
+            </ul>
+            <p>
+              The sticker itself doesn't change and doesn't need rewriting. You or someone else can claim it again with
+              the same TagBack ID.
+            </p>
+          </>
+        }
+        irreversible
+        confirmLabel="Release tag"
+        busyLabel="Releasing…"
+        busy={releasing}
+        onConfirm={confirmRelease}
+      />
     </div>
   );
 }

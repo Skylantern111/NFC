@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { captureLocation } from '../../lib/geolocation';
+import { isInAppBrowser } from '../../lib/inAppBrowser';
 import { getFinderToken } from '../../lib/finderSession';
 import { notifyOwner, recordTagScan } from '../../lib/ownerItems';
 import { hasVisibleLinks, isAdminManaged, resolveLanding } from '../../lib/tagContent';
@@ -29,12 +30,13 @@ import { LinkPills, ProfileCard } from '../../components/TagContent';
 import AmbientBackground from '../../components/AmbientBackground';
 import TopNav from '../../components/nav/TopNav';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn, friendlyFirestoreError } from '@/lib/utils';
+import { cn, formatReward, friendlyFirestoreError } from '@/lib/utils';
+import StatusBadge from '@/components/StatusBadge';
+import { LoadingState } from '@/components/States';
 
 // Shared frosted-glass treatment applied over the ported ui/Card primitive so
 // public pages keep the app's light glassmorphism language.
@@ -81,6 +83,7 @@ export default function NfcLanding() {
   const [locationNote, setLocationNote] = useState('');
   const [location, setLocation] = useState(null);
   const [locStatus, setLocStatus] = useState('idle'); // idle | loading | done | unavailable
+  const [locReason, setLocReason] = useState(null); // why it failed: denied | timeout | unavailable | unsupported
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -180,8 +183,8 @@ export default function NfcLanding() {
   }, [state, tagProfile, item]);
 
   // Real, gracefully-degrading browser geolocation (see lib/geolocation.js —
-  // resolves null on denial/unsupported/timeout rather than throwing). Not a
-  // fake timer: this is an actual GPS read, fired on demand from the toggle.
+  // resolves { location: null, reason } on failure rather than throwing).
+  // Not a fake timer: this is an actual GPS read, fired on demand.
   // A raw "lat, lng" note is one we auto-filled, not something the finder
   // typed — safe to overwrite on a re-share without losing their own text.
   const isAutoFilledNote = (note) => /^-?\d+\.\d+, -?\d+\.\d+$/.test(note || '');
@@ -189,7 +192,8 @@ export default function NfcLanding() {
   async function handleAttachLocation() {
     const wasAutoFilled = !locationNote || isAutoFilledNote(locationNote);
     setLocStatus('loading');
-    const loc = await captureLocation();
+    setLocReason(null);
+    const { location: loc, reason } = await captureLocation();
     if (loc) {
       setLocation(loc);
       setLocStatus('done');
@@ -198,11 +202,16 @@ export default function NfcLanding() {
       }
     } else {
       setLocStatus('unavailable');
+      setLocReason(reason);
     }
   }
 
   async function submitReport(e) {
     e.preventDefault();
+    if (!note.trim()) {
+      toast.error('Write a short message to the owner first.');
+      return;
+    }
     setBusy(true);
     const finderSessionToken = getFinderToken();
 
@@ -232,6 +241,17 @@ export default function NfcLanding() {
         lastMessageText: (note || 'New report filed').slice(0, 140),
         unreadFor: ['owner'],
       });
+      // The finder's message also opens the thread (UI_UX_IMPROVEMENT_PLAN.md
+      // BUG3): it used to live only on the report, so both sides landed on
+      // an empty chat and the finder's words seemed lost. Same exact-field
+      // shape firestore.rules' messages#create checks for a finder.
+      const where = locationNote.trim();
+      await addDoc(collection(db, 'chats', chat.id, 'messages'), {
+        sender: 'finder',
+        text: where ? `${note.trim()}\n\nWhere: ${where}` : note.trim(),
+        timestamp: serverTimestamp(),
+        finderSessionToken,
+      }).catch((err) => console.warn('first chat message failed:', err));
       // Best-effort: the report itself already succeeded above, so a failure
       // here shouldn't block the finder's flow — just surfaced for debugging
       // rather than silently swallowed.
@@ -252,12 +272,9 @@ export default function NfcLanding() {
     }
   }
 
+  // FIND5: a stranger's first impression after a tap — branded, not a bare spinner.
   if (state === 'loading') {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-      </div>
-    );
+    return <LoadingState variant="page" label="Opening this TagBack tag…" />;
   }
 
   if (state === 'notfound') {
@@ -265,14 +282,19 @@ export default function NfcLanding() {
       <>
         <AmbientBackground />
         <div className="relative flex min-h-screen flex-col">
-          <TopNav fallback="/" />
+          <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
-              <CardContent className="text-slate-800 dark:text-slate-100">
+              <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
                 <h1 className="text-2xl font-bold">Tag not recognized</h1>
-                <p className="mt-2 text-slate-500 dark:text-slate-400">
-                  This tag isn't registered yet, or the link is incorrect.
+                <p className="text-slate-600 dark:text-slate-300">
+                  This tag isn't registered yet, or the link is incomplete. Try tapping the sticker again, holding
+                  your phone still for a second.
                 </p>
+                {/* FIND6: never a dead end. */}
+                <Button asChild variant="secondary">
+                  <Link to="/">What is TagBack?</Link>
+                </Button>
               </CardContent>
             </Card>
           </main>
@@ -287,37 +309,39 @@ export default function NfcLanding() {
       <>
         <AmbientBackground />
         <div className="relative flex min-h-screen flex-col">
-          <TopNav fallback="/" />
+          <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
               <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
                 <TagIcon className="h-6 w-6 text-purple-600" />
                 <h1 className="text-2xl font-bold">This tag isn't claimed yet</h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   {user
                     ? 'Claim it now to link it to your account.'
                     : 'Sign in to claim this tag and link it to your account.'}
                 </p>
                 {user ? (
                   <Button
-                    className="mt-1 w-full gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500"
+                    variant="primary"
+                    className="mt-1 w-full gap-2"
                     onClick={() => nav(claimPath)}
                   >
                     Claim this tag <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Link
-                    to="/login"
-                    state={{ from: { pathname: '/dashboard/items/claim', search: `?tagId=${encodeURIComponent(tagId)}` } }}
-                    className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2.5 text-sm font-semibold text-white hover:from-purple-500 hover:to-pink-500"
-                  >
-                    Sign in to claim <ArrowRight className="h-4 w-4" />
-                  </Link>
+                  <Button asChild variant="primary" className="mt-1 w-full">
+                    <Link
+                      to="/login"
+                      state={{ from: { pathname: '/dashboard/items/claim', search: `?tagId=${encodeURIComponent(tagId)}` } }}
+                    >
+                      Sign in to claim <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
                 )}
                 {!user && (
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     No account?{' '}
-                    <Link to="/register" className="font-semibold text-purple-600 hover:text-pink-600">
+                    <Link to="/register" className="font-semibold text-purple-700 dark:text-purple-300 hover:underline">
                       Create one
                     </Link>
                   </p>
@@ -332,7 +356,7 @@ export default function NfcLanding() {
 
   if (state === 'redirecting') {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 px-5 text-center text-slate-500 dark:text-slate-400">
+      <div className="flex h-screen flex-col items-center justify-center gap-3 px-5 text-center text-slate-600 dark:text-slate-400">
         <Loader2 className="h-5 w-5 animate-spin" />
         <p className="text-sm">Opening link…</p>
         <a
@@ -356,17 +380,17 @@ export default function NfcLanding() {
       <>
         <AmbientBackground />
         <div className="relative flex min-h-screen flex-col">
-          <TopNav fallback="/" />
+          <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
               <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
                 <ExternalLink className="h-6 w-6 text-purple-600" />
                 <h1 className="text-xl font-bold">You're leaving TagBack</h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   This tag's owner links to <span className="font-semibold text-slate-700 dark:text-slate-200">{host}</span>.
                   Only continue if you trust it.
                 </p>
-                <p className="break-all text-xs text-slate-400 dark:text-slate-500">{tagProfile?.redirectUrl}</p>
+                <p className="break-all text-xs text-slate-600 dark:text-slate-400">{tagProfile?.redirectUrl}</p>
                 <Button
                   className="mt-1 w-full gap-2"
                   onClick={() => window.location.replace(tagProfile.redirectUrl)}
@@ -389,7 +413,7 @@ export default function NfcLanding() {
       <>
         <AmbientBackground />
         <div className="relative flex min-h-screen flex-col">
-          <TopNav fallback="/" />
+          <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5">
             <Card className={GLASS}>
               <CardContent className="py-8">
@@ -407,13 +431,13 @@ export default function NfcLanding() {
       <>
         <AmbientBackground />
         <div className="relative flex min-h-screen flex-col">
-          <TopNav fallback="/" />
+          <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
               <CardContent className="flex flex-col items-center gap-2 text-slate-800 dark:text-slate-100">
                 <ShieldAlert className="h-6 w-6 text-rose-600" />
                 <h1 className="text-2xl font-bold">This tag is no longer active</h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   It's been flagged and can't accept new reports or messages. If you found this
                   item, there's no way to reach its owner through this tag right now.
                 </p>
@@ -431,47 +455,49 @@ export default function NfcLanding() {
     <>
       <AmbientBackground />
       <div className="relative flex min-h-screen flex-col">
-        <TopNav fallback="/" />
+        <TopNav fallback="/" historyOnly />
         <main className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-4 px-4 py-6 sm:px-6">
+        {/* FIND1: say what this page is before asking anything. */}
+        <p className="flex items-start gap-2 px-1 text-sm text-slate-700 dark:text-slate-200">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+          <span>
+            This item is protected by <strong>TagBack</strong>. You can message its owner here — no app or account,
+            and neither of you sees the other's contact details.
+          </span>
+        </p>
         <Card
           className={cn(
             GLASS,
-            lost &&
-              'border-2 border-red-400 dark:border-red-500/50 bg-red-50/60 dark:bg-red-500/10 shadow-[0_0_24px_rgba(239,68,68,0.25)] animate-pulseGlow'
+            lost && 'border-2 border-red-400 dark:border-red-500/50 bg-red-50/70 dark:bg-red-500/10'
           )}
         >
           <CardContent className="text-slate-800 dark:text-slate-100">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Badge variant={lost ? 'destructive' : 'secondary'}>
-                {lost ? 'Reported lost' : 'Found item'}
-              </Badge>
+              {lost ? <StatusBadge state="lost" label="Reported lost by its owner" /> : <StatusBadge state="safe" label="Belongs to a TagBack user" />}
               {lost && item.rewardAmount > 0 && (
-                <Badge variant="outline" className="border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                  ${item.rewardAmount} reward
-                </Badge>
+                <StatusBadge state="review" label={`Reward ${formatReward(item.rewardAmount)}`} />
               )}
             </div>
+            {/* FIND8: only claim "you found it" when the owner says it's lost. */}
             <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 sm:text-3xl">
-              You found {item.itemName}
+              {lost ? `You found ${item.itemName}` : item.itemName}
             </h1>
+            {!lost && (
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                If you found this, let the owner know below.
+              </p>
+            )}
 
             {lost && item.lostMessage && (
               <div className="mt-4 rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50/70 dark:bg-red-500/10 p-4">
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-300">
-                  <MessageSquare className="h-3.5 w-3.5" />
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-300">
+                  <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
                   Message from the owner
                 </p>
-                <p className="text-red-700 dark:text-red-200">{item.lostMessage}</p>
+                <p className="whitespace-pre-wrap break-words text-slate-800 dark:text-slate-100">{item.lostMessage}</p>
               </div>
             )}
 
-            <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-base px-3.5 py-2.5 text-xs text-slate-600 dark:text-slate-300 shadow-neu-pressed-sm">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-              <span>
-                Your identity stays private — no app, no account, and no contact info is ever
-                exposed to the owner.
-              </span>
-            </div>
           </CardContent>
         </Card>
 
@@ -481,94 +507,102 @@ export default function NfcLanding() {
 
         {tagProfile?.lostFoundEnabled === false ? (
           <Card className={GLASS}>
-            <CardContent className="text-center text-sm text-slate-500 dark:text-slate-400">
+            <CardContent className="text-center text-sm text-slate-600 dark:text-slate-400">
               The owner hasn't enabled found-item reporting for this tag.
             </CardContent>
           </Card>
         ) : (
         <Card className={GLASS}>
           <CardContent className="text-slate-800 dark:text-slate-100">
+            {/* UI_UX_IMPROVEMENT_PLAN.md BUG8: the required message comes first
+                and says where it goes; location is one optional block below,
+                with who sees it and why it may fail (BUG6). */}
             <form onSubmit={submitReport} className="flex flex-col gap-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Current location</span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">
-                      {locStatus === 'done'
-                        ? `±${Math.round(location?.accuracy ?? 0)}m accuracy`
-                        : locStatus === 'unavailable'
-                          ? 'Unavailable'
-                          : 'Optional'}
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAttachLocation}
-                    disabled={locStatus === 'loading'}
-                    className="justify-start gap-2"
-                  >
-                    {locStatus === 'loading' ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <LocateFixed className="h-4 w-4" />
-                    )}
-                    {locStatus === 'done'
-                      ? 'Update my location'
-                      : locStatus === 'loading'
-                        ? 'Getting your location…'
-                        : 'Share my current location'}
-                  </Button>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="finder-message" className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Message to the owner
+                  </Label>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">{note.length}/500</span>
+                </div>
+                <Textarea
+                  id="finder-message"
+                  value={note}
+                  maxLength={500}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. I found it on a bench at the park. I can leave it at the guard house."
+                  aria-describedby="finder-message-hint"
+                  required
+                />
+                <p id="finder-message-hint" className="text-xs text-slate-600 dark:text-slate-400">
+                  This starts a private chat with the owner. You'll see their reply on the next page.
+                </p>
+              </div>
 
-                  <Label htmlFor="location-note" className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-                    <MapPin className="h-3.5 w-3.5" />
-                    Location note
+              <fieldset className="flex flex-col gap-3 rounded-2xl bg-base p-4 shadow-neu-pressed-sm">
+                <legend className="sr-only">Where the item is (optional)</legend>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    <MapPin className="h-4 w-4" /> Where is it now?
+                  </span>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">Optional</span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="location-note" className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    Describe the place
                   </Label>
                   <Input
                     id="location-note"
                     value={locationNote}
+                    maxLength={200}
                     onChange={(e) => setLocationNote(e.target.value)}
-                    placeholder="e.g. Left with the concierge at Hotel Blue"
+                    placeholder="e.g. Guard house at the main gate"
                   />
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAttachLocation}
+                  disabled={locStatus === 'loading'}
+                  className="justify-start gap-2"
+                >
+                  {locStatus === 'loading' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LocateFixed className="h-4 w-4" />
+                  )}
+                  {locStatus === 'done'
+                    ? 'Update my location'
+                    : locStatus === 'loading'
+                      ? 'Getting your location… (up to 25 s)'
+                      : 'Also share my current location'}
+                </Button>
+                <p className="text-xs text-slate-600 dark:text-slate-400" aria-live="polite">
+                  {locStatus === 'done'
+                    ? `Location added (accurate to about ${Math.round(location?.accuracy ?? 0)} m).`
+                    : locStatus === 'unavailable'
+                      ? locReason === 'denied'
+                        ? isInAppBrowser()
+                          ? "Location is blocked in this app's browser. Describe the place above instead, or open this page in Chrome."
+                          : 'Location permission is off. Describe the place above instead.'
+                        : locReason === 'timeout'
+                          ? "Couldn't get a location fix in time (common indoors). Try again, or describe the place above."
+                          : locReason === 'unsupported'
+                            ? "This browser can't share location. Describe the place above instead."
+                            : "Couldn't get your location. Check that location is on, or describe the place above."
+                      : 'Only the owner sees it. It is rounded to about 10 m and deleted once the item is returned.'}
+                </p>
+              </fieldset>
 
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="finder-message" className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                      Message to the owner
-                    </Label>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">Required</span>
-                  </div>
-                  <Textarea
-                    id="finder-message"
-                    value={note}
-                    maxLength={500}
-                    onChange={(e) => setNote(e.target.value)}
-                    rows={3}
-                    placeholder="e.g. Left it at the reception desk of Hotel Blue."
-                    className="flex-1"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={busy}
-                className={cn(
-                  'gap-2',
-                  lost
-                    ? 'bg-red-600 text-white hover:bg-red-500'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500'
-                )}
-              >
+              <Button type="submit" disabled={busy} variant={lost ? 'destructive' : 'primary'} className="gap-2">
                 {busy ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" /> Sending…
                   </>
                 ) : (
                   <>
-                    Report found item <ArrowRight className="h-4 w-4" />
+                    Send to owner <ArrowRight className="h-4 w-4" />
                   </>
                 )}
               </Button>
@@ -577,9 +611,6 @@ export default function NfcLanding() {
         </Card>
         )}
 
-        <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-          Your identity stays private. No app or account needed.
-        </p>
         </main>
       </div>
     </>

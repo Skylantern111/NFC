@@ -23,6 +23,36 @@ import {
 import { auth, db, firebaseReady } from '../firebase/config';
 import { chunk } from './utils';
 
+// A listener that fails stays dead, and one on a stalled connection (common
+// in in-app browsers after the app was in the background) can go quiet
+// without failing (UI_UX_IMPROVEMENT_PLAN.md BUG5). This key changes when
+// the page comes back online, when it becomes visible after 30 s or more in
+// the background, or on a manual retry — put it in a listener effect's deps
+// to re-subscribe then.
+const RESUBSCRIBE_AFTER_HIDDEN_MS = 30 * 1000;
+export function useResubscribeKey() {
+  const [key, setKey] = useState(0);
+  useEffect(() => {
+    let hiddenAt = document.hidden ? Date.now() : null;
+    const bump = () => setKey((k) => k + 1);
+    function onVisibility() {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+      } else {
+        if (hiddenAt && Date.now() - hiddenAt >= RESUBSCRIBE_AFTER_HIDDEN_MS) bump();
+        hiddenAt = null;
+      }
+    }
+    window.addEventListener('online', bump);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('online', bump);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+  return [key, () => setKey((k) => k + 1)];
+}
+
 // Realistic placeholder data so Dashboard/Items still preview when no real
 // Firebase project is configured (mirrors the `*Mock()` convention used in
 // NfcLanding.jsx). Kept as functions (not constants) so each hook instance
@@ -286,6 +316,7 @@ export function useOwnerChats(user) {
   const key = useMemo(() => tagIds.slice().sort().join(','), [tagIds]);
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [resubscribeKey] = useResubscribeKey();
 
   useEffect(() => {
     if (!firebaseReady) {
@@ -311,12 +342,15 @@ export function useOwnerChats(user) {
           setChats(partials.flat());
           setLoading(false);
         },
-        () => setLoading(false)
+        (err) => {
+          console.warn('owner listener failed:', err);
+          setLoading(false);
+        }
       )
     );
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, tagsLoaded]);
+  }, [key, tagsLoaded, resubscribeKey]);
 
   // SYSTEM_AUDIT_PLAN.md A6: a finder can no longer write lastMessageText
   // (anyone with the chatId could spoof it), so the preview comes from the
@@ -364,6 +398,7 @@ export function useOwnerNotifications(user) {
   const key = useMemo(() => tagIds.slice().sort().join(','), [tagIds]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [resubscribeKey] = useResubscribeKey();
 
   useEffect(() => {
     if (!firebaseReady) {
@@ -394,12 +429,15 @@ export function useOwnerNotifications(user) {
           setNotifications(partials.flat());
           setLoading(false);
         },
-        () => setLoading(false)
+        (err) => {
+          console.warn('owner listener failed:', err);
+          setLoading(false);
+        }
       )
     );
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, tagsLoaded]);
+  }, [key, tagsLoaded, resubscribeKey]);
 
   const sorted = useMemo(
     () =>
@@ -730,49 +768,75 @@ export async function getTagScanBreakdown(tagId) {
 export function useChat(chatId) {
   const [chat, setChat] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [resubscribeKey, retry] = useResubscribeKey();
 
   useEffect(() => {
     if (!firebaseReady || !chatId) {
       setLoading(false);
       return;
     }
+    setError(null);
     const unsub = onSnapshot(
       doc(db, 'chats', chatId),
       (snap) => {
         setChat(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+        setError(null);
         setLoading(false);
       },
-      () => setLoading(false)
+      (err) => {
+        console.warn('chat listener failed:', err);
+        setError(err);
+        setLoading(false);
+      }
     );
     return unsub;
-  }, [chatId]);
+  }, [chatId, resubscribeKey]);
 
-  return { chat, loading: firebaseReady ? loading : false };
+  return { chat, loading: firebaseReady ? loading : false, error, retry };
 }
 
 // Live message thread for one chat, oldest first.
 export function useChatMessages(chatId) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [resubscribeKey, retry] = useResubscribeKey();
 
   useEffect(() => {
     if (!firebaseReady || !chatId) {
       setLoading(false);
       return;
     }
+    setError(null);
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
+    // Metadata changes too, so a message still on its way to the server is
+    // `pending` and flips to sent when it lands (UI_UX_IMPROVEMENT_PLAN.md
+    // CHAT2). 'estimate' gives it a local time until the server's arrives.
     const unsub = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snap) => {
-        setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setMessages(
+          snap.docs.map((d) => ({
+            id: d.id,
+            ...d.data({ serverTimestamps: 'estimate' }),
+            pending: d.metadata.hasPendingWrites,
+          }))
+        );
+        setError(null);
         setLoading(false);
       },
-      () => setLoading(false)
+      (err) => {
+        console.warn('chat messages listener failed:', err);
+        setError(err);
+        setLoading(false);
+      }
     );
     return unsub;
-  }, [chatId]);
+  }, [chatId, resubscribeKey]);
 
-  return { messages, loading: firebaseReady ? loading : false };
+  return { messages, loading: firebaseReady ? loading : false, error, retry };
 }
 
 // Sends one message and stamps the parent chat's activity markers.

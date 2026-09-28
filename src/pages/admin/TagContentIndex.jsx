@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, documentId, getDocs, limit, orderBy, query, startAfter, where } from 'firebase/firestore';
-import { ExternalLink, Loader2, PencilLine, Search } from 'lucide-react';
+import { ExternalLink, PencilLine, Search } from 'lucide-react';
 import { db, firebaseReady } from '../../firebase/config';
 import { LANDING_MODES, contentLabel } from '../../lib/tagContent';
-import { normalizeTagbackId, TAG_STATUS_BADGE } from '../../lib/tags';
-import { chunk } from '../../lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { normalizeTagbackId } from '../../lib/tags';
+import { chunk, friendlyFirestoreError } from '../../lib/utils';
+import PageHeader from '@/components/PageHeader';
+import StatusBadge from '@/components/StatusBadge';
+import { FormError } from '@/components/FormField';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -74,7 +77,7 @@ export default function TagContentIndex() {
         setCursor(page.cursor);
         setHasMore(page.hasMore);
       } catch (err) {
-        if (live) setError(err.message || 'Could not load tags.');
+        if (live) setError(friendlyFirestoreError(err, 'Could not load tags. Try again.'));
       } finally {
         if (live) setLoading(false);
       }
@@ -93,7 +96,7 @@ export default function TagContentIndex() {
       setCursor(page.cursor);
       setHasMore(page.hasMore);
     } catch (err) {
-      setError(err.message || 'Could not load more tags.');
+      setError(friendlyFirestoreError(err, 'Could not load more tags. Try again.'));
     } finally {
       setMoreLoading(false);
     }
@@ -128,17 +131,18 @@ export default function TagContentIndex() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Tag Content</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Choose what a tap shows — Lost &amp; Found page, profile card (name, bio, socials, contact), or a redirect.
-          Stickers only hold their TagBack link, so changes apply on the next tap with no rewrite.
-        </p>
-      </div>
+      <PageHeader
+        title="Tag Content"
+        description="Choose what a tap shows — the Lost & Found page, a profile card, or a redirect. Stickers only hold their TagBack link, so changes apply on the next tap with no rewrite."
+      />
 
       <form onSubmit={onLookup} className="flex flex-wrap items-center gap-2">
         <Input
+          aria-label="TagBack ID"
           placeholder="TagBack ID, e.g. TB-ABCD-2345"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
           value={lookup}
           onChange={(e) => setLookup(e.target.value)}
           className="max-w-md font-mono text-sm"
@@ -157,10 +161,11 @@ export default function TagContentIndex() {
                   key={m.value}
                   type="button"
                   onClick={() => setModeFilter(m.value)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
+                  aria-pressed={modeFilter === m.value}
+                  className={`min-h-9 rounded-full px-3 text-sm font-medium transition-shadow ${
                     modeFilter === m.value
-                      ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
-                      : 'bg-base text-slate-500 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
+                      ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-200 shadow-neu-pressed-sm'
+                      : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
                   }`}
                 >
                   {m.label}
@@ -172,36 +177,40 @@ export default function TagContentIndex() {
                 <PencilLine className="h-3.5 w-3.5" /> Set content ({selected.size})
               </Button>
             ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 Select unclaimed tags to set their content in one go.
               </p>
             )}
           </div>
 
-          {error && <p className="text-sm text-rose-600">{error}</p>}
+          <FormError>{error}</FormError>
 
-          <div className="overflow-x-auto rounded-xl bg-base shadow-neu-pressed-sm">
-            <Table>
+          <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
+            <Table className="stack-table">
               <TableHeader>
                 <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
                   <TableHead className="w-8" />
-                  <TableHead className="text-slate-500 dark:text-slate-400">TagBack ID</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
-                  <TableHead className="text-slate-500 dark:text-slate-400">Tap shows</TableHead>
-                  <TableHead className="text-right text-slate-500 dark:text-slate-400">Actions</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">TagBack ID</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Status</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Tap shows</TableHead>
+                  <TableHead className="text-right text-slate-600 dark:text-slate-400">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading && (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">
-                      <Loader2 className="mr-1.5 inline h-4 w-4 animate-spin" /> Loading tags…
-                    </TableCell>
-                  </TableRow>
-                )}
+                {/* ADM7: skeleton rows, like the other admin tables. */}
+                {loading &&
+                  [0, 1, 2, 3].map((i) => (
+                    <TableRow key={i} className="hover:bg-transparent">
+                      {[0, 1, 2, 3, 4].map((c) => (
+                        <TableCell key={c}>
+                          <Skeleton className="h-4 w-full max-w-24" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
                 {!loading && visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">
+                    <TableCell colSpan={5} data-full className="py-8 text-center text-slate-600 dark:text-slate-400">
                       {firebaseReady ? 'No tags in this view.' : 'Preview mode — no Firestore configured.'}
                     </TableCell>
                   </TableRow>
@@ -210,7 +219,7 @@ export default function TagContentIndex() {
                   const profile = profiles[t.tagId];
                   return (
                     <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
-                      <TableCell>
+                      <TableCell data-label="Select">
                         {/* Bulk only targets unclaimed tags — never overwrite an owner's content. */}
                         <Checkbox
                           checked={selected.has(t.tagId)}
@@ -220,19 +229,18 @@ export default function TagContentIndex() {
                           title={t.status !== 'registered' ? 'Owned tags are edited one at a time' : undefined}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-200">{t.tagId}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={TAG_STATUS_BADGE[t.status] || TAG_STATUS_BADGE.registered}>
-                          {t.status}
-                        </Badge>
+                      <TableCell data-label="TagBack ID" className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">{t.tagId}</TableCell>
+                      <TableCell data-label="Status">
+                        <StatusBadge state={t.status || 'registered'} />
                       </TableCell>
                       <TableCell
+                        data-label="Tap shows"
                         className="max-w-56 truncate text-xs text-slate-600 dark:text-slate-300"
                         title={profile?.redirectUrl || contentLabel(profile)}
                       >
                         {contentLabel(profile)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell data-label="Actions" className="text-right">
                         <div className="flex flex-wrap justify-end gap-1.5">
                           <Button variant="outline" size="sm" className="gap-1.5" asChild>
                             <Link to={`/admin/tags/${encodeURIComponent(t.tagId)}`}>
@@ -254,7 +262,7 @@ export default function TagContentIndex() {
           </div>
           {!loading && hasMore && (
             <div className="flex justify-center">
-              <Button variant="outline" size="sm" onClick={onLoadMore} disabled={moreLoading}>
+              <Button variant="outline" size="sm" onClick={onLoadMore} loading={moreLoading}>
                 {moreLoading ? 'Loading…' : 'Load more'}
               </Button>
             </div>

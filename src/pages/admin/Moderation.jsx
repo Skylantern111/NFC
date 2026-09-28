@@ -4,15 +4,17 @@ import { Ban, ShieldCheck, CheckCheck, Eye, Flag, ShieldBan, UserSearch } from '
 import { toast } from 'sonner';
 import { useModerationQueue, banToken, unbanToken, markChatReviewed, chatReports, hasReportFrom } from '../../lib/moderation';
 import { notifyOwner } from '../../lib/ownerItems';
-import { relativeTimeFromMs, toMillis } from '../../lib/utils';
+import { friendlyFirestoreError, relativeTimeFromMs, toMillis } from '../../lib/utils';
+import PageHeader from '@/components/PageHeader';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import StatusBadge from '@/components/StatusBadge';
+import { EmptyState, SkeletonList } from '@/components/States';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 
 // §4.13/§5.4. Real live data: chats an owner reported (chats.blocked, set
@@ -32,6 +34,9 @@ export default function Moderation() {
   const [reviewingId, setReviewingId] = useState('');
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkReviewing, setBulkReviewing] = useState(false);
+  // UI_UX_IMPROVEMENT_PLAN.md ADM1: ban/unban now asks first.
+  const [banTarget, setBanTarget] = useState(null); // the chat whose token is being (un)banned
+  const [banBusy, setBanBusy] = useState(false);
 
   const visibleChats = useMemo(
     () => (showReviewed ? chats : chats.filter((c) => !c.reviewedAt)),
@@ -84,7 +89,7 @@ export default function Moderation() {
       toast.success(`Marked ${selectedIds.size} reviewed.`);
       setSelectedIds(new Set());
     } catch (err) {
-      toast.error('Could not mark all reviewed: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not mark them reviewed. Try again.'));
     } finally {
       setBulkReviewing(false);
     }
@@ -93,6 +98,7 @@ export default function Moderation() {
   async function onToggleBan(chat) {
     const token = chat.finderSessionToken;
     const banned = bannedTokens.has(token);
+    setBanBusy(true);
     try {
       if (banned) {
         await unbanToken(token);
@@ -107,9 +113,12 @@ export default function Moderation() {
         await notifyOwner({ type: 'moderation_resolved', tagId: chat.tagId, chatId: chat.id });
       }
       toggleMockBan(token);
-      toast.success(banned ? 'Token unbanned.' : 'Token banned.');
+      setBanTarget(null);
+      toast.success(banned ? 'Finder unbanned.' : 'Finder banned. The owner was told their report was acted on.');
     } catch (err) {
-      toast.error('Could not update ban status: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not update the ban. Try again.'));
+    } finally {
+      setBanBusy(false);
     }
   }
 
@@ -119,7 +128,7 @@ export default function Moderation() {
       await markChatReviewed(chat.id);
       toast.success('Marked reviewed.');
     } catch (err) {
-      toast.error('Could not mark reviewed: ' + err.message);
+      toast.error(friendlyFirestoreError(err, 'Could not mark it reviewed. Try again.'));
     } finally {
       setReviewingId('');
     }
@@ -127,13 +136,10 @@ export default function Moderation() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Moderation</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Conversations owners have reported. Banning a finder's session token blocks it from
-          filing new reports or sending new messages anywhere in the app.
-        </p>
-      </div>
+      <PageHeader
+        title="Moderation"
+        description="Reported conversations. Banning a finder blocks their browser from new reports and messages anywhere in TagBack."
+      />
 
       {!loading && chats.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
@@ -141,48 +147,42 @@ export default function Moderation() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
               <Flag className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Reported</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Reported</div>
             <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{chats.length}</div>
           </div>
           <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
               <CheckCheck className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Reviewed</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Reviewed</div>
             <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{reviewedTotal}</div>
           </div>
           <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300">
               <ShieldBan className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Banned tokens</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Banned tokens</div>
             <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{bannedTotal}</div>
           </div>
         </div>
       )}
 
-      {loading && (
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-16 rounded-2xl" />
-          ))}
-        </div>
-      )}
+      {loading && <SkeletonList count={3} className="h-16" />}
 
       {!loading && chats.length === 0 && (
-        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
-          <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
-            <ShieldCheck className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            <p className="font-bold text-slate-800 dark:text-slate-100">Nothing reported.</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Chats an owner reports as abusive show up here.</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={ShieldCheck}
+          title="Nothing reported"
+          description="Chats an owner or finder reports show up here."
+        />
       )}
 
       {chats.length > 0 && (
         <>
           <div className="flex flex-wrap items-center gap-4">
             <Input
+              type="search"
+              aria-label="Search reports"
               placeholder="Search by item, reason, or finder token…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -200,28 +200,24 @@ export default function Moderation() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                disabled={bulkReviewing}
+                loading={bulkReviewing}
                 onClick={onBulkMarkReviewed}
               >
-                <CheckCheck className="h-3.5 w-3.5" />
+                {!bulkReviewing && <CheckCheck className="h-3.5 w-3.5" />}
                 {bulkReviewing ? 'Marking…' : `Mark ${selectedIds.size} reviewed`}
               </Button>
             )}
           </div>
           {visibleChats.length === 0 && (
-            <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
-              <CardContent className="flex flex-col items-center gap-2 p-8 text-center">
-                <CheckCheck className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-                <p className="font-bold text-slate-800 dark:text-slate-100">All caught up.</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Every report has been reviewed. Toggle "Show reviewed" to see them again.
-                </p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={CheckCheck}
+              title="All caught up"
+              description='Every report has been reviewed. Turn on "Show reviewed" to see them again.'
+            />
           )}
           {visibleChats.length > 0 && (
-          <div className="overflow-x-auto rounded-2xl bg-white/80 dark:bg-white/5 shadow-lg">
-          <Table>
+          <div className="rounded-2xl sm:overflow-x-auto sm:bg-white/80 sm:shadow-card sm:dark:bg-white/5">
+          <Table className="stack-table">
             <TableHeader>
               <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
                 <TableHead className="w-8">
@@ -243,7 +239,7 @@ export default function Moderation() {
             <TableBody>
               {filteredChats.length === 0 && (
                 <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                  <TableCell colSpan={7} className="py-8 text-center text-slate-500 dark:text-slate-400">
+                  <TableCell colSpan={7} className="py-8 text-center text-slate-600 dark:text-slate-400">
                     No reports match this search.
                   </TableCell>
                 </TableRow>
@@ -253,7 +249,7 @@ export default function Moderation() {
                 const reviewed = !!chat.reviewedAt;
                 return (
                   <TableRow key={chat.id} className="border-slate-200 dark:border-slate-700/60">
-                    <TableCell>
+                    <TableCell data-label="Select">
                       <Checkbox
                         checked={selectedIds.has(chat.id)}
                         onCheckedChange={() => toggleSelected(chat.id)}
@@ -261,32 +257,28 @@ export default function Moderation() {
                         aria-label={`Select report for ${items[chat.tagId]?.itemName || chat.id}`}
                       />
                     </TableCell>
-                    <TableCell className="text-slate-700 dark:text-slate-200">{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-1">
+                    <TableCell data-label="Item" className="font-semibold text-slate-800 dark:text-slate-100">{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
+                    <TableCell data-label="Reason">
+                      <div className="flex flex-col items-end gap-1 sm:items-start">
                         {chatReports(chat).map((r) => (
-                          <Badge
-                            key={r.by}
-                            variant="outline"
-                            className="border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300"
-                          >
-                            {r.by === 'finder' ? 'Finder: ' : 'Owner: '}
+                          <span key={r.by} className="whitespace-normal text-sm text-slate-700 dark:text-slate-200">
+                            <span className="font-semibold">{r.by === 'finder' ? 'Finder: ' : 'Owner: '}</span>
                             {r.reason || 'No reason given'}
-                          </Badge>
+                          </span>
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                    <TableCell data-label="Finder token" className="max-w-40 truncate font-mono text-xs text-slate-600 dark:text-slate-400" title={chat.finderSessionToken}>
                       {chat.finderSessionToken}
                     </TableCell>
-                    <TableCell className="text-xs text-slate-400 dark:text-slate-500">
+                    <TableCell data-label="Reported" className="text-xs text-slate-600 dark:text-slate-400">
                       {(() => {
                         const times = chatReports(chat).map((r) => toMillis(r.at)).filter(Boolean);
                         return times.length ? relativeTimeFromMs(Math.max(...times)) : '—';
                       })()}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
+                    <TableCell data-label="Status">
+                      <div className="flex flex-wrap justify-end gap-1 sm:justify-start">
                         {/* Direction matters for which admin action is the
                             right remedy — banning a finder's token is the
                             WRONG fix for a finder-filed report (that bans
@@ -294,31 +286,23 @@ export default function Moderation() {
                             on chats reported before this field existed;
                             those default to 'owner' (the only direction
                             possible at the time). */}
-                        {hasReportFrom(chat, 'finder') && (
-                          <Badge variant="outline" className="border-sky-200 dark:border-sky-500/30 bg-sky-50/80 dark:bg-sky-500/10 text-sky-600 dark:text-sky-300">
-                            Reported by finder
-                          </Badge>
-                        )}
-                        {hasReportFrom(chat, 'owner') && <Badge variant="outline">Reported by owner</Badge>}
+                        {hasReportFrom(chat, 'finder') && <StatusBadge state="review" label="Reported by finder" />}
+                        {hasReportFrom(chat, 'owner') && <StatusBadge state="review" label="Reported by owner" />}
                         {chat.archivedAt && <Badge variant="secondary">Tag released</Badge>}
-                        {banned ? (
-                          <Badge variant="destructive">Banned</Badge>
-                        ) : (
-                          <Badge variant="outline">Active</Badge>
-                        )}
-                        {reviewed && <Badge variant="secondary">Reviewed</Badge>}
+                        {banned && <StatusBadge state="banned" label="Finder banned" />}
+                        {reviewed && <StatusBadge state="reviewed" />}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Actions">
                       {/* View chat / Mark reviewed are icon-only — this row
                           can carry up to 2 badges + 3 actions, and text
                           labels on all three crowded narrow viewports.
                           Ban/Unban keeps its label: it's the one action per
                           row worth a second of hesitation before clicking. */}
                       <div className="flex flex-wrap justify-end gap-1.5">
-                        <Button type="button" size="icon" variant="outline" title="View chat" asChild>
+                        <Button type="button" size="icon" variant="outline" title="View chat" aria-label="View chat" asChild>
                           <Link to={`/chat/${chat.id}`}>
-                            <Eye className="h-3.5 w-3.5" />
+                            <Eye className="h-4 w-4" />
                           </Link>
                         </Button>
                         {!reviewed && (
@@ -326,11 +310,12 @@ export default function Moderation() {
                             type="button"
                             size="icon"
                             variant="outline"
-                            title={reviewingId === chat.id ? 'Marking…' : 'Mark reviewed'}
-                            disabled={reviewingId === chat.id}
+                            title="Mark reviewed"
+                            aria-label="Mark reviewed"
+                            loading={reviewingId === chat.id}
                             onClick={() => onMarkReviewed(chat)}
                           >
-                            <CheckCheck className="h-3.5 w-3.5" />
+                            {reviewingId !== chat.id && <CheckCheck className="h-4 w-4" />}
                           </Button>
                         )}
                         {hasReportFrom(chat, 'finder') && (
@@ -349,10 +334,10 @@ export default function Moderation() {
                             size="sm"
                             variant={banned ? 'outline' : 'destructive'}
                             className="gap-1.5"
-                            onClick={() => onToggleBan(chat)}
+                            onClick={() => setBanTarget(chat)}
                           >
                             <Ban className="h-3.5 w-3.5" />
-                            {banned ? 'Unban' : 'Ban token'}
+                            {banned ? 'Unban' : 'Ban finder'}
                           </Button>
                         )}
                       </div>
@@ -366,6 +351,33 @@ export default function Moderation() {
           )}
         </>
       )}
+      <ConfirmDialog
+        open={!!banTarget}
+        onOpenChange={(open) => !open && setBanTarget(null)}
+        title={
+          banTarget && bannedTokens.has(banTarget.finderSessionToken)
+            ? 'Unban this finder?'
+            : `Ban the finder in "${items[banTarget?.tagId]?.itemName || 'this chat'}"?`
+        }
+        description={
+          banTarget && bannedTokens.has(banTarget.finderSessionToken) ? (
+            'Their browser will be able to file reports and send messages again.'
+          ) : (
+            <>
+              <p>
+                This finder's browser won't be able to file reports or send messages anywhere in TagBack. The owner who
+                reported the chat gets a notification that it was acted on.
+              </p>
+              <p>A finder who clears their browser data gets a new identity, so a ban isn't permanent protection.</p>
+            </>
+          )
+        }
+        tone={banTarget && bannedTokens.has(banTarget.finderSessionToken) ? 'primary' : 'destructive'}
+        confirmLabel={banTarget && bannedTokens.has(banTarget.finderSessionToken) ? 'Unban' : 'Ban finder'}
+        busyLabel="Saving…"
+        busy={banBusy}
+        onConfirm={() => onToggleBan(banTarget)}
+      />
     </div>
   );
 }

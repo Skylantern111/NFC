@@ -36,7 +36,7 @@ Consequences of "no backend":
 | Layer | Choice |
 |---|---|
 | Build/dev | Vite 6 |
-| UI | React 18, react-router-dom 6 |
+| UI | React 18, react-router-dom 6; shared page/state components in `src/components` (`PageHeader`, `StatusBadge`, `States`, `FormField`, `ConfirmDialog`, `NfcScanPanel`) — see `docs/UI_UX_IMPROVEMENT_PLAN.md` |
 | Styling | Tailwind CSS 3 + 16 shadcn/ui components (Radix primitives) in `src/components/ui` |
 | Theme | Light neumorphism + glassmorphism, dark mode (`docs/LIGHT_NEUMORPHIC_REDESIGN_PLAN.md`) |
 | Data | Firebase Firestore + Firebase Auth (email/password) |

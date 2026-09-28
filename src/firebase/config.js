@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { isInAppBrowser } from '../lib/inAppBrowser';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,6 +22,10 @@ const app = initializeApp(
     : { apiKey: 'placeholder', projectId: 'placeholder', appId: 'placeholder' }
 );
 
-export const db = getFirestore(app);
+// In-app browsers (Messenger & co.) can stall Firestore's streaming
+// connection, so live chat messages stop arriving without an error
+// (UI_UX_IMPROVEMENT_PLAN.md BUG5). Long polling is slower but steady there;
+// every other browser keeps the SDK's default (auto-detect).
+export const db = initializeFirestore(app, isInAppBrowser() ? { experimentalForceLongPolling: true } : {});
 export const auth = getAuth(app);
 export default app;

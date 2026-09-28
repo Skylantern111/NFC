@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendEmailVerification } from 'firebase/auth';
 import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -10,9 +10,11 @@ import { useTheme } from '../../context/ThemeContext';
 import { deleteMyAccount } from '../../lib/account';
 import { friendlyAuthError, friendlyFirestoreError } from '../../lib/utils';
 import GlassCard from '../../components/GlassCard';
+import PageHeader from '../../components/PageHeader';
+import StatusBadge from '../../components/StatusBadge';
+import FormField from '../../components/FormField';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 import {
   Dialog,
@@ -94,49 +96,34 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
-      <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Settings</h1>
+    <div className="mx-auto max-w-xl space-y-4">
+      <PageHeader title="Settings" />
 
       <GlassCard>
-        <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Appearance</h2>
-        <label className="flex items-center justify-between py-2">
-          <span className="text-slate-600 dark:text-slate-300">Dark mode</span>
+        <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Appearance</h2>
+        <label className="flex min-h-11 items-center justify-between gap-3">
+          <span className="text-sm text-slate-700 dark:text-slate-200">Dark mode</span>
           <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
         </label>
       </GlassCard>
 
       {user && (
         <GlassCard>
-          <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Account</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-300">{user.email}</p>
-          <p
-            className={`mt-0.5 text-xs font-semibold ${
-              user.emailVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
-            }`}
-          >
-            {user.emailVerified ? 'Email verified' : 'Email not verified'}
-          </p>
+          <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Account</h2>
+          <p className="break-all text-sm text-slate-700 dark:text-slate-200">{user.email}</p>
+          <div className="mt-2">
+            <StatusBadge
+              state={user.emailVerified ? 'claimed' : 'review'}
+              label={user.emailVerified ? 'Email verified' : 'Email not verified'}
+            />
+          </div>
           {!user.emailVerified && (
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={onResendVerification}
-                disabled={resending}
-              >
-                {resending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <Button variant="outline" size="sm" onClick={onResendVerification} loading={resending}>
                 {resending ? 'Sending…' : 'Resend verification email'}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5"
-                onClick={onRefreshVerification}
-                disabled={refreshing}
-              >
-                {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {refreshing ? 'Checking…' : "I've verified — refresh status"}
+              <Button variant="ghost" size="sm" onClick={onRefreshVerification} loading={refreshing}>
+                {refreshing ? 'Checking…' : "I've verified — refresh"}
               </Button>
             </div>
           )}
@@ -144,38 +131,45 @@ export default function Settings() {
       )}
 
       <GlassCard>
-        <h2 className="mb-3 font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
-        {/* SYSTEM_AUDIT_ROUND2.md B6: there used to be an "In-app alerts"
-            switch here that nothing read — alerts always showed. */}
-        <p className="py-2 text-sm text-slate-600 dark:text-slate-300">
-          In-app alerts are always on: the bell badge and the browser tab show new reports and messages.
-        </p>
-        {/* No email-sending backend exists in this project (no Cloud Function,
-            no email service). Disabled, so it can't imply a channel that
-            doesn't exist. */}
-        <label className="flex items-center justify-between py-2 opacity-60">
-          <span className="text-slate-600 dark:text-slate-300">Email alerts (coming soon)</span>
-          <Switch checked={false} disabled />
-        </label>
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          Email delivery isn't set up yet — for now, alerts only show up in-app.
+        <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
+        {/* SYSTEM_AUDIT_ROUND2.md B6 / UI_UX_IMPROVEMENT_PLAN.md OWN5: no
+            switches for channels that don't exist — alerts are in-app only
+            (no email backend on the Spark plan). */}
+        <p className="text-sm text-slate-700 dark:text-slate-200">
+          Alerts show in the app: the Messages badge, Notifications, and the browser tab title. Email alerts aren't
+          available yet.
         </p>
       </GlassCard>
 
       {user && (
         <GlassCard>
           <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Privacy</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            What TagBack stores and for how long:{' '}
-            <Link to="/privacy" className="font-semibold text-purple-600 hover:text-pink-600">
-              Privacy
+          <p className="text-sm text-slate-700 dark:text-slate-200">
+            See what TagBack stores, who can see it, and how long it's kept on the{' '}
+            <Link to="/privacy" className="font-semibold text-purple-700 underline-offset-2 hover:underline dark:text-purple-300">
+              Privacy page
             </Link>
             .
           </p>
-          <Button variant="outline" className="mt-4 w-full text-rose-600" onClick={() => setDeleteOpen(true)}>
+        </GlassCard>
+      )}
+
+      {/* OWN4: the one irreversible action lives on its own. */}
+      {user && (
+        <section
+          aria-labelledby="danger-heading"
+          className="rounded-3xl border border-red-200 dark:border-red-500/30 bg-destructive-soft p-5 sm:p-6"
+        >
+          <h2 id="danger-heading" className="font-bold text-red-800 dark:text-red-200">
+            Danger zone
+          </h2>
+          <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+            Delete your account and everything linked to it.
+          </p>
+          <Button variant="destructive" className="mt-3" onClick={() => setDeleteOpen(true)}>
             Delete my account
           </Button>
-        </GlassCard>
+        </section>
       )}
 
       <Dialog
@@ -192,39 +186,38 @@ export default function Settings() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <TriangleAlert className="h-5 w-5 text-rose-600" /> Delete your account?
+              <TriangleAlert className="h-5 w-5 text-red-600" aria-hidden="true" /> Delete your account?
             </DialogTitle>
             <DialogDescription>
-              This permanently deletes your account, your items and their NFC profiles, and every finder report, chat
-              and notification on your tags. Your tags return to stock (blacklisted tags stay blacklisted). This can't be
+              This permanently deletes your account, your items and their tap pages, and every finder report, chat and
+              notification on your tags. Your tags return to stock (blacklisted tags stay blacklisted). This can't be
               undone.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onDeleteAccount} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="delete-confirm">
-                Type <span className="font-mono font-bold">DELETE</span> to confirm
-              </Label>
+            <FormField id="delete-confirm" label={<>Type <span className="font-mono font-bold">DELETE</span> to confirm</>}>
               <Input
-                id="delete-confirm"
                 autoComplete="off"
+                autoCapitalize="characters"
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 disabled={deleting}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="delete-password">Your password</Label>
+            </FormField>
+            <FormField id="delete-password" label="Your password">
               <Input
-                id="delete-password"
                 type="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={deleting}
               />
-            </div>
-            {progress && <p className="text-sm text-slate-500 dark:text-slate-400">{progress}</p>}
+            </FormField>
+            {progress && (
+              <p role="status" className="text-sm text-slate-600 dark:text-slate-300">
+                {progress}
+              </p>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
                 Cancel
@@ -232,10 +225,9 @@ export default function Settings() {
               <Button
                 type="submit"
                 variant="destructive"
-                className="gap-1.5"
-                disabled={deleting || confirmText !== 'DELETE' || !password}
+                loading={deleting}
+                disabled={confirmText !== 'DELETE' || !password}
               >
-                {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {deleting ? 'Deleting…' : 'Delete account'}
               </Button>
             </DialogFooter>

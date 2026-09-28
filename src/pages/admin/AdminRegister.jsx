@@ -16,7 +16,7 @@ export default function AdminRegister() {
           <ShieldAlert className="h-5.5 w-5.5" />
         </span>
         <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Create admin account</h1>
-        <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">
+        <p className="max-w-sm text-sm text-slate-600 dark:text-slate-400">
           For TagBack staff only. You need the admin passcode from an existing admin.
         </p>
       </div>
@@ -29,14 +29,14 @@ export default function AdminRegister() {
           <SignupForm admin />
         </CardContent>
       </Card>
-      <div className="mt-5 flex max-w-sm flex-col items-center gap-1.5 text-center text-sm text-slate-500 dark:text-slate-400">
+      <div className="mt-5 flex max-w-sm flex-col items-center gap-1.5 text-center text-sm text-slate-600 dark:text-slate-400">
         <Link to="/admin/login" className="hover:text-slate-800 dark:hover:text-slate-100">
           Already an admin? Sign in
         </Link>
         <Link to="/register" className="hover:text-slate-800 dark:hover:text-slate-100">
           Not staff? Create a regular account
         </Link>
-        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
           Already have a regular account with this email? Ask an admin to grant access instead — this page only creates
           new accounts.
         </p>

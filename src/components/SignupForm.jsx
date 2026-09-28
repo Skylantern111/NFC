@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Check, Circle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Check, Circle, Eye, EyeOff } from 'lucide-react';
 import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { toast } from 'sonner';
 import { deleteField, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -10,6 +10,7 @@ import { friendlyAuthError, passwordRequirementResults, passwordStrength } from 
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import FormField, { FormError } from './FormField';
 
 // Account-creation form shared by the owner signup (auth/Register.jsx) and
 // the separate admin signup (admin/AdminRegister.jsx), so both keep the
@@ -27,16 +28,20 @@ export default function SignupForm({ admin = false }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [err, setErr] = useState('');
+  // Field-level errors shown next to the field (UI_UX_IMPROVEMENT_PLAN.md AUTH2/AUTH3).
+  const [fieldErr, setFieldErr] = useState({});
   const [busy, setBusy] = useState(false);
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k) => (e) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+    setFieldErr((prev) => (prev[k] ? { ...prev, [k]: undefined } : prev));
+  };
 
   const requirements = passwordRequirementResults(form.password);
   const allRequirementsMet = requirements.every((r) => r.met);
   const strength = passwordStrength(form.password);
   const confirmTouched = form.confirmPassword.length > 0;
   const passwordsMatch = form.password === form.confirmPassword;
-  const canSubmit = allRequirementsMet && passwordsMatch && form.confirmPassword.length > 0;
 
   const STRENGTH_META = {
     weak: { label: 'Weak', className: 'bg-red-500', textClassName: 'text-red-600 dark:text-red-400' },
@@ -47,17 +52,20 @@ export default function SignupForm({ admin = false }) {
   async function onSubmit(e) {
     e.preventDefault();
     setErr('');
-    if (!allRequirementsMet) {
-      setErr('Your password doesn\'t meet all the requirements below yet.');
-      return;
-    }
-    if (!passwordsMatch) {
-      setErr('Passwords do not match.');
-      return;
-    }
+    // The button stays enabled; a click explains what's missing and moves
+    // focus there, instead of a disabled button with no reason (AUTH2).
     const typedPasscode = form.adminPasscode.trim();
-    if (admin && !typedPasscode) {
-      setErr('Enter the admin passcode.');
+    const next = {};
+    if (!form.displayName.trim()) next.displayName = 'Enter your name.';
+    if (!form.email.trim()) next.email = 'Enter your email.';
+    if (!allRequirementsMet) next.password = 'Your password doesn’t meet every requirement below yet.';
+    if (!form.confirmPassword) next.confirmPassword = 'Type the password again.';
+    else if (!passwordsMatch) next.confirmPassword = 'The two passwords don’t match.';
+    if (admin && !typedPasscode) next.adminPasscode = 'Enter the admin passcode.';
+    setFieldErr(next);
+    const firstBad = Object.keys(next)[0];
+    if (firstBad) {
+      document.getElementById(firstBad)?.focus();
       return;
     }
     if (!firebaseReady) {
@@ -111,17 +119,22 @@ export default function SignupForm({ admin = false }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+      <FormField id="displayName" label="Name" hint="Only you and TagBack admins see this." error={fieldErr.displayName}>
+        <Input value={form.displayName} onChange={set('displayName')} autoComplete="name" autoCapitalize="words" />
+      </FormField>
+      <FormField id="email" label="Email" error={fieldErr.email}>
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          value={form.email}
+          onChange={set('email')}
+        />
+      </FormField>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="displayName">Name</Label>
-        <Input id="displayName" value={form.displayName} onChange={set('displayName')} required />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" value={form.email} onChange={set('email')} required />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-200">Password</Label>
         <div className="relative">
           <Input
             id="password"
@@ -129,15 +142,15 @@ export default function SignupForm({ admin = false }) {
             autoComplete="new-password"
             value={form.password}
             onChange={set('password')}
-            aria-describedby="password-requirements"
+            aria-describedby={fieldErr.password ? 'password-requirements password-error' : 'password-requirements'}
+            aria-invalid={fieldErr.password ? true : undefined}
             className="pr-11"
-            required
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -162,17 +175,23 @@ export default function SignupForm({ admin = false }) {
             <li
               key={r.key}
               className={`flex items-center gap-1.5 text-xs ${
-                r.met ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
+                r.met ? 'text-success' : 'text-slate-600 dark:text-slate-400'
               }`}
             >
               {r.met ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
               {r.label}
+              <span className="sr-only">{r.met ? ' (done)' : ' (not yet)'}</span>
             </li>
           ))}
         </ul>
+        {fieldErr.password && (
+          <p id="password-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+            {fieldErr.password}
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="confirmPassword">Confirm password</Label>
+        <Label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700 dark:text-slate-200">Confirm password</Label>
         <div className="relative">
           <Input
             id="confirmPassword"
@@ -180,22 +199,28 @@ export default function SignupForm({ admin = false }) {
             autoComplete="new-password"
             value={form.confirmPassword}
             onChange={set('confirmPassword')}
+            aria-invalid={fieldErr.confirmPassword ? true : undefined}
+            aria-describedby={fieldErr.confirmPassword ? 'confirmPassword-error' : undefined}
             className="pr-11"
-            required
           />
           <button
             type="button"
             onClick={() => setShowConfirmPassword((v) => !v)}
             aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
             {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {confirmTouched && (
+        {fieldErr.confirmPassword && (
+          <p id="confirmPassword-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+            {fieldErr.confirmPassword}
+          </p>
+        )}
+        {confirmTouched && !fieldErr.confirmPassword && (
           <p
             className={`flex items-center gap-1.5 text-xs ${
-              passwordsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
+              passwordsMatch ? 'text-success' : 'text-red-700 dark:text-red-300'
             }`}
             aria-live="polite"
           >
@@ -205,27 +230,22 @@ export default function SignupForm({ admin = false }) {
         )}
       </div>
       {admin && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="adminPasscode">Admin passcode</Label>
-          <Input
-            id="adminPasscode"
-            type="password"
-            autoComplete="off"
-            value={form.adminPasscode}
-            onChange={set('adminPasscode')}
-            placeholder="Given to you by an existing admin"
-            required
-          />
-        </div>
+        <FormField
+          id="adminPasscode"
+          label="Admin passcode"
+          hint="Given to you by an existing admin."
+          error={fieldErr.adminPasscode}
+        >
+          <Input type="password" autoComplete="off" value={form.adminPasscode} onChange={set('adminPasscode')} />
+        </FormField>
       )}
-      {err && <p className="text-sm text-red-500">{err}</p>}
-      <Button type="submit" disabled={busy || (form.password.length > 0 && !canSubmit)}>
-        {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-        {busy ? 'Creating…' : admin ? 'Create admin account' : 'Create account'}
+      <FormError>{err}</FormError>
+      <Button type="submit" variant="primary" loading={busy}>
+        {busy ? 'Creating account…' : admin ? 'Create admin account' : 'Create account'}
       </Button>
-      <p className="text-center text-xs text-slate-400 dark:text-slate-500">
+      <p className="text-center text-xs text-slate-600 dark:text-slate-400">
         See what we store and how to delete it:{' '}
-        <Link to="/privacy" className="font-semibold text-purple-600 hover:text-pink-600">
+        <Link to="/privacy" className="font-semibold text-purple-700 dark:text-purple-300 hover:underline">
           Privacy
         </Link>
       </p>

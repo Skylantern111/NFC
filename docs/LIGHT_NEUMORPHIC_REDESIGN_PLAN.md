@@ -6,6 +6,14 @@
 > `components/ui/button.jsx`, `components/ui/input.jsx`,
 > `components/nav/DashboardSidebar.jsx`, `components/nav/TopNav.jsx`).
 
+> **Update 2026-09-28:** extended by
+> [UI_UX_IMPROVEMENT_PLAN.md](UI_UX_IMPROVEMENT_PLAN.md) §B — state color
+> tokens (`success`/`warning`/`info`), `shadow-card`, 44 px buttons with
+> `primary`/`success` variants and a `loading` prop, and shared state
+> components (`PageHeader`, `StatusBadge`, `States`, `FormField`,
+> `ConfirmDialog`, `NfcScanPanel`). The looping `pulseGlow` on lost cards
+> was removed. See that file's "Implementation status".
+
 Goal: move from the current "Dark SaaS" glass aesthetic (`#0d0a1a` void
 background, purple-pink glow orbs, `bg-white/10` glass) to a bright,
 tactile **Light Neumorphism + Glassmorphism hybrid** — soft extruded/pressed
