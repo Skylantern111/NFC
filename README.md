@@ -147,7 +147,7 @@ Two ways to be an admin (both lose access if the account is disabled):
 
 1. **Admin signup** at `/admin/register` with the admin signup passcode
    (8+ characters). An existing admin sets or turns off the passcode on
-   **Admin → Owners** ("Generate" makes a random one). The passcode is
+   **Admin → Settings** ("Generate" makes a random one). The passcode is
    checked by the database rules — it's stored in `meta/adminSignup`, never
    in the app bundle. Turn it off when nobody is being onboarded.
 2. **Custom claim** (for the first admin, or without a passcode): download a

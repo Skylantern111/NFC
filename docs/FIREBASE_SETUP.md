@@ -99,7 +99,7 @@ There are no admins yet, so use the custom-claim script once:
 4. Sign out, then sign in at **`/admin/login`**.
 
 Further admins can then sign up themselves:
-1. On **Admin → Owners → Admin signup passcode**, click **Generate** (8+
+1. On **Admin → Settings → Admin signup passcode**, click **Generate** (8+
    characters), then **Set passcode**, and share it privately.
 2. The new admin signs up at **`/admin/register`** with it.
 3. The database rules check the passcode. A wrong one creates no account.
@@ -163,7 +163,7 @@ Copy any line that starts with `[Report Only]` or mentions
 `Content-Security-Policy`.
 
 1. **Admin:** Admin → NFC Register → register a sticker. Or, without NFC
-   hardware, use the "Development fallback" shown on non-NFC browsers.
+   hardware, use **Admin → Settings → Developer tools → Register test tag**.
    Note the TagBack ID.
 2. **Owner:** sign up at `/register` → **Claim** that ID → it should appear
    on Dashboard and My Items → turn on Lost Mode.
@@ -186,7 +186,7 @@ Full pass, continued:
    the "You're leaving TagBack" page; the admin-set version is instant.
 8. **Moderation:** report the chat from each side → Admin → Moderation
    shows both → **Ban token** / **Look up owner** / **Mark reviewed**.
-9. **Owners page:** look up the tag's owner; set the admin signup passcode
+9. **Owners page:** look up the tag's owner. **Settings:** set the admin signup passcode
    (Generate → Set) → sign up a second admin at `/admin/register` → then
    **Turn off**.
 10. **Inventory:** ⋯ menu → Copy URL, Blacklist → the finder page says

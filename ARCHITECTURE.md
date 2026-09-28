@@ -150,7 +150,7 @@ Key rule mechanisms (`firestore.rules`):
 - **Admins, two paths:**
   1. **Admin signup** at `/admin/register` with the passcode stored in
      `meta/adminSignup`. The rules compare it on create; it is 8+
-     characters, set on **Admin → Owners** ("Generate" makes a random one)
+     characters, set on **Admin → Settings** ("Generate" makes a random one)
      or with `scripts/setAdminSignupPasscode.js`. A wrong passcode creates
      no account.
   2. **Custom claim** via `scripts/setAdmin.js` (service-account key). Used
@@ -300,7 +300,8 @@ same Firestore calls against the rules.
 - It writes to `clientErrors` at most 5 times per page load, one report
   per distinct message. It sends the path only (no query string) and never
   throws.
-- Admins see the latest 100 grouped by message on **Admin → Errors**, and
+- Admins see the latest 100 grouped by message on **Admin → Settings →
+  Error log**, and
   can clear them.
 
 ## 9. Hosting and deploy

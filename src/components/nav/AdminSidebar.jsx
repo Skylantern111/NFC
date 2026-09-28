@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Boxes, Bug, Nfc, PencilLine, ShieldAlert, Users } from 'lucide-react';
+import { Boxes, Nfc, PencilLine, Settings, ShieldAlert, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import SidebarShell from './SidebarShell';
 
@@ -16,7 +16,8 @@ const navItems = [
   { to: '/admin/tags', label: 'Tag Content', icon: PencilLine },
   { to: '/admin/moderation', label: 'Moderation', icon: ShieldAlert },
   { to: '/admin/owners', label: 'Owners', icon: Users },
-  { to: '/admin/errors', label: 'Errors', icon: Bug },
+  // Errors moved into Settings › Maintenance to keep the daily list short.
+  { to: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function AdminSidebar() {

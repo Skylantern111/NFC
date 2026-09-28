@@ -26,7 +26,7 @@ import NfcScanPanel from '@/components/NfcScanPanel';
 import PageHeader from '@/components/PageHeader';
 import { LoadingState } from '@/components/States';
 import { friendlyFirestoreError } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -94,10 +94,6 @@ export default function NfcRegister() {
   }
   useEffect(() => stopScan, []);
 
-  const [devTagId, setDevTagId] = useState('');
-  const [devChipType, setDevChipType] = useState('NTAG215');
-  const [devBusy, setDevBusy] = useState(false);
-  const [devError, setDevError] = useState('');
 
   // Jump straight to the write step for an already-registered tag — no new
   // tap, no new TagBack ID. §1.2's "retry write" action lands here.
@@ -319,42 +315,6 @@ export default function NfcRegister() {
     }
   }
 
-  // Dev-only fallback for testing the rest of the app without NFC hardware
-  // (NFC_REARCHITECTURE_PLAN.md §5/§11). physicalUid always stays null here
-  // — nothing physical was ever read — and nfcCapabilityAtRegistration is
-  // tagged 'dev-fallback' so it's never confused with a real ndef-only read.
-  async function onDevRegister() {
-    setDevBusy(true);
-    setDevError('');
-    try {
-      const tagId = generateTagbackId();
-      const record = {
-        tagId,
-        physicalUid: null,
-        chipType: devChipType,
-        nfcCapabilityAtRegistration: 'dev-fallback',
-        status: 'registered',
-        registeredAt: serverTimestamp(),
-        writeStatus: 'not_written',
-      };
-      await runTransaction(db, async (tx) => {
-        const ref = doc(db, 'tags', tagId);
-        const snap = await tx.get(ref);
-        if (snap.exists()) throw new Error('Tag id collision — please try again.');
-        tx.set(ref, record);
-        tx.set(doc(db, 'tagAdmin', tagId), {
-          registeredBy: auth.currentUser?.uid || null,
-          registeredAt: serverTimestamp(),
-        });
-      });
-      setDevTagId(tagId);
-    } catch (err) {
-      setDevError(err?.code ? friendlyFirestoreError(err, 'Could not register the tag. Try again.') : err.message);
-    } finally {
-      setDevBusy(false);
-    }
-  }
-
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader
@@ -539,36 +499,13 @@ export default function NfcRegister() {
       )}
 
       {!loadingExisting && !nfcSupported && !rewriteTagId && !reregisterTagId && (
-        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">Development fallback</CardTitle>
-            <CardDescription>
-              No physical tag is read here — this only creates a Firestore record for testing the
-              claim/inventory flow without NFC hardware. Not a production registration path.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
-              <Label>Chip type</Label>
-              <RadioGroup value={devChipType} onValueChange={setDevChipType} className="flex gap-3">
-                {CHIP_TYPES.map((c) => (
-                  <label key={c} className="flex items-center gap-1.5 text-sm">
-                    <RadioGroupItem value={c} /> {c}
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
-            <Button variant="outline" onClick={onDevRegister} disabled={devBusy}>
-              {devBusy ? 'Registering…' : 'Register tag (dev fallback)'}
-            </Button>
-            {devError && <p className="text-sm text-red-700 dark:text-red-300">{devError}</p>}
-            {devTagId && (
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                Registered: <span className="font-mono">{devTagId}</span>
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Testing without NFC hardware? Create a test tag in{' '}
+          <Link to="/admin/settings" className="font-medium text-purple-700 underline dark:text-purple-300">
+            Settings › Developer tools
+          </Link>
+          .
+        </p>
       )}
 
       {!firebaseReady && (

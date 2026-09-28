@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import RouteErrorBoundary from './components/RouteErrorBoundary';
 import { Toaster } from './components/ui/sonner';
@@ -24,26 +24,36 @@ import Chat from './pages/public/Chat';
 // rarely needs the owner dashboard's code either. Lazy so neither chunk
 // ships to someone who'll never hit those routes (see IMPROVEMENT_PLAN.md
 // Round 9 — this was the single 991KB bundle Round 8 kept building).
-const DashboardLayout = lazy(() => import('./pages/dashboard/DashboardLayout'));
-const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'));
-const Items = lazy(() => import('./pages/dashboard/Items'));
-const ClaimTag = lazy(() => import('./pages/dashboard/ClaimTag'));
-const NfcSetup = lazy(() => import('./pages/dashboard/NfcSetup'));
-const Messages = lazy(() => import('./pages/dashboard/Messages'));
-const Notifications = lazy(() => import('./pages/dashboard/Notifications'));
-const Settings = lazy(() => import('./pages/dashboard/Settings'));
+// A lazy route that can also be fetched ahead of time. The first visit to
+// a lazy page used to swap the whole screen for the loading screen while
+// its code downloaded, which looked like a full page reload.
+function lazyPage(loader) {
+  const Page = lazy(loader);
+  Page.preload = loader;
+  return Page;
+}
 
-const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
-const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
-const AdminRegister = lazy(() => import('./pages/admin/AdminRegister'));
-const Inventory = lazy(() => import('./pages/admin/Inventory'));
-const NfcRegister = lazy(() => import('./pages/admin/NfcRegister'));
-const Moderation = lazy(() => import('./pages/admin/Moderation'));
-const Owners = lazy(() => import('./pages/admin/Owners'));
-const TagContent = lazy(() => import('./pages/admin/TagContent'));
-const TagContentIndex = lazy(() => import('./pages/admin/TagContentIndex'));
-const Errors = lazy(() => import('./pages/admin/Errors'));
-const Privacy = lazy(() => import('./pages/Privacy'));
+const DashboardLayout = lazyPage(() => import('./pages/dashboard/DashboardLayout'));
+const Dashboard = lazyPage(() => import('./pages/dashboard/Dashboard'));
+const Items = lazyPage(() => import('./pages/dashboard/Items'));
+const ClaimTag = lazyPage(() => import('./pages/dashboard/ClaimTag'));
+const NfcSetup = lazyPage(() => import('./pages/dashboard/NfcSetup'));
+const Messages = lazyPage(() => import('./pages/dashboard/Messages'));
+const Notifications = lazyPage(() => import('./pages/dashboard/Notifications'));
+const Settings = lazyPage(() => import('./pages/dashboard/Settings'));
+
+const AdminLayout = lazyPage(() => import('./pages/admin/AdminLayout'));
+const AdminLogin = lazyPage(() => import('./pages/admin/AdminLogin'));
+const AdminRegister = lazyPage(() => import('./pages/admin/AdminRegister'));
+const Inventory = lazyPage(() => import('./pages/admin/Inventory'));
+const NfcRegister = lazyPage(() => import('./pages/admin/NfcRegister'));
+const Moderation = lazyPage(() => import('./pages/admin/Moderation'));
+const Owners = lazyPage(() => import('./pages/admin/Owners'));
+const TagContent = lazyPage(() => import('./pages/admin/TagContent'));
+const TagContentIndex = lazyPage(() => import('./pages/admin/TagContentIndex'));
+const Errors = lazyPage(() => import('./pages/admin/Errors'));
+const AdminSettings = lazyPage(() => import('./pages/admin/Settings'));
+const Privacy = lazyPage(() => import('./pages/Privacy'));
 
 // Same loading-screen convention already used by ProtectedRoute/AdminGate
 // while they resolve the auth check — a lazy chunk still loading reads the
@@ -52,7 +62,34 @@ function RouteFallback() {
   return <LoadingState variant="page" />;
 }
 
+const OWNER_PAGES = [Dashboard, Items, ClaimTag, NfcSetup, Messages, Notifications, Settings];
+const ADMIN_PAGES = [Inventory, NfcRegister, Moderation, Owners, TagContentIndex, TagContent, AdminSettings, Errors];
+
+// Once someone is inside the dashboard or admin console, download the rest
+// of that area's pages while the browser is idle, so later clicks switch
+// instantly instead of waiting on a network fetch.
+function usePreloadArea() {
+  const { pathname } = useLocation();
+  const area = pathname.startsWith('/dashboard')
+    ? 'owner'
+    : pathname.startsWith('/admin') && !/^\/admin\/(login|register)/.test(pathname)
+      ? 'admin'
+      : null;
+  useEffect(() => {
+    if (!area) return;
+    const pages = area === 'owner' ? OWNER_PAGES : ADMIN_PAGES;
+    const run = () => pages.forEach((p) => p.preload().catch(() => {}));
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(run, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(run, 1500);
+    return () => clearTimeout(id);
+  }, [area]);
+}
+
 export default function App() {
+  usePreloadArea();
   return (
     <>
     <Toaster position="top-center" richColors closeButton />
@@ -104,6 +141,7 @@ export default function App() {
         <Route path="tags" element={<TagContentIndex />} />
         <Route path="tags/:tagId" element={<TagContent />} />
         <Route path="errors" element={<Errors />} />
+        <Route path="settings" element={<AdminSettings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

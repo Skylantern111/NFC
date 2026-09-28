@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ErrorState, LoadingState } from '../../components/States';
 import AdminSidebar from '../../components/nav/AdminSidebar';
@@ -80,7 +80,11 @@ export default function AdminLayout() {
       <div className="min-h-screen bg-base">
         <AdminSidebar />
         <main id="main" tabIndex={-1} className="px-4 py-6 outline-none sm:px-8 sm:py-8 md:ml-56">
-          <Outlet />
+          {/* Page-level Suspense keeps the sidebar on screen while a page's
+          code loads (the app-level one would replace the whole screen). */}
+          <Suspense fallback={<LoadingState variant="section" />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </AdminGate>
