@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { LoadingState } from '../../components/States';
+import { ErrorState, LoadingState } from '../../components/States';
 import AdminSidebar from '../../components/nav/AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
-import { checkIsAdmin } from '../../lib/adminAuth';
+import { getAdminStatus } from '../../lib/adminAuth';
 
 // No AmbientBackground / backdrop-blur here: solid surfaces keep large
 // data tables scrolling at 60fps.
@@ -12,7 +12,8 @@ function AdminGate({ children }) {
   const { user, loading, firebaseReady } = useAuth();
   const location = useLocation();
   const [checkingClaim, setCheckingClaim] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [status, setStatus] = useState('not-admin');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!firebaseReady || loading || !user) {
@@ -21,9 +22,9 @@ function AdminGate({ children }) {
     }
     let cancelled = false;
     setCheckingClaim(true);
-    checkIsAdmin(user)
+    getAdminStatus(user)
       .then((result) => {
-        if (!cancelled) setIsAdmin(result);
+        if (!cancelled) setStatus(result);
       })
       .finally(() => {
         if (!cancelled) setCheckingClaim(false);
@@ -31,7 +32,7 @@ function AdminGate({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [firebaseReady, loading, user]);
+  }, [firebaseReady, loading, user, attempt]);
 
   if (loading) {
     return <LoadingState variant="page" label="Checking admin access…" />;
@@ -46,7 +47,21 @@ function AdminGate({ children }) {
     return <LoadingState variant="page" label="Checking admin access…" />;
   }
 
-  if (!isAdmin) {
+  // Couldn't read the profile: say so and offer a retry, instead of the
+  // "no admin access" redirect a real admin got on a bad connection.
+  if (status === 'unknown') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-base px-4">
+        <ErrorState
+          title="Couldn't check admin access"
+          description="Check your connection and try again."
+          onRetry={() => setAttempt((n) => n + 1)}
+        />
+      </div>
+    );
+  }
+
+  if (status !== 'admin') {
     return (
       <Navigate
         to="/admin/login"

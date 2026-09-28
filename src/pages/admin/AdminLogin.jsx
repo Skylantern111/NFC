@@ -4,7 +4,7 @@ import { Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, firebaseReady } from '../../firebase/config';
 import { friendlyAuthError } from '../../lib/utils';
-import { checkIsAdmin } from '../../lib/adminAuth';
+import { getAdminStatus } from '../../lib/adminAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import { FormError } from '@/components/FormField';
 // AdminLayout's solid "ops console" surface and AdminSidebar's amber accent.
 // Admin status comes from either the real custom claim (scripts/setAdmin.js,
 // out-of-band) or the self-serve passcode flag set at signup
-// (AdminRegister.jsx/firestore.rules#isAdmin) — checkIsAdmin() checks both.
+// (AdminRegister.jsx/firestore.rules#isAdmin) — getAdminStatus() checks both.
 export default function AdminLogin() {
   const nav = useNavigate();
   const location = useLocation();
@@ -39,10 +39,14 @@ export default function AdminLogin() {
     setBusy(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      const isAdmin = await checkIsAdmin(cred.user);
-      if (!isAdmin) {
+      const status = await getAdminStatus(cred.user);
+      if (status !== 'admin') {
         await signOut(auth);
-        setErr("This account doesn't have admin access.");
+        setErr(
+          status === 'unknown'
+            ? "Couldn't check admin access. Check your connection and try again."
+            : "This account doesn't have admin access."
+        );
         return;
       }
       nav(redirectTo, { replace: true });

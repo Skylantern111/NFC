@@ -4,7 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import { ErrorState, LoadingState } from '@/components/States';
-import { ExternalLink, Users } from 'lucide-react';
+import { ExternalLink, TriangleAlert, Users } from 'lucide-react';
 import { db, firebaseReady } from '../../firebase/config';
 import {
   applyTagProfileToMany,
