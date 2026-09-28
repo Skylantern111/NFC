@@ -73,7 +73,7 @@ export default function AdminSignupPasscodeCard() {
   }
 
   return (
-    <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
+    <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <KeyRound className="h-4 w-4" /> Admin signup passcode

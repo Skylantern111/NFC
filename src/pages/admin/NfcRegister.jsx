@@ -374,7 +374,7 @@ export default function NfcRegister() {
       {loadingExisting && <LoadingState label="Loading tag…" />}
 
       {!loadingExisting && (
-      <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
+      <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
         <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
           {phase === 'idle' && (
             <>
@@ -539,7 +539,7 @@ export default function NfcRegister() {
       )}
 
       {!loadingExisting && !nfcSupported && !rewriteTagId && !reregisterTagId && (
-        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
+        <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
           <CardHeader>
             <CardTitle className="text-base">Development fallback</CardTitle>
             <CardDescription>

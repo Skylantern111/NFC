@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg';
+const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-card';
 const BULK_KEY = 'tagContentBulkSelection';
 
 // Admin editor for what a tap on a sticker shows (NFC_WRITE_DATA_ADMIN_PLAN.md).

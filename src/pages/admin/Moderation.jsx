@@ -143,21 +143,21 @@ export default function Moderation() {
 
       {!loading && chats.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
               <Flag className="h-4.5 w-4.5" />
             </span>
             <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Reported</div>
             <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{chats.length}</div>
           </div>
-          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
               <CheckCheck className="h-4.5 w-4.5" />
             </span>
             <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Reviewed</div>
             <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{reviewedTotal}</div>
           </div>
-          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300">
               <ShieldBan className="h-4.5 w-4.5" />
             </span>

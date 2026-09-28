@@ -20,7 +20,7 @@ export default function AdminRegister() {
           For TagBack staff only. You need the admin passcode from an existing admin.
         </p>
       </div>
-      <Card className="w-full max-w-sm rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
+      <Card className="w-full max-w-sm rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
         <CardHeader className="sr-only">
           <CardTitle>Admin sign up</CardTitle>
           <CardDescription>Create an admin account with the admin passcode.</CardDescription>

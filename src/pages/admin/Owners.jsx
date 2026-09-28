@@ -136,7 +136,7 @@ export default function Owners() {
 
       {owner && (
         <>
-          <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
+          <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -178,7 +178,7 @@ export default function Owners() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
+          <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
             <CardHeader>
               <CardTitle>
                 Tags owned

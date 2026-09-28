@@ -43,7 +43,7 @@ const ReportLocationMap = lazy(() => import('../../components/ReportLocationMap'
 
 // Shared frosted-glass treatment applied over the ported ui/ primitives so
 // this page keeps the app's light glassmorphism language.
-const GLASS = 'rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-lg';
+const GLASS = 'rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-card';
 
 // Canned strings only — purely a UX convenience that inserts text into the
 // real message input. Different for each side (UI_UX_IMPROVEMENT_PLAN.md CHAT5).

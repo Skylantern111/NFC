@@ -844,7 +844,8 @@ checklist in G is still to do. `npm run build` passes; `npm test` passes.
 
 **Design tokens:** `success` / `warning` / `info` (+ `-soft`) and
 `destructive-soft` in `index.css` and `tailwind.config.js` (contrast
-checked: ≥ 5.3:1 light, ≥ 5.8:1 dark); `shadow-card`; a global
+checked: ≥ 5.3:1 light, ≥ 5.8:1 dark); `shadow-card` on every content
+card (`shadow-lg` stays only on dialogs, menus and sheets); a global
 `:focus-visible` ring; `.stack-table` (admin tables as cards below `sm`).
 
 **Button:** new `primary` and `success` variants and a `loading` prop;

@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg';
+const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-card';
 
 // Crashes reported from users' browsers (lib/errorLog.js →
 // clientErrors). SYSTEM_AUDIT_ROUND4.md E1. Latest 100, grouped by message.

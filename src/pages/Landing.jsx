@@ -112,7 +112,7 @@ export default function Landing() {
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             {HIGHLIGHTS.map(({ icon: Icon, title, detail }) => (
-              <Card key={title} className="rounded-2xl bg-white/80 dark:bg-white/5 p-5 shadow-lg">
+              <Card key={title} className="rounded-2xl bg-white/80 dark:bg-white/5 p-5 shadow-card">
                 <CardContent className="space-y-3 p-0 text-left">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300">
                     <Icon className="h-4.5 w-4.5" />
@@ -138,7 +138,7 @@ export default function Landing() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {HOW_IT_WORKS.map(({ icon: Icon, title, detail }, i) => (
-              <div key={title} className="flex gap-3 rounded-2xl bg-white/80 dark:bg-white/5 p-5 shadow-lg text-left">
+              <div key={title} className="flex gap-3 rounded-2xl bg-white/80 dark:bg-white/5 p-5 shadow-card text-left">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base text-sm font-bold text-purple-600 shadow-neu-flat-sm">
                   {i + 1}
                 </span>

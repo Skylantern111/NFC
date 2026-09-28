@@ -66,7 +66,7 @@ export default function AdminLogin() {
         <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Admin console</h1>
         <p className="text-sm text-slate-600 dark:text-slate-300">For TagBack staff. Sign in to continue.</p>
       </div>
-      <Card className="w-full max-w-sm rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg">
+      <Card className="w-full max-w-sm rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
         <CardHeader className="sr-only">
           <CardTitle>Admin sign in</CardTitle>
           <CardDescription>Sign in with an admin account.</CardDescription>

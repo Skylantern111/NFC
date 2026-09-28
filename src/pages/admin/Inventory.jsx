@@ -462,7 +462,7 @@ export default function Inventory() {
       {/* KPI strip — real counts from the tags collection */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {STATUS_TABS.map((s) => (
-          <div key={s.value} className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-lg">
+          <div key={s.value} className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
             <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
               <s.icon className="h-4.5 w-4.5" />
             </span>
@@ -478,7 +478,7 @@ export default function Inventory() {
         ))}
       </div>
 
-      <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-lg">
+      <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-card">
         <CardHeader>
           <CardTitle>Tag lifecycle</CardTitle>
           <CardDescription className="text-slate-600 dark:text-slate-400">

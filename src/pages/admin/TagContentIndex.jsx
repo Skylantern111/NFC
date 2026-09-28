@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-lg';
+const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-card';
 const ROW_LIMIT = 100;
 
 const MODE_FILTERS = [{ value: 'all', label: 'All' }, ...LANDING_MODES.map(({ value, label }) => ({ value, label }))];

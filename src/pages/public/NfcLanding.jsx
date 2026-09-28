@@ -40,7 +40,7 @@ import { LoadingState } from '@/components/States';
 
 // Shared frosted-glass treatment applied over the ported ui/Card primitive so
 // public pages keep the app's light glassmorphism language.
-const GLASS = 'rounded-3xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-lg';
+const GLASS = 'rounded-3xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-card';
 
 // Public preview of an item. Intentionally only the fields a finder may see —
 // never ownerUid or any `users` data.
