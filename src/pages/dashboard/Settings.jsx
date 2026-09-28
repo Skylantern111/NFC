@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
-import { sendEmailVerification } from 'firebase/auth';
 import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
@@ -26,11 +25,9 @@ import {
 } from '../../components/ui/dialog';
 
 export default function Settings() {
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const nav = useNavigate();
-  const [resending, setResending] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -52,28 +49,6 @@ export default function Settings() {
       })
       .catch(() => {});
   }, [user]);
-
-  async function onResendVerification() {
-    if (!user) return;
-    setResending(true);
-    try {
-      await sendEmailVerification(user);
-      toast.success('Verification email sent — check your inbox.');
-    } catch (err) {
-      toast.error(friendlyAuthError(err));
-    } finally {
-      setResending(false);
-    }
-  }
-
-  async function onRefreshVerification() {
-    setRefreshing(true);
-    try {
-      await refreshUser();
-    } finally {
-      setRefreshing(false);
-    }
-  }
 
   async function onDeleteAccount(e) {
     e.preventDefault();
@@ -118,12 +93,9 @@ export default function Settings() {
             />
           </div>
           {!user.emailVerified && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={onResendVerification} loading={resending}>
-                {resending ? 'Sending…' : 'Resend verification email'}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={onRefreshVerification} loading={refreshing}>
-                {refreshing ? 'Checking…' : "I've verified — refresh"}
+            <div className="mt-3">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/dashboard/verify-email">Verify my email</Link>
               </Button>
             </div>
           )}

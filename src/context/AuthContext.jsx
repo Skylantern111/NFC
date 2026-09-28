@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { auth, db, firebaseReady } from '../firebase/config';
+import { refreshVerified } from '../lib/emailVerification';
 
 const AuthContext = createContext({ user: null, loading: true, logout: () => {} });
 
@@ -66,17 +67,24 @@ export function AuthProvider({ children }) {
 
   const logout = () => signOut(auth);
 
-  // Settings.jsx's "I've verified — refresh status" button. `user.reload()`
+  // Re-checks email verification (lib/emailVerification.js#refreshVerified
+  // also refreshes the ID token so the rules see it). `user.reload()`
   // mutates the Firebase User instance in place (emailVerified included) but
   // keeps the same object reference, so a plain `setUser(auth.currentUser)`
   // wouldn't re-render anything reading it. Cloning onto a new object with
   // the same prototype gives React a changed reference while keeping every
   // method (getIdTokenResult, etc.) callable via the prototype chain.
-  async function refreshUser() {
-    if (!auth.currentUser) return;
-    await auth.currentUser.reload();
-    setUser(Object.assign(Object.create(Object.getPrototypeOf(auth.currentUser)), auth.currentUser));
-  }
+  // Only re-renders when the status actually changed, since
+  // useVerificationWatch calls this every few seconds.
+  const refreshUser = useCallback(async () => {
+    if (!auth.currentUser) return false;
+    const before = auth.currentUser.emailVerified;
+    const verified = await refreshVerified();
+    if (verified !== before) {
+      setUser(Object.assign(Object.create(Object.getPrototypeOf(auth.currentUser)), auth.currentUser));
+    }
+    return verified;
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, logout, firebaseReady, refreshUser }}>
@@ -86,3 +94,34 @@ export function AuthProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+const WATCH_EVERY_MS = 5000;
+const WATCH_FOR_MS = 10 * 60 * 1000;
+
+// While an owner's email is unverified, notice the moment they click the
+// link (usually in another tab or the mail app): check every 5 s while this
+// tab is visible, for up to 10 minutes, and again whenever the tab regains
+// focus. Used by the owner dashboard only; admins don't need to verify.
+export function useVerificationWatch() {
+  const { user, refreshUser } = useAuth();
+  const waiting = firebaseReady && !!user && !user.emailVerified;
+  useEffect(() => {
+    if (!waiting) return;
+    const started = Date.now();
+    const check = () => {
+      if (document.visibilityState !== 'visible') return;
+      refreshUser().catch(() => {});
+    };
+    const id = setInterval(() => {
+      if (Date.now() - started > WATCH_FOR_MS) clearInterval(id);
+      else check();
+    }, WATCH_EVERY_MS);
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [waiting, refreshUser]);
+}

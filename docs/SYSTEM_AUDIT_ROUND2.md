@@ -275,7 +275,7 @@ is undefined". It has probably been live since `1c278ce` (2026-09-05).
 | B4 | `ProtectedRoute` removed around `/admin`; `AdminGate` sends signed-out users to `/admin/login`. |
 | B5 | Release dialog says reports/chats/alerts are deleted; the release step retries up to 3 times, and a failure after cleanup shows a specific message. |
 | B6 | "In-app alerts" switch replaced by a plain statement. |
-| B7 | **Reverted** at the owner's request: the "verify your email" step for passcode admins didn't work for them in practice. Admins are not required to verify their email. |
+| B7 | **Reverted** at the owner's request: the "verify your email" step for passcode admins didn't work for them in practice. Admins are not required to verify their email. **Update 2026-09-29:** owners must verify their email to claim a tag (rules check `email_verified` on `itemOwners` create; `/dashboard/verify-email` guides them). |
 | B8 | Bulk content selection is kept in `sessionStorage` across reloads. |
 | B9 | Dashboard label: "Lost item" only when Lost Mode is on, else "Your item". |
 | B10 | Owner redirects need a click ("Continue to <domain>"); no auto-continue. |

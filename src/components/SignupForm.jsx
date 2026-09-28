@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check, Circle, Eye, EyeOff } from 'lucide-react';
-import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { toast } from 'sonner';
 import { deleteField, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../firebase/config';
 import { profileRepairPaused } from '../context/AuthContext';
 import { friendlyAuthError, passwordRequirementResults, passwordStrength } from '../lib/utils';
+import { sendVerification } from '../lib/emailVerification';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -105,11 +106,17 @@ export default function SignupForm({ admin = false }) {
       } else {
         await setDoc(userRef, { ...profile, isAdmin: false });
       }
-      // Best-effort — account creation already succeeded above, so a failed
-      // verification-email send (rare: network) shouldn't block the flow.
-      sendEmailVerification(cred.user).catch((err) => console.warn('sendEmailVerification failed:', err));
-      toast.success('Account created — check your email to verify it.');
-      nav(admin ? '/admin/inventory' : '/dashboard');
+      if (admin) {
+        // Admins don't verify their email (SYSTEM_AUDIT_ROUND2.md B7).
+        toast.success('Admin account created.');
+        nav('/admin/inventory');
+        return;
+      }
+      // Owners must verify before claiming a tag. The account exists either
+      // way; if this send fails, the verify page shows why and can resend.
+      const sent = await sendVerification(cred.user);
+      toast.success(sent.ok ? 'Account created. Check your email to verify it.' : 'Account created.');
+      nav('/dashboard/verify-email', { state: sent.ok ? null : { sendError: sent.error } });
     } catch (e) {
       setErr(friendlyAuthError(e));
     } finally {

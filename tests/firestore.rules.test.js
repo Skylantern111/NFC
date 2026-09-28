@@ -114,7 +114,7 @@ describe('claim transaction (dashboard/ClaimTag.jsx)', () => {
 
   test('a signed-in user can claim a registered tag', async () => {
     const tagId = await seedRegisteredTag();
-    const owner = testEnv.authenticatedContext('owner-1');
+    const owner = testEnv.authenticatedContext('owner-1', { email_verified: true });
     const db = owner.firestore();
     await assertSucceeds(
       runTransaction(db, async (tx) => {
@@ -129,6 +129,27 @@ describe('claim transaction (dashboard/ClaimTag.jsx)', () => {
         tx.update(doc(db, 'tags', tagId), { status: 'claimed' });
       })
     );
+  });
+
+  // Owners must verify their email before claiming; admins are exempt.
+  function claimAs(ctx, uid, tagId) {
+    const db = ctx.firestore();
+    return runTransaction(db, async (tx) => {
+      tx.set(doc(db, 'itemOwners', tagId), { ownerUid: uid });
+      tx.set(doc(db, 'items', tagId), { tagId, itemName: 'Bag', isLostMode: false, lostMessage: '', rewardAmount: 0 });
+      tx.update(doc(db, 'tags', tagId), { status: 'claimed' });
+    });
+  }
+
+  test('an owner with an unverified email cannot claim', async () => {
+    const tagId = await seedRegisteredTag();
+    await assertFails(claimAs(testEnv.authenticatedContext('owner-1'), 'owner-1', tagId));
+    await assertFails(claimAs(testEnv.authenticatedContext('owner-1', { email_verified: false }), 'owner-1', tagId));
+  });
+
+  test('an admin can claim without a verified email', async () => {
+    const tagId = await seedRegisteredTag();
+    await assertSucceeds(claimAs(testEnv.authenticatedContext('admin-1', { admin: true }), 'admin-1', tagId));
   });
 
   test('claiming rejects a blacklisted tag', async () => {
@@ -485,7 +506,7 @@ describe('tag content (NFC_WRITE_DATA_ADMIN_PLAN.md — admin/TagContent.jsx)', 
   });
 
   async function claim(tagId) {
-    const owner = testEnv.authenticatedContext('owner-1');
+    const owner = testEnv.authenticatedContext('owner-1', { email_verified: true });
     const db = owner.firestore();
     return runTransaction(db, async (tx) => {
       tx.set(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-1' });
@@ -844,7 +865,7 @@ describe('real user profiles (A0)', () => {
     const tagId = 'TB-ZZZZ-0001';
     await seedProfile('real-1');
     await seed((db) => setDoc(doc(db, 'tags', tagId), { tagId, status: 'registered' }));
-    const db = testEnv.authenticatedContext('real-1').firestore();
+    const db = testEnv.authenticatedContext('real-1', { email_verified: true }).firestore();
     await assertSucceeds(
       runTransaction(db, async (tx) => {
         tx.set(doc(db, 'itemOwners', tagId), { ownerUid: 'real-1' });

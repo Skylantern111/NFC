@@ -41,6 +41,7 @@ const NfcSetup = lazyPage(() => import('./pages/dashboard/NfcSetup'));
 const Messages = lazyPage(() => import('./pages/dashboard/Messages'));
 const Notifications = lazyPage(() => import('./pages/dashboard/Notifications'));
 const Settings = lazyPage(() => import('./pages/dashboard/Settings'));
+const VerifyEmail = lazyPage(() => import('./pages/dashboard/VerifyEmail'));
 
 const AdminLayout = lazyPage(() => import('./pages/admin/AdminLayout'));
 const AdminLogin = lazyPage(() => import('./pages/admin/AdminLogin'));
@@ -62,7 +63,7 @@ function RouteFallback() {
   return <LoadingState variant="page" />;
 }
 
-const OWNER_PAGES = [Dashboard, Items, ClaimTag, NfcSetup, Messages, Notifications, Settings];
+const OWNER_PAGES = [Dashboard, Items, ClaimTag, NfcSetup, Messages, Notifications, Settings, VerifyEmail];
 const ADMIN_PAGES = [Inventory, NfcRegister, Moderation, Owners, TagContentIndex, TagContent, AdminSettings, Errors];
 
 // Once someone is inside the dashboard or admin console, download the rest
@@ -121,6 +122,7 @@ export default function App() {
         <Route path="messages" element={<Messages />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="verify-email" element={<VerifyEmail />} />
       </Route>
 
       {/* Admin */}

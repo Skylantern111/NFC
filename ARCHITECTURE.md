@@ -207,15 +207,21 @@ same Firestore calls against the rules.
 
 ### 8.2 Owner: sign up and claim (`SignupForm.jsx`, `ClaimTag.jsx`)
 1. **Sign up** at `/register`. This creates the Auth user and a
-   `users/{uid}` profile with `isAdmin: false`.
-2. **Claim** at `/dashboard/items/claim`. The owner types the TagBack ID,
+   `users/{uid}` profile with `isAdmin: false`, sends the verification
+   email (`lib/emailVerification.js`) and opens `/dashboard/verify-email`.
+2. **Verify the email.** The rules refuse a claim until the ID token has
+   `email_verified` (admins are exempt). The dashboard checks every 5 s
+   and on tab focus, then refreshes the token, so the owner only has to
+   click the link and come back. Until then a banner and the Claim page
+   point to the verify page (resend with a 60 s cooldown).
+3. **Claim** at `/dashboard/items/claim`. The owner types the TagBack ID,
    scans the sticker, or arrives from a tap on an unclaimed tag.
-3. One transaction:
+4. One transaction:
    1. reads the tag, its `itemOwners` and its profile
    2. refuses if the tag is blacklisted, already owned, or admin-managed
    3. creates `itemOwners/{id}` and `items/{id}`, and flips the tag to
       `claimed`
-4. If the tap exposed a hardware serial that doesn't match the
+5. If the tap exposed a hardware serial that doesn't match the
    registered one, the owner gets a warning (possible swapped sticker).
 
 ### 8.3 Owner: set up the item (`Items.jsx`, `NfcSetup.jsx`)

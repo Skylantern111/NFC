@@ -47,7 +47,7 @@ const PASSCODE = 'FLOWPASS';
 
 let env;
 const dbs = {};
-const owner = () => (dbs.owner ||= env.authenticatedContext(OWNER, { email: 'owner@example.com' }).firestore());
+const owner = () => (dbs.owner ||= env.authenticatedContext(OWNER, { email: 'owner@example.com', email_verified: true }).firestore());
 const admin = () => (dbs.admin ||= env.authenticatedContext(ADMIN, { email: 'admin@example.com' }).firestore());
 const finder = () => (dbs.finder ||= env.unauthenticatedContext().firestore());
 const stranger = () => (dbs.stranger ||= env.authenticatedContext('flow-stranger').firestore());

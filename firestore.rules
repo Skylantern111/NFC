@@ -48,6 +48,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(uid)).data.get('disabled', false) == true;
     }
 
+    // The ID token's email_verified claim. The app refreshes the token right
+    // after the owner verifies (lib/emailVerification.js#refreshVerified).
+    function isVerifiedEmail() {
+      return request.auth.token.get('email_verified', false) == true;
+    }
+
     function ownsTag(tagId) {
       return isSignedIn()
         && exists(/databases/$(database)/documents/itemOwners/$(tagId))
@@ -65,7 +71,8 @@ service cloud.firestore {
     //
     // SYSTEM_AUDIT_ROUND2.md A2: a disabled account is never admin (it used
     // to keep full admin rights after signing back in). (B7's verified-email
-    // requirement for passcode admins was removed at the owner's request.)
+    // requirement for passcode admins was removed at the owner's request;
+    // owners do need a verified email to claim a tag, see itemOwners.)
     function isAdmin() {
       return isSignedIn()
         && !isDisabledOwner(request.auth.uid)
@@ -341,7 +348,12 @@ service cloud.firestore {
       // caller could create only this doc — squatting the tag while it
       // still showed as unclaimed, and slipping past the tags#update claim
       // guard on admin-managed tags.
+      // Owners must have verified their email to claim (the tags#update and
+      // items#create claim clauses both need this doc, so this one check
+      // covers the whole claim). Admins are exempt (SYSTEM_AUDIT_ROUND2.md
+      // B7). isVerifiedEmail() first: it costs no document lookup.
       allow create: if isSignedIn()
+        && (isVerifiedEmail() || isAdmin())
         && !isDisabledOwner(request.auth.uid)
         && request.resource.data.keys().hasOnly(['ownerUid'])
         && request.resource.data.ownerUid == request.auth.uid

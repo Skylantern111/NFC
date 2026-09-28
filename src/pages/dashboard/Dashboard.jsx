@@ -1,18 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  AlertTriangle,
-  Bell,
-  ChevronRight,
-  Clock,
-  MessageSquare,
-  MessageSquareWarning,
-  Nfc,
-  Package,
-  PackageSearch,
-  ShieldCheck,
-  X,
-} from 'lucide-react';
+import { AlertTriangle, Bell, ChevronRight, Clock, MailCheck, MessageSquare, MessageSquareWarning, Nfc, Package, PackageSearch, ShieldCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
@@ -56,6 +44,8 @@ const FIRST_STEPS = [
   { icon: Package, title: 'Name the item', detail: 'So finders know what they found.' },
   { icon: ShieldCheck, title: "You're protected", detail: 'If it goes missing, turn on Lost Mode in one tap.' },
 ];
+
+const VERIFY_STEP = { icon: MailCheck, title: 'Verify your email', detail: 'Tap the link we emailed you when you signed up.' };
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -121,6 +111,10 @@ export default function Dashboard() {
 
   const firstName = (user?.displayName || '').trim().split(/\s+/)[0];
   const firstRun = !loading && items.length === 0;
+  // Unverified owners can't claim yet (firestore.rules), so verifying is
+  // step one for them.
+  const needsVerify = firebaseReady && !!user && !user.emailVerified;
+  const steps = needsVerify ? [VERIFY_STEP, ...FIRST_STEPS] : FIRST_STEPS;
 
   return (
     <div className="space-y-6">
@@ -167,9 +161,11 @@ export default function Dashboard() {
         <Skeleton className="h-40 rounded-3xl" />
       ) : firstRun ? (
         <GlassCard>
-          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Get started in three steps</h2>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+            Get started in {steps.length === 4 ? 'four' : 'three'} steps
+          </h2>
           <ol className="mt-4 space-y-3">
-            {FIRST_STEPS.map(({ icon: Icon, title, detail }, i) => (
+            {steps.map(({ icon: Icon, title, detail }, i) => (
               <li key={title} className="flex gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base text-sm font-bold text-purple-700 dark:text-purple-300 shadow-neu-flat-sm">
                   {i + 1}
@@ -184,7 +180,11 @@ export default function Dashboard() {
             ))}
           </ol>
           <Button asChild variant="primary" className="mt-5 w-full sm:w-auto">
-            <Link to="/dashboard/items/claim">Claim your first tag</Link>
+            {needsVerify ? (
+              <Link to="/dashboard/verify-email">Verify my email</Link>
+            ) : (
+              <Link to="/dashboard/items/claim">Claim your first tag</Link>
+            )}
           </Button>
           {/* Privacy explainer only on first run (DB5) — not on every visit. */}
           <p className="mt-5 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">

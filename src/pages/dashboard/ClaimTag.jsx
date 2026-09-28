@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { doc, runTransaction } from 'firebase/firestore';
-import { Smartphone } from 'lucide-react';
+import { MailCheck, Smartphone } from 'lucide-react';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { CATEGORIES, CATEGORY_ICON } from '../../lib/categories';
@@ -13,7 +13,7 @@ import GlassCard from '../../components/GlassCard';
 import PageHeader from '../../components/PageHeader';
 import FormField, { FormError } from '../../components/FormField';
 import NfcScanPanel from '../../components/NfcScanPanel';
-import { InlineAlert } from '../../components/States';
+import { EmptyState, InlineAlert } from '../../components/States';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import {
@@ -201,6 +201,26 @@ export default function ClaimTag() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // firestore.rules refuses a claim from an unverified email; say so up
+  // front instead of letting the form fail at the last step.
+  if (firebaseReady && user && !user.emailVerified) {
+    return (
+      <div className="mx-auto max-w-xl">
+        <PageHeader title="Claim a tag" backTo="/dashboard/items" />
+        <EmptyState
+          icon={MailCheck}
+          title="Verify your email first"
+          description="Claiming a tag needs a verified email, so finders' messages reach a real person."
+          action={
+            <Button asChild variant="primary">
+              <Link to="/dashboard/verify-email">Verify my email</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
   }
 
   return (

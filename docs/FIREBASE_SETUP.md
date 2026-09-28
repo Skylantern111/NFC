@@ -126,6 +126,19 @@ soft disable (`users/{uid}.disabled`):
   - `http://localhost:*/*`
 - **Email enumeration protection:** Firebase Console → Authentication →
   Settings. Sign-in errors then stop revealing which emails exist.
+- **Verification email delivery.** Owners must verify their email before
+  claiming a tag, so this email has to arrive:
+  - Authentication → Sign-in method: **Email/Password** enabled.
+  - Authentication → Templates → **Email address verification**: set the
+    sender name (e.g. "TagBack") and subject. Send a test to a real inbox.
+  - Authentication → Settings → **Authorized domains** includes
+    `<project>.web.app` (the email's "Continue" link returns there; without
+    it the app sends the email with no continue link).
+  - Mail from `noreply@<project>.firebaseapp.com` often lands in Gmail's
+    Spam or Promotions. The verify page says so. For better delivery, set
+    **Templates → Customize domain** to a domain you own (DNS records).
+  - Firebase limits how often one account can be sent an email
+    (`auth/too-many-requests`); the app waits 60 s between resends.
 - **Firebase App Check** (free): the next step against finder-side abuse
   (fake reports, notification spam). Not wired into the app yet.
 
@@ -165,7 +178,9 @@ Copy any line that starts with `[Report Only]` or mentions
 1. **Admin:** Admin → NFC Register → register a sticker. Or, without NFC
    hardware, use **Admin → Settings → Developer tools → Register test tag**.
    Note the TagBack ID.
-2. **Owner:** sign up at `/register` → **Claim** that ID → it should appear
+2. **Owner:** sign up at `/register` with a real inbox → the verify page
+   opens → click the link in the email (check Spam) → back in the app it
+   says "Email verified" within a few seconds → **Claim** that ID → it should appear
    on Dashboard and My Items → turn on Lost Mode.
 3. **Finder:** open `/nfc/<TagBack ID>` in a private window → share
    location → file a report → send a chat message.
