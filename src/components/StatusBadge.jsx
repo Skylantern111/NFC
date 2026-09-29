@@ -5,6 +5,8 @@ import {
   Circle,
   CircleDashed,
   Flag,
+  MailCheck,
+  MailWarning,
   PackageSearch,
   ShieldAlert,
   ShieldCheck,
@@ -43,6 +45,9 @@ const STATES = {
   write_failed: { label: 'Write failed', tone: 'danger', icon: XCircle },
   reviewed: { label: 'Reviewed', tone: 'neutral', icon: CheckCircle2 },
   banned: { label: 'Banned', tone: 'rose', icon: Ban },
+  // Accounts (admin/Owners.jsx, EMAIL_OWNERSHIP_PLAN.md §4)
+  email_verified: { label: 'Verified email', tone: 'success', icon: MailCheck },
+  email_unverified: { label: 'Email not verified', tone: 'warning', icon: MailWarning },
 };
 
 // An owner item's status, from the data that already exists: Lost Mode,

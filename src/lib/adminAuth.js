@@ -6,9 +6,11 @@ import { reportError } from './errorLog';
 // drift on what "admin" means:
 //   - never when users/{uid}.disabled (SYSTEM_AUDIT_ROUND2.md A2)
 //   - the real custom claim (scripts/setAdmin.js), or
-//   - the self-serve users/{uid}.isAdmin flag (admin signup passcode).
+//   - the self-serve users/{uid}.isAdmin flag (admin signup passcode), which
+//     only counts once the email is verified (EMAIL_OWNERSHIP_PLAN.md D1).
 //
-// Returns 'admin', 'not-admin', or 'unknown' when the profile couldn't be
+// Returns 'admin', 'not-admin', 'unverified' (a passcode admin whose email
+// isn't verified yet — send them to /admin/verify-email), or 'unknown' when the profile couldn't be
 // read (offline, a stalled connection right after a reload). 'unknown' used
 // to count as "not an admin", which sent a real admin back to the sign-in
 // page with "Your account does not have admin access".
@@ -39,7 +41,9 @@ export async function getAdminStatus(user) {
   }
   const profile = snap.exists() ? snap.data() : null;
   if (profile?.disabled) return 'not-admin';
-  return claims.admin === true || profile?.isAdmin === true ? 'admin' : 'not-admin';
+  if (claims.admin === true) return 'admin';
+  if (profile?.isAdmin === true) return user.emailVerified ? 'admin' : 'unverified';
+  return 'not-admin';
 }
 
 export async function checkIsAdmin(user) {

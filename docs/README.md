@@ -35,7 +35,8 @@ name (e.g. "SYSTEM_AUDIT_ROUND2.md A0").
 | File | Status |
 |---|---|
 | [SYSTEM_AUDIT_PLAN.md](SYSTEM_AUDIT_PLAN.md) | Round 1 — implemented |
-| [SYSTEM_AUDIT_ROUND2.md](SYSTEM_AUDIT_ROUND2.md) | Round 2 (incl. A0: owners blocked) — implemented; B7 reverted |
+| [SYSTEM_AUDIT_ROUND2.md](SYSTEM_AUDIT_ROUND2.md) | Round 2 (incl. A0: owners blocked) — implemented; B7 reverted, then re-applied for passcode admins (EMAIL_OWNERSHIP_PLAN.md) |
 | [SYSTEM_AUDIT_ROUND3.md](SYSTEM_AUDIT_ROUND3.md) | Round 3 (A1: owners saw no tags) — implemented |
 | [SYSTEM_AUDIT_ROUND4.md](SYSTEM_AUDIT_ROUND4.md) | Round 4 (release process, data integrity, privacy, ops) — implemented; merge to `main` and the live pass are yours; staging postponed |
 | [SYSTEM_AUDIT_ROUND4_IMPLEMENTATION_PLAN.md](SYSTEM_AUDIT_ROUND4_IMPLEMENTATION_PLAN.md) | Round 4 implementation plan — implemented |
+| [EMAIL_OWNERSHIP_PLAN.md](EMAIL_OWNERSHIP_PLAN.md) | Wrong-email sign-ups: admins must verify, type email twice, change email before verifying — implemented; §5 cleanup and live checks are yours |

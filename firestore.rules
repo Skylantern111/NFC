@@ -70,15 +70,19 @@ service cloud.firestore {
     // creation (see users/{uid} below).
     //
     // SYSTEM_AUDIT_ROUND2.md A2: a disabled account is never admin (it used
-    // to keep full admin rights after signing back in). (B7's verified-email
-    // requirement for passcode admins was removed at the owner's request;
-    // owners do need a verified email to claim a tag, see itemOwners.)
+    // to keep full admin rights after signing back in).
+    //
+    // EMAIL_OWNERSHIP_PLAN.md D1/D2 (B7 re-applied): a passcode admin only
+    // counts once their email is verified, so a made-up address plus the
+    // passcode no longer opens the admin console. Custom-claim admins
+    // (scripts/setAdmin.js) stay exempt.
     function isAdmin() {
       return isSignedIn()
         && !isDisabledOwner(request.auth.uid)
         && (
           request.auth.token.get('admin', false) == true
-          || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          || (isVerifiedEmail()
+              && exists(/databases/$(database)/documents/users/$(request.auth.uid))
               && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true)
         );
     }
@@ -177,6 +181,15 @@ service cloud.firestore {
         || request.resource.data.email == request.auth.token.get('email', null);
     }
 
+    // EMAIL_OWNERSHIP_PLAN.md §4: users/{uid}.emailVerified is shown to
+    // admins (admin/Owners.jsx). It is informational only — no rule trusts
+    // it for access — but an owner may only set it to true, and only once
+    // the token itself says the email is verified.
+    function emailVerifiedFlagOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['emailVerified'])
+        || (request.resource.data.emailVerified == true && isVerifiedEmail());
+    }
+
     // ---- users: private to the account owner, plus admin read/moderation.
     //      An admin may read any profile (admin/Owners.jsx lookup) and may
     //      set `disabled` (soft account disable); an owner may update their
@@ -192,11 +205,13 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == uid
         && (!('disabled' in request.resource.data) || request.resource.data.disabled == false)
         && (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false || validAdminPasscode())
+        && (!('emailVerified' in request.resource.data) || (request.resource.data.emailVerified == true && isVerifiedEmail()))
         && emailMatchesLogin();
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid == uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['disabled', 'isAdmin'])
-            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) || emailMatchesLogin()));
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) || emailMatchesLogin())
+            && emailVerifiedFlagOk());
       // "Delete my account" (SYSTEM_AUDIT_ROUND4 C1, full deletion). Safe
       // against the Round 1 A1/A2 tricks: a disabled account can't delete
       // (so it can't re-create itself without `disabled`), and a re-created
@@ -350,8 +365,9 @@ service cloud.firestore {
       // guard on admin-managed tags.
       // Owners must have verified their email to claim (the tags#update and
       // items#create claim clauses both need this doc, so this one check
-      // covers the whole claim). Admins are exempt (SYSTEM_AUDIT_ROUND2.md
-      // B7). isVerifiedEmail() first: it costs no document lookup.
+      // covers the whole claim). Custom-claim admins are exempt; passcode
+      // admins are verified by definition (isAdmin, EMAIL_OWNERSHIP_PLAN.md
+      // D1). isVerifiedEmail() first: it costs no document lookup.
       allow create: if isSignedIn()
         && (isVerifiedEmail() || isAdmin())
         && !isDisabledOwner(request.auth.uid)

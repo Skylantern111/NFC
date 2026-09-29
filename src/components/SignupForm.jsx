@@ -7,7 +7,7 @@ import { deleteField, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/f
 import { auth, db, firebaseReady } from '../firebase/config';
 import { profileRepairPaused } from '../context/AuthContext';
 import { friendlyAuthError, passwordRequirementResults, passwordStrength } from '../lib/utils';
-import { sendVerification } from '../lib/emailVerification';
+import { ADMIN_RETURN, OWNER_RETURN, sendVerification } from '../lib/emailVerification';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -23,9 +23,20 @@ import FormField, { FormError } from './FormField';
 // never decides who is admin. On a wrong passcode the just-created Auth
 // user is deleted again, so no stray owner account is left behind. The
 // passcode copy on the new doc is removed right after a successful create.
+//
+// Both roles type the email twice and then verify it (EMAIL_OWNERSHIP_PLAN.md
+// D1/D3): owners before claiming a tag, passcode admins before any admin
+// rights apply.
 export default function SignupForm({ admin = false }) {
   const nav = useNavigate();
-  const [form, setForm] = useState({ displayName: '', email: '', password: '', confirmPassword: '', adminPasscode: '' });
+  const [form, setForm] = useState({
+    displayName: '',
+    email: '',
+    confirmEmail: '',
+    password: '',
+    confirmPassword: '',
+    adminPasscode: '',
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [err, setErr] = useState('');
@@ -59,6 +70,10 @@ export default function SignupForm({ admin = false }) {
     const next = {};
     if (!form.displayName.trim()) next.displayName = 'Enter your name.';
     if (!form.email.trim()) next.email = 'Enter your email.';
+    if (!form.confirmEmail.trim()) next.confirmEmail = 'Type the email again.';
+    else if (form.email.trim().toLowerCase() !== form.confirmEmail.trim().toLowerCase()) {
+      next.confirmEmail = 'The two emails don’t match.';
+    }
     if (!allRequirementsMet) next.password = 'Your password doesn’t meet every requirement below yet.';
     if (!form.confirmPassword) next.confirmPassword = 'Type the password again.';
     else if (!passwordsMatch) next.confirmPassword = 'The two passwords don’t match.';
@@ -76,7 +91,7 @@ export default function SignupForm({ admin = false }) {
     setBusy(true);
     profileRepairPaused.current = true;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
+      const cred = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
       await updateProfile(cred.user, { displayName: form.displayName });
       // Profile lives in `users` — never exposed to finders. `isAdmin` can
       // only be set here, at creation — firestore.rules blocks changing it
@@ -106,17 +121,18 @@ export default function SignupForm({ admin = false }) {
       } else {
         await setDoc(userRef, { ...profile, isAdmin: false });
       }
-      if (admin) {
-        // Admins don't verify their email (SYSTEM_AUDIT_ROUND2.md B7).
-        toast.success('Admin account created.');
-        nav('/admin/inventory');
-        return;
-      }
-      // Owners must verify before claiming a tag. The account exists either
-      // way; if this send fails, the verify page shows why and can resend.
-      const sent = await sendVerification(cred.user);
-      toast.success(sent.ok ? 'Account created. Check your email to verify it.' : 'Account created.');
-      nav('/dashboard/verify-email', { state: sent.ok ? null : { sendError: sent.error } });
+      // Owners must verify before claiming a tag, passcode admins before any
+      // admin rights apply. The account exists either way; if this send
+      // fails, the verify page shows why and can resend.
+      const sent = await sendVerification(cred.user, { returnTo: admin ? ADMIN_RETURN : OWNER_RETURN });
+      toast.success(
+        sent.ok
+          ? `${admin ? 'Admin account' : 'Account'} created. Check your email to verify it.`
+          : `${admin ? 'Admin account' : 'Account'} created.`
+      );
+      nav(admin ? '/admin/verify-email' : '/dashboard/verify-email', {
+        state: sent.ok ? null : { sendError: sent.error },
+      });
     } catch (e) {
       setErr(friendlyAuthError(e));
     } finally {
@@ -130,7 +146,16 @@ export default function SignupForm({ admin = false }) {
       <FormField id="displayName" label="Name" hint="Only you and TagBack admins see this." error={fieldErr.displayName}>
         <Input value={form.displayName} onChange={set('displayName')} autoComplete="name" autoCapitalize="words" />
       </FormField>
-      <FormField id="email" label="Email" error={fieldErr.email}>
+      <FormField
+        id="email"
+        label="Email"
+        hint={
+          admin
+            ? 'We’ll send a link here. You need it to open the admin console.'
+            : 'We’ll send a link here. You need it to claim tags.'
+        }
+        error={fieldErr.email}
+      >
         <Input
           type="email"
           inputMode="email"
@@ -138,6 +163,17 @@ export default function SignupForm({ admin = false }) {
           autoCapitalize="none"
           value={form.email}
           onChange={set('email')}
+        />
+      </FormField>
+      {/* autoComplete off so autofill can't copy a typo into both fields. */}
+      <FormField id="confirmEmail" label="Confirm email" error={fieldErr.confirmEmail}>
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="off"
+          autoCapitalize="none"
+          value={form.confirmEmail}
+          onChange={set('confirmEmail')}
         />
       </FormField>
       <div className="flex flex-col gap-1.5">

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { auth, db, firebaseReady } from '../firebase/config';
 import { refreshVerified } from '../lib/emailVerification';
@@ -60,6 +60,19 @@ export function AuthProvider({ children }) {
           isAdmin: false,
           createdAt: serverTimestamp(),
         }).catch(() => {});
+        return;
+      }
+      // EMAIL_OWNERSHIP_PLAN.md §3/§4: once verified, keep the profile in
+      // step with the sign-in account — the new address after a "Wrong
+      // email? Change it" switch (the rules only accept the login's own
+      // email, SYSTEM_AUDIT_ROUND4 B1), and the emailVerified flag admins
+      // see in admin/Owners.jsx. Best-effort; retried on the next snapshot.
+      if (snap.exists() && user.emailVerified && user.email) {
+        const data = snap.data();
+        const patch = {};
+        if (data.email !== user.email) patch.email = user.email;
+        if (data.emailVerified !== true) patch.emailVerified = true;
+        if (Object.keys(patch).length) updateDoc(snap.ref, patch).catch(() => {});
       }
     });
     return unsub;
@@ -101,7 +114,7 @@ const WATCH_FOR_MS = 10 * 60 * 1000;
 // While an owner's email is unverified, notice the moment they click the
 // link (usually in another tab or the mail app): check every 5 s while this
 // tab is visible, for up to 10 minutes, and again whenever the tab regains
-// focus. Used by the owner dashboard only; admins don't need to verify.
+// focus. Used by the owner dashboard and the admin verify page.
 export function useVerificationWatch() {
   const { user, refreshUser } = useAuth();
   const waiting = firebaseReady && !!user && !user.emailVerified;

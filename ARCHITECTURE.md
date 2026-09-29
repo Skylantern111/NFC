@@ -56,13 +56,15 @@ Defined in `src/App.jsx`. Dashboard and admin pages are lazy-loaded chunks.
 | `/nfc/:tagId` | `public/NfcLanding.jsx` | public — what a tap opens |
 | `/chat/:chatId` | `public/Chat.jsx` | public; role decided per chat (§8.4) |
 | `/privacy` | `Privacy.jsx` | public |
-| `/dashboard` (+ `items`, `items/claim`, `nfc-setup`, `messages`, `notifications`, `settings`) | `dashboard/*` under `DashboardLayout.jsx` | `ProtectedRoute` (signed in) |
+| `/dashboard` (+ `items`, `items/claim`, `nfc-setup`, `messages`, `notifications`, `settings`, `verify-email`) | `dashboard/*` under `DashboardLayout.jsx` | `ProtectedRoute` (signed in) |
 | `/admin/login`, `/admin/register` | `admin/AdminLogin.jsx`, `admin/AdminRegister.jsx` | public |
+| `/admin/verify-email` | `VerifyEmail.jsx` (`AdminVerifyEmail`) | signed in; outside `AdminGate` so an unverified passcode admin can reach it |
 | `/admin` (+ `inventory`, `nfc-register`, `tags`, `tags/:tagId`, `moderation`, `owners`, `errors`) | `admin/*` under `AdminLayout.jsx` | `AdminGate` inside `AdminLayout` |
 
 `AdminGate` sends signed-out users to `/admin/login` and lets in only
-admins (`lib/adminAuth.js#checkIsAdmin`, which mirrors the rules'
-`isAdmin()`).
+admins (`lib/adminAuth.js#getAdminStatus`, which mirrors the rules'
+`isAdmin()`). A passcode admin whose email isn't verified yet
+(`'unverified'`) goes to `/admin/verify-email` instead of "no admin access".
 
 ## 4. Data layer: live, or mocked by `firebaseReady`
 
@@ -100,7 +102,7 @@ they know its ID; **listing** the collection is restricted.
 
 | Collection | Access | Contents |
 |---|---|---|
-| `users/{uid}` | owner + admin; the owner may delete it unless disabled | `email` (must equal the sign-in email), displayName, notification prefs, `isAdmin` (fixed at creation, passcode-checked), `disabled` (admin-set) |
+| `users/{uid}` | owner + admin; the owner may delete it unless disabled | `email` (must equal the sign-in email), displayName, notification prefs, `isAdmin` (fixed at creation, passcode-checked), `disabled` (admin-set), `emailVerified` (owner may set `true` once verified; shown in Admin → Owners, never used for access) |
 | `tags/{tagId}` | public by ID; list + write admin; owner may flip status on claim/release | TagBack ID, `status` (`registered` / `claimed` / `blacklisted`), optional `physicalUid`, `chipType`, `writeStatus` |
 | `tags/{tagId}/scans/{id}` | public create (real tag, server time); owner/admin read | tap counter + `landingMode` shown |
 | `tagAdmin/{tagId}` | admin only | `registeredBy`, blacklist reason / who / prior status |
@@ -118,8 +120,9 @@ they know its ID; **listing** the collection is restricted.
 Key rule mechanisms (`firestore.rules`):
 - **`ownsTag(tagId)`**: `itemOwners/{tagId}.ownerUid == caller`, and the
   caller isn't disabled. It is the single source of "do you own this".
-- **`isAdmin()`**: custom claim `admin: true`, or `users/{uid}.isAdmin`.
-  Either way, never for a disabled account.
+- **`isAdmin()`**: custom claim `admin: true`, or `users/{uid}.isAdmin`
+  **with** a verified email (`email_verified` in the token,
+  EMAIL_OWNERSHIP_PLAN.md D1). Either way, never for a disabled account.
 - **Optional fields are read with `.get(field, default)`**
   (`disabled`, `isAdmin`, token claims). Reading a missing field is an
   evaluation error in rules and denies the request. That once blocked
@@ -152,9 +155,13 @@ Key rule mechanisms (`firestore.rules`):
      `meta/adminSignup`. The rules compare it on create; it is 8+
      characters, set on **Admin → Settings** ("Generate" makes a random one)
      or with `scripts/setAdminSignupPasscode.js`. A wrong passcode creates
-     no account.
+     no account. The new admin types the email twice, gets a verification
+     email and lands on `/admin/verify-email`; admin rights apply only once
+     the email is verified (the rules and `getAdminStatus` both check).
+     The page updates by itself after the link is clicked, then opens
+     Inventory.
   2. **Custom claim** via `scripts/setAdmin.js` (service-account key). Used
-     to bootstrap the first admin.
+     to bootstrap the first admin. Exempt from email verification.
 - **Disabling** (`users/{uid}.disabled`, Admin → Owners) is a soft disable:
   - every owner and admin rule refuses the account
   - an open session is signed out client-side
@@ -206,14 +213,25 @@ same Firestore calls against the rules.
    applies to unclaimed tags only.
 
 ### 8.2 Owner: sign up and claim (`SignupForm.jsx`, `ClaimTag.jsx`)
-1. **Sign up** at `/register`. This creates the Auth user and a
+1. **Sign up** at `/register`. The owner types the email twice (compared
+   trimmed and lower-cased). This creates the Auth user and a
    `users/{uid}` profile with `isAdmin: false`, sends the verification
    email (`lib/emailVerification.js`) and opens `/dashboard/verify-email`.
 2. **Verify the email.** The rules refuse a claim until the ID token has
-   `email_verified` (admins are exempt). The dashboard checks every 5 s
+   `email_verified` (custom-claim admins are exempt; passcode admins are
+   verified by definition). The dashboard checks every 5 s
    and on tab focus, then refreshes the token, so the owner only has to
    click the link and come back. Until then a banner and the Claim page
    point to the verify page (resend with a 60 s cooldown).
+   - **Wrong email?** The verify page's "Change it" asks for the new
+     email (twice) and the password, re-authenticates, and calls
+     `verifyBeforeUpdateEmail`. Firebase emails the new address and
+     switches the account only when that link is clicked; the owner then
+     signs in with the new address. `AuthContext` copies the new email
+     (and `emailVerified: true`) into `users/{uid}`.
+   - "Sign up with a different email" still signs out and opens
+     `/register`; the old account stays until removed by hand
+     (FIREBASE_SETUP.md).
 3. **Claim** at `/dashboard/items/claim`. The owner types the TagBack ID,
    scans the sticker, or arrives from a tap on an unclaimed tag.
 4. One transaction:

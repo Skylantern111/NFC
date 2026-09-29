@@ -142,6 +142,9 @@ export default function Owners() {
                   <CardTitle className="flex items-center gap-2">
                     {owner.displayName || owner.email || 'Owner'}
                     {owner.disabled && <StatusBadge state="banned" label="Disabled" />}
+                    {/* users/{uid}.emailVerified is written by the owner's own
+                    app once verified (AuthContext); informational only. */}
+                    <StatusBadge state={owner.emailVerified ? 'email_verified' : 'email_unverified'} />
                   </CardTitle>
                   <CardDescription className="text-slate-600 dark:text-slate-400">
                     {owner.email ? `Sign-up email: ${owner.email}` : 'No email on file'}
@@ -174,6 +177,14 @@ export default function Owners() {
                   {owner.createdAt ? relativeTimeFromMs(toMillis(owner.createdAt)) : '—'}
                 </p>
               </div>
+              {!owner.emailVerified &&
+                owner.createdAt &&
+                Date.now() - toMillis(owner.createdAt) > 7 * 24 * 60 * 60 * 1000 && (
+                  <p className="text-xs text-slate-600 dark:text-slate-400 sm:col-span-3">
+                    Not verified after 7 days — probably a mistyped email. It can be deleted in the Firebase console
+                    (see FIREBASE_SETUP.md, cleaning up wrong-email accounts).
+                  </p>
+                )}
             </CardContent>
           </Card>
 

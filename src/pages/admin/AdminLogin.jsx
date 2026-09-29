@@ -40,6 +40,12 @@ export default function AdminLogin() {
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const status = await getAdminStatus(cred.user);
+      // Passcode admin, email not verified yet: stay signed in and finish
+      // verifying (EMAIL_OWNERSHIP_PLAN.md §1.3).
+      if (status === 'unverified') {
+        nav('/admin/verify-email', { replace: true });
+        return;
+      }
       if (status !== 'admin') {
         await signOut(auth);
         setErr(

@@ -41,7 +41,8 @@ const NfcSetup = lazyPage(() => import('./pages/dashboard/NfcSetup'));
 const Messages = lazyPage(() => import('./pages/dashboard/Messages'));
 const Notifications = lazyPage(() => import('./pages/dashboard/Notifications'));
 const Settings = lazyPage(() => import('./pages/dashboard/Settings'));
-const VerifyEmail = lazyPage(() => import('./pages/dashboard/VerifyEmail'));
+const VerifyEmail = lazyPage(() => import('./pages/VerifyEmail'));
+const AdminVerifyEmail = lazyPage(() => import('./pages/VerifyEmail').then((m) => ({ default: m.AdminVerifyEmail })));
 
 const AdminLayout = lazyPage(() => import('./pages/admin/AdminLayout'));
 const AdminLogin = lazyPage(() => import('./pages/admin/AdminLogin'));
@@ -73,7 +74,7 @@ function usePreloadArea() {
   const { pathname } = useLocation();
   const area = pathname.startsWith('/dashboard')
     ? 'owner'
-    : pathname.startsWith('/admin') && !/^\/admin\/(login|register)/.test(pathname)
+    : pathname.startsWith('/admin') && !/^\/admin\/(login|register|verify-email)/.test(pathname)
       ? 'admin'
       : null;
   useEffect(() => {
@@ -128,6 +129,9 @@ export default function App() {
       {/* Admin */}
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin/register" element={<AdminRegister />} />
+      {/* Outside AdminLayout: AdminGate refuses an unverified passcode admin
+      (EMAIL_OWNERSHIP_PLAN.md §1.4). */}
+      <Route path="/admin/verify-email" element={<AdminVerifyEmail />} />
       <Route
         path="/admin"
         // No ProtectedRoute here (SYSTEM_AUDIT_ROUND2.md B4): AdminLayout's

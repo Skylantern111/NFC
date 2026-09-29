@@ -61,6 +61,10 @@ function AdminGate({ children }) {
     );
   }
 
+  // A passcode admin whose email isn't verified yet (EMAIL_OWNERSHIP_PLAN.md
+  // D1): the verify page, not "no admin access".
+  if (status === 'unverified') return <Navigate to="/admin/verify-email" replace />;
+
   if (status !== 'admin') {
     return (
       <Navigate

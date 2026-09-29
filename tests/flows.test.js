@@ -7,7 +7,8 @@
 // src/ — in order, as three realistic users:
 //   - an owner who signed up normally (has a users/{uid} profile doc)
 //   - a finder with no account
-//   - a passcode admin (users/{uid}.isAdmin, email not verified)
+//   - a passcode admin (users/{uid}.isAdmin, email verified — passcode admins
+//     must verify, EMAIL_OWNERSHIP_PLAN.md D1)
 // Steps share state and run in order; if one fails, later ones may too —
 // read the first failure.
 //
@@ -48,7 +49,7 @@ const PASSCODE = 'FLOWPASS';
 let env;
 const dbs = {};
 const owner = () => (dbs.owner ||= env.authenticatedContext(OWNER, { email: 'owner@example.com', email_verified: true }).firestore());
-const admin = () => (dbs.admin ||= env.authenticatedContext(ADMIN, { email: 'admin@example.com' }).firestore());
+const admin = () => (dbs.admin ||= env.authenticatedContext(ADMIN, { email: 'admin@example.com', email_verified: true }).firestore());
 const finder = () => (dbs.finder ||= env.unauthenticatedContext().firestore());
 const stranger = () => (dbs.stranger ||= env.authenticatedContext('flow-stranger').firestore());
 const ids = {};

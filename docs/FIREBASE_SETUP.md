@@ -101,9 +101,23 @@ There are no admins yet, so use the custom-claim script once:
 Further admins can then sign up themselves:
 1. On **Admin → Settings → Admin signup passcode**, click **Generate** (8+
    characters), then **Set passcode**, and share it privately.
-2. The new admin signs up at **`/admin/register`** with it.
+2. The new admin signs up at **`/admin/register`** with it, typing the
+   email twice.
 3. The database rules check the passcode. A wrong one creates no account.
-4. Click **Turn off** when nobody is being onboarded.
+4. The new admin lands on `/admin/verify-email` and has **no admin rights
+   until they click the link** in the verification email
+   (`docs/EMAIL_OWNERSHIP_PLAN.md` D1). Custom-claim admins
+   (`scripts/setAdmin.js`) are exempt.
+5. Click **Turn off** when nobody is being onboarded.
+
+> **Before deploying the verified-admin rules** (first deploy after
+> `EMAIL_OWNERSHIP_PLAN.md`): make sure at least one admin can still get
+> in. Either run `scripts/setAdmin.js` for your own account (custom claim,
+> exempt), or verify your passcode admin's email first. Otherwise every
+> unverified passcode admin lands on the verify page at the next sign-in.
+> Deploy rules and hosting together
+> (`firebase deploy --only hosting,firestore:rules`), or unverified admins
+> get a "no access" loop.
 
 Other admin scripts (same `GOOGLE_APPLICATION_CREDENTIALS`):
 - `scripts/listSelfServeAdmins.js`: list passcode-created admins.
@@ -116,6 +130,23 @@ soft disable (`users/{uid}.disabled`):
 - every owner and admin rule refuses the account
 - an open session is signed out
 - Firebase Auth sign-in itself isn't revoked; that needs a backend
+
+### Cleaning up wrong-email accounts
+
+Someone who mistypes their email at sign-up can fix it on the verify page
+("Wrong email? Change it"). Accounts left behind with a wrong address are
+removed by hand — the app has no Cloud Functions (Spark plan), so it can't
+delete Auth users itself. **Admin → Owners** marks accounts "Email not
+verified"; one still unverified after 7 days is probably a typo.
+
+1. **Authentication → Users:** find the wrong-email accounts and delete
+   them. This deletes the sign-in only.
+2. **Firestore → `users/{uid}`:** delete the same UIDs. For an owner that
+   has tags, prefer **Admin → Owners → Disable account**, or release the
+   tags first.
+3. If the admin passcode may have leaked: **Admin → Settings → Admin
+   sign-up passcode** → **Generate** to replace it, then **Turn off** until
+   the next admin sign-up.
 
 ## 6. Recommended console settings
 
@@ -211,7 +242,16 @@ Full pass, continued:
     Settings → **Delete my account** (type DELETE + password) → you are
     signed out, and the account can't sign in again.
 13. **Privacy page:** `/privacy` opens from the landing footer and signup.
-14. **Real device (once per sticker model):** on an Android phone with
+14. **Email ownership** (`docs/EMAIL_OWNERSHIP_PLAN.md`):
+    - Owner sign-up with two different emails is blocked at the form.
+    - Owner signs up → on the verify page, **Change it** to another real
+      inbox → click the new link → sign in with the new address → claim.
+    - Admin signs up with the passcode → lands on `/admin/verify-email`,
+      and gets no admin data before clicking the link → after the click,
+      the page moves to Inventory within about 5 s.
+    - An existing unverified passcode admin signs in → lands on the verify
+      page, not on "no access". A custom-claim admin is unaffected.
+15. **Real device (once per sticker model):** on an Android phone with
     Chrome over HTTPS:
     - Admin → NFC Register → **Start NFC scan** → tap a real NTAG sticker
       → Register → **Write NFC tag**.
