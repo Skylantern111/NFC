@@ -493,6 +493,8 @@ export default function Inventory() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-2">
               <Input
+                type="search"
+                aria-label="Search by TagBack ID or physical UID"
                 placeholder="Search TagBack ID or physical UID…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -552,7 +554,8 @@ export default function Inventory() {
                   key={s.value}
                   type="button"
                   onClick={() => setStatusFilter(s.value)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
+                  aria-pressed={statusFilter === s.value}
+                  className={`min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
                     statusFilter === s.value
                       ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
                       : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
@@ -605,7 +608,7 @@ export default function Inventory() {
                 {!rowsLoading && filteredRows.length === 0 && (
                   <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
                     <TableCell colSpan={10} data-full className="py-10 text-center text-slate-600 dark:text-slate-400">
-                      No tags match this view.{' '}
+                      {rows.length === 0 && !search ? 'No NFC tags have been registered yet.' : 'No tags match this view.'}{' '}
                       <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
                         Register a physical tap
                       </Link>{' '}
@@ -767,8 +770,9 @@ export default function Inventory() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label className="text-slate-600 dark:text-slate-300">Reason (required)</Label>
+            <Label htmlFor="blacklist-reason" className="text-slate-600 dark:text-slate-300">Reason (required)</Label>
             <Input
+              id="blacklist-reason"
               autoFocus
               placeholder="e.g. reported tampered / lost stock"
               value={flagReason}

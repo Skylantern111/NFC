@@ -1038,3 +1038,34 @@ describe('SYSTEM_AUDIT_ROUND4.md fixes', () => {
     await assertFails(addDoc(collection(db, 'clientErrors'), { ...base, uid: 'someone-else' }));
   });
 });
+
+// UI/UX pass (SYSTEM_DOCUMENTATION.md §26 G-P2): releasing a tag deletes
+// its chats' messages too; reported chats keep theirs for moderation.
+describe('chat messages — deletion on release', () => {
+  async function seedChatWithMessage(chatId, extra = {}) {
+    const tagId = `TB-MSG${chatId.slice(-1)}-0001`;
+    await seed(async (db) => {
+      await setDoc(doc(db, 'tags', tagId), { tagId, status: 'claimed' });
+      await setDoc(doc(db, 'itemOwners', tagId), { ownerUid: 'owner-m' });
+      await setDoc(doc(db, 'chats', chatId), { tagId, finderSessionToken: 'tok-m', ...extra });
+      await setDoc(doc(db, 'chats', chatId, 'messages', 'm1'), { sender: 'finder', text: 'hi', finderSessionToken: 'tok-m' });
+    });
+  }
+
+  test('the owner can delete messages of an unreported chat on their tag', async () => {
+    await seedChatWithMessage('chat-del-1');
+    const owner = testEnv.authenticatedContext('owner-m').firestore();
+    await assertSucceeds(deleteDoc(doc(owner, 'chats', 'chat-del-1', 'messages', 'm1')));
+  });
+
+  test('messages of a reported chat cannot be deleted, and nobody else can delete any', async () => {
+    await seedChatWithMessage('chat-del-2', { blocked: true });
+    await seedChatWithMessage('chat-del-3');
+    const owner = testEnv.authenticatedContext('owner-m').firestore();
+    await assertFails(deleteDoc(doc(owner, 'chats', 'chat-del-2', 'messages', 'm1')));
+    const stranger = testEnv.authenticatedContext('stranger-m').firestore();
+    await assertFails(deleteDoc(doc(stranger, 'chats', 'chat-del-3', 'messages', 'm1')));
+    await assertFails(deleteDoc(doc(testEnv.unauthenticatedContext().firestore(), 'chats', 'chat-del-3', 'messages', 'm1')));
+    await assertFails(updateDoc(doc(owner, 'chats', 'chat-del-3', 'messages', 'm1'), { text: 'edited' }));
+  });
+});

@@ -135,28 +135,6 @@ export default function Dashboard() {
         }
       />
 
-      {!firstRun && (
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          {stats.map((s) => (
-            <Link
-              key={s.label}
-              to={s.to}
-              className="glass flex flex-col gap-2 p-3 transition-shadow hover:shadow-lg sm:p-5"
-            >
-              <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
-                <s.icon className="h-4 w-4" aria-hidden="true" />
-              </span>
-              {loading ? (
-                <Skeleton className="h-8 w-10" />
-              ) : (
-                <span className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{s.value}</span>
-              )}
-              <span className="text-xs text-slate-600 dark:text-slate-400">{s.label}</span>
-            </Link>
-          ))}
-        </div>
-      )}
-
       {loading ? (
         <Skeleton className="h-40 rounded-3xl" />
       ) : firstRun ? (
@@ -189,18 +167,20 @@ export default function Dashboard() {
           {/* Privacy explainer only on first run (DB5) — not on every visit. */}
           <p className="mt-5 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
-            Finders only see the item name, lost status and reward — never your name, email, phone or address.
+            Finders see only your tap page: the item name, its lost status, your message and reward, and any links
+            you add. Your account email is never shown.
           </p>
         </GlassCard>
       ) : incidents.length > 0 ? (
         <section className="space-y-3" aria-labelledby="incidents-heading">
           <h2 id="incidents-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
-            Needs your reply
+            Action needed
           </h2>
           {incidents.map(({ report, item, chat }) => (
             <GlassCard key={report.id} className="space-y-4 border-sky-200 dark:border-sky-500/30">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
+                  <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">Someone found your item</p>
                   <h3 className="truncate text-xl font-extrabold text-slate-800 dark:text-slate-100">{item.itemName}</h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400">
                     Reported {relativeTimeFromMs(toMillis(report.timestamp)) || 'just now'}
@@ -278,6 +258,35 @@ export default function Dashboard() {
           </div>
         </div>
       ))}
+
+      {/* Your items — counts, each opening the list it counts (DB2). Below
+          anything that needs action, so numbers never outrank a finder. */}
+      {!firstRun && (
+        <section aria-labelledby="items-heading" className="space-y-2">
+          <h2 id="items-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
+            Your items
+          </h2>
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            {stats.map((s) => (
+              <Link
+                key={s.label}
+                to={s.to}
+                className="glass flex flex-col gap-2 p-3 transition-shadow hover:shadow-lg sm:p-5"
+              >
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
+                  <s.icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                {loading ? (
+                  <Skeleton className="h-8 w-10" />
+                ) : (
+                  <span className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{s.value}</span>
+                )}
+                <span className="text-xs text-slate-600 dark:text-slate-400">{s.label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Recent activity (DB6) — reuses the shared notifications listener. */}
       {!firstRun && recent.length > 0 && (

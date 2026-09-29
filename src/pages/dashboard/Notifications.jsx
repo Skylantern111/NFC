@@ -129,7 +129,7 @@ export default function Notifications() {
       {!loading && notifications.length === 0 && (
         <EmptyState
           icon={Bell}
-          title="No notifications yet"
+          title="You're all caught up"
           description="You'll see an alert here when someone finds your item or sends a message."
         />
       )}

@@ -79,7 +79,9 @@ export default function Items() {
     );
   }, [items, search, lostOnly]);
 
-  const [armDialog, setArmDialog] = useState(null); // { tagId, name, lostMessage, rewardAmount }
+  const [armDialog, setArmDialog] = useState(null); // { tagId, name, lostMessage, rewardAmount, editing }
+  // The item whose Lost Mode was just turned on — shows a confirmation on its card.
+  const [justArmed, setJustArmed] = useState(null);
   const [disarmDialog, setDisarmDialog] = useState(null); // { tagId, name }
   const [releaseDialog, setReleaseDialog] = useState(null); // { tagId, name }
   const [saving, setSaving] = useState(false);
@@ -129,6 +131,7 @@ export default function Items() {
       name: item.itemName,
       lostMessage: item.lostMessage || '',
       rewardAmount: item.rewardAmount || 0,
+      editing: !!item.isLostMode,
     });
   }
 
@@ -143,8 +146,9 @@ export default function Items() {
       } else {
         updateMockItem(disarmDialog.tagId, { isLostMode: false, lostSince: null });
       }
+      if (justArmed === disarmDialog.tagId) setJustArmed(null);
       setDisarmDialog(null);
-      toast.success('Lost Mode is off.');
+      toast.success('Lost Mode is off. The tag page no longer shows the item as lost.');
     } catch (err) {
       toast.error(friendlyFirestoreError(err, 'Could not update item. Try again.'));
     } finally {
@@ -163,8 +167,14 @@ export default function Items() {
       } else {
         updateMockItem(armDialog.tagId, { ...patch, isLostMode: true, lostSince: { toMillis: () => Date.now() } });
       }
+      const { editing, tagId } = armDialog;
       setArmDialog(null);
-      toast.success('Lost Mode is on. Anyone who taps the tag now sees your message.');
+      if (editing) {
+        toast.success('Lost message saved. The next tap shows it.');
+      } else {
+        setJustArmed(tagId);
+        toast.success('Lost Mode is now active.');
+      }
     } catch (err) {
       toast.error(friendlyFirestoreError(err, 'Could not update item. Try again.'));
     } finally {
@@ -194,7 +204,7 @@ export default function Items() {
         <EmptyState
           icon={PackageSearch}
           title="No items yet"
-          description="Claim an NFC tag to start protecting your belongings."
+          description="You haven't claimed an NFC tag yet. Claim one to start protecting your belongings."
           action={
             <Button asChild variant="primary">
               <Link to="/dashboard/items/claim">Claim your first tag</Link>
@@ -311,8 +321,27 @@ export default function Items() {
                 </DropdownMenu>
               </div>
 
+              {justArmed === it.tagId && it.isLostMode && (
+                <InlineAlert
+                  tone="warning"
+                  role="status"
+                  className="mt-3"
+                  title="Lost Mode is now active"
+                  action={
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/nfc/${encodeURIComponent(it.tagId)}?preview=1`} target="_blank" rel="noopener noreferrer">
+                        <Eye className="h-4 w-4" /> See what finders see
+                      </Link>
+                    </Button>
+                  }
+                >
+                  Anyone who taps the tag now sees that it's lost, plus your message. When someone reports it, you'll get
+                  an alert here and in Messages.
+                </InlineAlert>
+              )}
+
               {highlighted && !it.isLostMode && (
-                <InlineAlert tone="success" className="mt-3" title="Tag claimed">
+                <InlineAlert tone="success" className="mt-3" title="Tag connected successfully">
                   It's protected now. If it ever goes missing, tap <strong>Report lost</strong>.
                 </InlineAlert>
               )}
@@ -371,10 +400,22 @@ export default function Items() {
       <Dialog open={!!armDialog} onOpenChange={(open) => !open && !saving && setArmDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Report "{armDialog?.name}" as lost</DialogTitle>
-            <DialogDescription>
-              Anyone who taps the tag will see that it's lost, plus the message and reward below. They can message
-              you through TagBack — your contact details stay hidden.
+            <DialogTitle>
+              {armDialog?.editing ? `Edit lost message for "${armDialog?.name}"` : `Turn on Lost Mode for "${armDialog?.name}"?`}
+            </DialogTitle>
+            <DialogDescription asChild>
+              {armDialog?.editing ? (
+                <p>Finders see the new message and reward on the next tap.</p>
+              ) : (
+                <div className="space-y-2 text-left">
+                  <p>When Lost Mode is on:</p>
+                  <ul className="list-disc space-y-0.5 pl-5">
+                    <li>anyone who taps the tag sees that the item is lost, with your message and reward;</li>
+                    <li>they can message you through TagBack — your email stays hidden;</li>
+                    <li>you can turn it off any time, or mark the item recovered from the chat.</li>
+                  </ul>
+                </div>
+              )}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={confirmArm} className="flex flex-col gap-4">
@@ -418,7 +459,7 @@ export default function Items() {
                 Cancel
               </Button>
               <Button type="submit" variant="primary" loading={saving}>
-                {saving ? 'Saving…' : 'Turn on Lost Mode'}
+                {saving ? 'Saving…' : armDialog?.editing ? 'Save changes' : 'Turn on Lost Mode'}
               </Button>
             </DialogFooter>
           </form>
@@ -446,8 +487,9 @@ export default function Items() {
             <p>This unlinks the tag from your account and deletes for good:</p>
             <ul className="list-disc space-y-0.5 pl-5">
               <li>the item name, tap page and lost message</li>
-              <li>every finder report, chat and notification for this tag</li>
+              <li>every finder report, chat (with its messages) and notification for this tag</li>
             </ul>
+            <p>Chats you or a finder reported are kept for TagBack's admin review.</p>
             <p>
               The sticker itself doesn't change and doesn't need rewriting. You or someone else can claim it again with
               the same TagBack ID.

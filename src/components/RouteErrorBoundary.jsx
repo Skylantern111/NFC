@@ -1,32 +1,32 @@
 import { Component } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { Button } from './ui/button';
 import { reportError } from '../lib/errorLog';
+import { ErrorScreen, newErrorRef } from './ErrorBoundary';
 
 // Guards the lazy-loaded dashboard/admin routes in App.jsx: if a chunk
 // import() fails (stale deploy, offline mid-navigation), React's default
 // behavior is an unhandled error and a blank screen. This catches that and
 // offers a reload instead of leaving the user wondering if the app is frozen.
 export default class RouteErrorBoundary extends Component {
-  state = { hasError: false };
+  state = { hasError: false, error: null, errorRef: null };
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error, errorRef: newErrorRef() };
   }
 
   componentDidCatch(error) {
-    reportError(error, 'RouteErrorBoundary');
+    reportError(error, `RouteErrorBoundary [ref ${this.state.errorRef}]`);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-screen flex-col items-center justify-center gap-3 bg-base px-4 text-center text-slate-600 dark:text-slate-400">
-          <AlertTriangle className="h-6 w-6 text-amber-500" />
-          <p className="font-semibold text-slate-800 dark:text-slate-100">Failed to load this page.</p>
-          <p className="text-sm">Check your connection and try again.</p>
-          <Button onClick={() => window.location.reload()}>Retry</Button>
-        </div>
+        <ErrorScreen
+          title="This page didn't load"
+          message="Check your connection, then try again. Reloading gets the latest version of TagBack."
+          errorRef={this.state.errorRef}
+          error={this.state.error}
+          onRetry={() => window.location.reload()}
+        />
       );
     }
     return this.props.children;

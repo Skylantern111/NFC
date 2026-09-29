@@ -53,21 +53,20 @@ export default function Messages() {
         <EmptyState
           icon={MessageSquare}
           title="No conversations yet"
-          description="When someone finds your item and sends a message, the chat shows up here."
+          description="You don't have any conversations yet. When someone finds your item and messages you, the chat shows up here."
         />
       )}
 
       {!loading && chats.length > 0 && (
-        <div role="tablist" aria-label="Filter conversations" className="flex gap-2">
+        <div role="group" aria-label="Filter conversations" className="flex flex-wrap gap-2">
           {FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
-              role="tab"
-              aria-selected={filter === f.value}
+              aria-pressed={filter === f.value}
               onClick={() => setParams(f.value === 'all' ? {} : { filter: f.value })}
               className={cn(
-                'min-h-9 rounded-full px-3.5 text-sm font-medium transition-shadow',
+                'min-h-11 rounded-full px-3.5 text-sm font-medium transition-shadow',
                 filter === f.value
                   ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-200 shadow-neu-pressed-sm'
                   : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'

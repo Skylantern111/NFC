@@ -509,7 +509,13 @@ service cloud.firestore {
               && !isBlockedToken(request.resource.data.finderSessionToken)
               && !isBlacklistedTag(get(/databases/$(database)/documents/chats/$(chatId)).data.tagId))
           );
-        allow update, delete: if false; // messages are immutable
+        allow update: if false; // messages are immutable
+        // Releasing a tag or deleting the account (lib/ownerItems.js#
+        // clearTagHistory) removes the tag's chats with their messages —
+        // deleting a chat doc doesn't delete this subcollection. Reported
+        // chats stay for moderation, so their messages can't be deleted.
+        allow delete: if ownsTag(get(/databases/$(database)/documents/chats/$(chatId)).data.tagId)
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.get('blocked', false) != true;
       }
     }
 

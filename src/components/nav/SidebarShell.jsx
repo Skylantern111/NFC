@@ -11,6 +11,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 // UI_UX_IMPROVEMENT_PLAN.md NAV1/NAV6: the mobile top bar names the current
 // section, and the menu button carries a dot whenever something in the menu
 // needs attention. A skip link jumps past the nav (A11Y6).
+//
+// `drawerItems` (optional): what the phone drawer lists instead of
+// `navItems`. The owner console puts its main pages in the bottom tab bar,
+// so its drawer only holds the secondary ones (Settings, Privacy, Log out)
+// instead of repeating the tabs.
 function Badge({ badge, dot }) {
   if (badge > 0) {
     return (
@@ -99,11 +104,13 @@ function Brand({ to, subtitle, admin }) {
 // `admin` gives the shell a small, deliberate identity distinct from the
 // owner dashboard it's structurally copied from: an amber subtitle pill and
 // an amber left-border on the active nav item.
-export default function SidebarShell({ subtitle, homeTo, navItems, userLabel, onLogout, admin }) {
+export default function SidebarShell({ subtitle, homeTo, navItems, drawerItems, userLabel, onLogout, admin }) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
-  const current = navItems.find((n) => matchPath({ path: n.to, end: !!n.end }, pathname));
-  const needsAttention = navItems.some((n) => n.badge > 0 || n.dot);
+  const menuItems = drawerItems || navItems;
+  const current = [...navItems, ...menuItems].find((n) => matchPath({ path: n.to, end: !!n.end }, pathname));
+  // The dot only counts what is inside the drawer; tab-bar badges show themselves.
+  const needsAttention = menuItems.some((n) => n.badge > 0 || n.dot);
 
   return (
     <>
@@ -151,7 +158,7 @@ export default function SidebarShell({ subtitle, homeTo, navItems, userLabel, on
               <SheetTitle className="sr-only">Navigation</SheetTitle>
               <Brand to={homeTo} subtitle={subtitle} admin={admin} />
             </SheetHeader>
-            <NavList navItems={navItems} onNavigate={() => setOpen(false)} admin={admin} />
+            <NavList navItems={menuItems} onNavigate={() => setOpen(false)} admin={admin} />
             <Footer userLabel={userLabel} onLogout={onLogout} />
           </SheetContent>
         </Sheet>

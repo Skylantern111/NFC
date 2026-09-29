@@ -162,8 +162,8 @@ export default function Settings() {
             </DialogTitle>
             <DialogDescription>
               This permanently deletes your account, your items and their tap pages, and every finder report, chat and
-              notification on your tags. Your tags return to stock (blacklisted tags stay blacklisted). This can't be
-              undone.
+              notification on your tags. Chats that were reported are kept for TagBack's admin review. Your tags
+              return to stock (blacklisted tags stay blacklisted). This can't be undone.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onDeleteAccount} className="flex flex-col gap-4">

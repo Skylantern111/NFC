@@ -105,6 +105,13 @@ export default function ClaimTag() {
     stopScan();
     setNfcStatus('idle');
   }
+  // "Enter Tag ID manually": stop any scan and move to the typed-ID field.
+  function enterManually() {
+    if (nfcStatus === 'scanning') cancelScan();
+    const input = document.getElementById('tagId');
+    input?.scrollIntoView({ block: 'center' });
+    input?.focus();
+  }
   const onScanTimeout = useCallback(() => {
     stopScan();
     setNfcStatus('timeout');
@@ -239,13 +246,13 @@ export default function ClaimTag() {
               onStart={scanNfc}
               onCancel={cancelScan}
               onTimeout={onScanTimeout}
+              onManual={enterManually}
               detectedDetail={`TagBack ID ${normalizeTagbackId(tagId)} — now name the item below.`}
-              fallbackHint="Or type the TagBack ID below."
             />
           ) : (
             <InlineAlert icon={Smartphone} title="Scanning isn’t available in this browser">
-              Tap-to-scan works in Chrome on Android. Type the TagBack ID printed on the sticker instead, or tap the
-              sticker with your phone to open its link.
+              Scanning needs a browser with Web NFC, such as Chrome on Android. Type the TagBack ID printed on the
+              sticker below instead.
             </InlineAlert>
           )}
 

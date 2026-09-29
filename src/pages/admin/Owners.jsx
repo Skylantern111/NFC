@@ -280,8 +280,9 @@ export default function Owners() {
           </DialogHeader>
           {!owner?.disabled && (
             <div className="space-y-2">
-              <Label className="text-slate-600 dark:text-slate-300">Reason</Label>
+              <Label htmlFor="disable-reason" className="text-slate-600 dark:text-slate-300">Reason (optional)</Label>
               <Input
+                id="disable-reason"
                 autoFocus
                 placeholder="e.g. reported for scam messages"
                 value={disableReason}

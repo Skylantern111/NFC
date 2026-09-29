@@ -174,11 +174,13 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
           <Label htmlFor="redirectUrl">Redirect URL</Label>
           <Input
             id="redirectUrl"
+            aria-invalid={errors.redirectUrl ? true : undefined}
+            aria-describedby={errors.redirectUrl ? 'redirectUrl-error' : undefined}
             placeholder="https://…"
             value={profile.redirectUrl || ''}
             onChange={(e) => set('redirectUrl', e.target.value)}
           />
-          {errors.redirectUrl && <p className="text-xs text-red-700 dark:text-red-300">{errors.redirectUrl}</p>}
+          {errors.redirectUrl && <p id="redirectUrl-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.redirectUrl}</p>}
         </div>
       )}
 
@@ -188,24 +190,28 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
             <Label htmlFor="displayName">Display name</Label>
             <Input
               id="displayName"
+              aria-invalid={errors.displayName ? true : undefined}
+              aria-describedby={errors.displayName ? 'displayName-error' : undefined}
               maxLength={DISPLAY_NAME_MAX}
               placeholder="e.g. Maria Santos or Acme Coffee"
               value={profile.displayName || ''}
               onChange={(e) => set('displayName', e.target.value)}
             />
-            {errors.displayName && <p className="text-xs text-red-700 dark:text-red-300">{errors.displayName}</p>}
+            {errors.displayName && <p id="displayName-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.displayName}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="bio">Short bio (optional)</Label>
             <Textarea
               id="bio"
+              aria-invalid={errors.bio ? true : undefined}
+              aria-describedby={errors.bio ? 'bio-error' : undefined}
               rows={2}
               maxLength={BIO_MAX}
               placeholder="One line about you or your business"
               value={profile.bio || ''}
               onChange={(e) => set('bio', e.target.value)}
             />
-            {errors.bio && <p className="text-xs text-red-700 dark:text-red-300">{errors.bio}</p>}
+            {errors.bio && <p id="bio-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.bio}</p>}
           </div>
         </div>
       )}
@@ -236,16 +242,18 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
               <div className="mt-3 flex flex-col gap-1.5">
                 <Input
                   id="contactUrl"
+                  aria-invalid={errors.contactUrl ? true : undefined}
+                  aria-describedby={errors.contactUrl ? 'contactUrl-error' : undefined}
                   aria-label="Contact link"
                   placeholder="https://wa.me/1555… or another contact link"
                   value={profile.contactUrl || ''}
                   onChange={(e) => set('contactUrl', e.target.value)}
                 />
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                  A link, not a raw phone/email — e.g. a WhatsApp click-to-chat URL. Account phone/email
-                  (Settings) is never shown publicly.
+                  A link, not a raw phone/email — e.g. a WhatsApp click-to-chat URL. Anyone who taps the tag can
+                  see and open it. Your account email is never shown publicly.
                 </p>
-                {errors.contactUrl && <p className="text-xs text-red-700 dark:text-red-300">{errors.contactUrl}</p>}
+                {errors.contactUrl && <p id="contactUrl-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.contactUrl}</p>}
               </div>
             )}
           </div>
@@ -256,11 +264,13 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
                 <Label htmlFor={key}>{LINK_LABELS[key]}</Label>
                 <Input
                   id={key}
+                  aria-invalid={errors[key] ? true : undefined}
+                  aria-describedby={errors[key] ? `${key}-error` : undefined}
                   placeholder="https://…"
                   value={profile[key] || ''}
                   onChange={(e) => set(key, e.target.value)}
                 />
-                {errors[key] && <p className="text-xs text-red-700 dark:text-red-300">{errors[key]}</p>}
+                {errors[key] && <p id={`${key}-error`} role="alert" className="text-xs text-red-700 dark:text-red-300">{errors[key]}</p>}
               </div>
             ))}
           </div>

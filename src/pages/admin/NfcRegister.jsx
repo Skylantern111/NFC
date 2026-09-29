@@ -419,9 +419,8 @@ export default function NfcRegister() {
               </div>
               {registerError && <p className="text-sm text-red-700 dark:text-red-300">{registerError}</p>}
               <div className="flex gap-2">
-                <Button variant="outline" onClick={reset}>Cancel</Button>
-                <Button onClick={onRegister} disabled={registering} className="gap-2">
-                  {registering && <Loader2 className="h-4 w-4 animate-spin" />}
+                <Button variant="outline" onClick={reset} disabled={registering}>Cancel</Button>
+                <Button onClick={onRegister} loading={registering} className="gap-2">
                   {registering ? 'Registering…' : 'Register tag'}
                 </Button>
               </div>
@@ -483,7 +482,7 @@ export default function NfcRegister() {
                 {reregisterTagId || rewriteTagId ? (
                   <Button variant="outline" asChild className="gap-1.5">
                     <Link to="/admin/inventory">
-                      <Check className="h-3.5 w-3.5" /> Done — back to inventory
+                      <Check className="h-3.5 w-3.5" /> Back to inventory
                     </Link>
                   </Button>
                 ) : (

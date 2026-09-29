@@ -659,6 +659,18 @@ export async function applyTagProfileToMany(tagIds, profile) {
 export async function clearTagHistory(tagId) {
   const byTag = (name) => getDocs(query(collection(db, name), where('tagId', '==', tagId)));
   const [reportSnap, notifSnap, chatSnap] = await Promise.all([byTag('reports'), byTag('notifications'), byTag('chats')]);
+  // A chat's messages are a subcollection, which deleting the chat doc
+  // doesn't remove. Delete them first, while the chat still exists (the
+  // rules read it), one chat per batch to keep the rules' lookups small.
+  for (const chat of chatSnap.docs) {
+    if (chat.data().blocked) continue;
+    const msgs = await getDocs(collection(db, 'chats', chat.id, 'messages'));
+    for (const group of chunk(msgs.docs, 400)) {
+      const batch = writeBatch(db);
+      group.forEach((m) => batch.delete(m.ref));
+      await batch.commit();
+    }
+  }
   const ops = [
     ...reportSnap.docs.map((d) => (b) => b.delete(d.ref)),
     ...notifSnap.docs.map((d) => (b) => b.delete(d.ref)),

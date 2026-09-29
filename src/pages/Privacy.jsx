@@ -20,7 +20,9 @@ const SECTIONS = [
     items: [
       'A random ID stored in your browser, so you can come back to your chat. It is not linked to your name, email or phone.',
       "Your report and chat messages, visible to the item's owner and to TagBack admins if a chat is reported.",
-      'Your location, only if you choose to share it, rounded to about 10 meters. It is removed when the owner marks the item recovered.',
+      'Your location, only if you choose to share it, rounded to about 10 meters. Only the owner sees it, on your report, and it is removed from the report when the owner marks the item recovered.',
+      'Anything you type in the chat, including a place you describe, stays in the chat until the owner releases the tag or deletes their account.',
+      "A chat can be read by anyone who has its link, so don't share the link.",
     ],
   },
   {
@@ -77,12 +79,13 @@ export default function Privacy() {
             <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">How long, and deleting it</h2>
             <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-600 dark:text-slate-300">
               <li>
-                Data stays until you remove it. Releasing a tag deletes its reports, chats and alerts. Reported chats
-                are kept for TagBack&apos;s moderation review.
+                Data stays until you remove it. Releasing a tag deletes its reports, alerts, and chats with their
+                messages. Chats that were reported are kept for TagBack&apos;s moderation review.
               </li>
               <li>
                 <strong>Delete my account</strong> (Settings) deletes your account, items, tag pages, and every report,
-                chat and alert on your tags. It can&apos;t be undone.
+                chat (with its messages) and alert on your tags, except reported chats kept for review. It can&apos;t
+                be undone.
               </li>
               <li>
                 Finders can&apos;t delete their own reports yet. Ask the item&apos;s owner to release the tag, or contact

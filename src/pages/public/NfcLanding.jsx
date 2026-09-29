@@ -85,6 +85,10 @@ export default function NfcLanding() {
   const [locStatus, setLocStatus] = useState('idle'); // idle | loading | done | unavailable
   const [locReason, setLocReason] = useState(null); // why it failed: denied | timeout | unavailable | unsupported
   const [busy, setBusy] = useState(false);
+  const [noteError, setNoteError] = useState('');
+  // The optional "where is it" block starts folded, so the message and the
+  // send button are on screen right away on a phone.
+  const [showWhere, setShowWhere] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -184,32 +188,36 @@ export default function NfcLanding() {
 
   // Real, gracefully-degrading browser geolocation (see lib/geolocation.js —
   // resolves { location: null, reason } on failure rather than throwing).
-  // Not a fake timer: this is an actual GPS read, fired on demand.
-  // A raw "lat, lng" note is one we auto-filled, not something the finder
-  // typed — safe to overwrite on a re-share without losing their own text.
-  const isAutoFilledNote = (note) => /^-?\d+\.\d+, -?\d+\.\d+$/.test(note || '');
-
+  //
+  // The coordinates go only on the report (report.location), which the
+  // owner alone can read and markRecovered() clears. They used to be copied
+  // into the "Describe the place" field, and from there into the first chat
+  // message — which is permanent and readable by anyone with the chat link
+  // (SYSTEM_DOCUMENTATION.md §26 G-P1).
   async function handleAttachLocation() {
-    const wasAutoFilled = !locationNote || isAutoFilledNote(locationNote);
     setLocStatus('loading');
     setLocReason(null);
     const { location: loc, reason } = await captureLocation();
     if (loc) {
       setLocation(loc);
       setLocStatus('done');
-      if (wasAutoFilled) {
-        setLocationNote(`${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
-      }
     } else {
       setLocStatus('unavailable');
       setLocReason(reason);
     }
   }
 
+  function removeLocation() {
+    setLocation(null);
+    setLocStatus('idle');
+    setLocReason(null);
+  }
+
   async function submitReport(e) {
     e.preventDefault();
     if (!note.trim()) {
-      toast.error('Write a short message to the owner first.');
+      setNoteError('Write a short message to the owner first, e.g. where you found it.');
+      document.getElementById('finder-message')?.focus();
       return;
     }
     setBusy(true);
@@ -450,21 +458,31 @@ export default function NfcLanding() {
   }
 
   const lost = item.isLostMode;
+  const reportingOff = tagProfile?.lostFoundEnabled === false;
+  const whereOpen = showWhere || locStatus !== 'idle' || !!locationNote;
+
+  const locationStatusText =
+    locStatus === 'done'
+      ? `Location added, accurate to about ${Math.round(location?.accuracy ?? 0)} m.`
+      : locStatus === 'unavailable'
+        ? locReason === 'denied'
+          ? isInAppBrowser()
+            ? "Location is blocked in this app's browser. Describe the place instead, or open this page in Chrome."
+            : 'Location permission is off. Describe the place instead.'
+          : locReason === 'timeout'
+            ? "Couldn't get a location fix in time (common indoors). Try again, or describe the place."
+            : locReason === 'unsupported'
+              ? "This browser can't share location. Describe the place instead."
+              : "Couldn't get your location. Check that location is on, or describe the place."
+        : 'Only the owner sees it, rounded to about 10 m. It is removed from the report when the item is marked returned.';
 
   return (
     <>
       <AmbientBackground />
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" historyOnly />
-        <main className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-4 px-4 py-6 sm:px-6">
-        {/* FIND1: say what this page is before asking anything. */}
-        <p className="flex items-start gap-2 px-1 text-sm text-slate-700 dark:text-slate-200">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
-          <span>
-            This item is protected by <strong>TagBack</strong>. You can message its owner here — no app or account,
-            and neither of you sees the other's contact details.
-          </span>
-        </p>
+        <main className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-5 sm:justify-center sm:px-6 sm:py-6">
+        {/* Found item → understand → contact owner → optionally share location. */}
         <Card
           className={cn(
             GLASS,
@@ -472,21 +490,19 @@ export default function NfcLanding() {
           )}
         >
           <CardContent className="text-slate-800 dark:text-slate-100">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-purple-700 dark:text-purple-300">
+              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+              You found a TagBack item
+            </p>
+            <h1 className="mt-1 break-words text-2xl font-extrabold text-slate-800 dark:text-slate-100 sm:text-3xl">
+              {item.itemName}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               {lost ? <StatusBadge state="lost" label="Reported lost by its owner" /> : <StatusBadge state="safe" label="Belongs to a TagBack user" />}
               {lost && item.rewardAmount > 0 && (
                 <StatusBadge state="review" label={`Reward ${formatReward(item.rewardAmount)}`} />
               )}
             </div>
-            {/* FIND8: only claim "you found it" when the owner says it's lost. */}
-            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 sm:text-3xl">
-              {lost ? `You found ${item.itemName}` : item.itemName}
-            </h1>
-            {!lost && (
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                If you found this, let the owner know below.
-              </p>
-            )}
 
             {lost && item.lostMessage && (
               <div className="mt-4 rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50/70 dark:bg-red-500/10 p-4">
@@ -498,111 +514,126 @@ export default function NfcLanding() {
               </div>
             )}
 
+            {!reportingOff && (
+              <p className="mt-4 text-sm text-slate-700 dark:text-slate-200">
+                Send the owner a message below. You don't need an app or an account.
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        {tagProfile && (
-          <LinkPillsCard profile={tagProfile} />
-        )}
-
-        {tagProfile?.lostFoundEnabled === false ? (
+        {reportingOff ? (
           <Card className={GLASS}>
             <CardContent className="text-center text-sm text-slate-600 dark:text-slate-400">
-              The owner hasn't enabled found-item reporting for this tag.
+              The owner has turned off found-item messages for this tag.
+              {hasVisibleLinks(tagProfile) && ' You can use one of their links below instead.'}
             </CardContent>
           </Card>
         ) : (
         <Card className={GLASS}>
           <CardContent className="text-slate-800 dark:text-slate-100">
-            {/* UI_UX_IMPROVEMENT_PLAN.md BUG8: the required message comes first
-                and says where it goes; location is one optional block below,
-                with who sees it and why it may fail (BUG6). */}
-            <form onSubmit={submitReport} className="flex flex-col gap-5">
+            <form onSubmit={submitReport} noValidate className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="finder-message" className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Message to the owner
+                  <Label htmlFor="finder-message" className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                    Message the owner
                   </Label>
-                  <span className="text-xs text-slate-600 dark:text-slate-400">{note.length}/500</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-400" aria-hidden="true">{note.length}/500</span>
                 </div>
                 <Textarea
                   id="finder-message"
                   value={note}
                   maxLength={500}
-                  onChange={(e) => setNote(e.target.value)}
+                  onChange={(e) => {
+                    setNote(e.target.value);
+                    if (noteError) setNoteError('');
+                  }}
                   rows={3}
                   placeholder="e.g. I found it on a bench at the park. I can leave it at the guard house."
-                  aria-describedby="finder-message-hint"
-                  required
+                  aria-describedby={noteError ? 'finder-message-error finder-message-hint' : 'finder-message-hint'}
+                  aria-invalid={noteError ? true : undefined}
                 />
+                {noteError && (
+                  <p id="finder-message-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+                    {noteError}
+                  </p>
+                )}
                 <p id="finder-message-hint" className="text-xs text-slate-600 dark:text-slate-400">
                   This starts a private chat with the owner. You'll see their reply on the next page.
                 </p>
               </div>
 
-              <fieldset className="flex flex-col gap-3 rounded-2xl bg-base p-4 shadow-neu-pressed-sm">
-                <legend className="sr-only">Where the item is (optional)</legend>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    <MapPin className="h-4 w-4" /> Where is it now?
-                  </span>
-                  <span className="text-xs text-slate-600 dark:text-slate-400">Optional</span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="location-note" className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                    Describe the place
-                  </Label>
-                  <Input
-                    id="location-note"
-                    value={locationNote}
-                    maxLength={200}
-                    onChange={(e) => setLocationNote(e.target.value)}
-                    placeholder="e.g. Guard house at the main gate"
-                  />
-                </div>
+              {!whereOpen ? (
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleAttachLocation}
-                  disabled={locStatus === 'loading'}
+                  onClick={() => setShowWhere(true)}
                   className="justify-start gap-2"
+                  aria-expanded="false"
                 >
-                  {locStatus === 'loading' ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <LocateFixed className="h-4 w-4" />
-                  )}
-                  {locStatus === 'done'
-                    ? 'Update my location'
-                    : locStatus === 'loading'
-                      ? 'Getting your location… (up to 25 s)'
-                      : 'Also share my current location'}
+                  <MapPin className="h-4 w-4" /> Add where it is (optional)
                 </Button>
-                <p className="text-xs text-slate-600 dark:text-slate-400" aria-live="polite">
-                  {locStatus === 'done'
-                    ? `Location added (accurate to about ${Math.round(location?.accuracy ?? 0)} m).`
-                    : locStatus === 'unavailable'
-                      ? locReason === 'denied'
-                        ? isInAppBrowser()
-                          ? "Location is blocked in this app's browser. Describe the place above instead, or open this page in Chrome."
-                          : 'Location permission is off. Describe the place above instead.'
-                        : locReason === 'timeout'
-                          ? "Couldn't get a location fix in time (common indoors). Try again, or describe the place above."
-                          : locReason === 'unsupported'
-                            ? "This browser can't share location. Describe the place above instead."
-                            : "Couldn't get your location. Check that location is on, or describe the place above."
-                      : 'Only the owner sees it. It is rounded to about 10 m and deleted once the item is returned.'}
-                </p>
-              </fieldset>
+              ) : (
+                <fieldset className="flex flex-col gap-3 rounded-2xl bg-base p-4 shadow-neu-pressed-sm">
+                  <legend className="sr-only">Where the item is (optional)</legend>
+                  <p className="flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4" aria-hidden="true" /> Where is it now?
+                    </span>
+                    <span className="text-xs font-normal text-slate-600 dark:text-slate-400">Optional</span>
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="location-note" className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                      Describe the place
+                    </Label>
+                    <Input
+                      id="location-note"
+                      value={locationNote}
+                      maxLength={200}
+                      onChange={(e) => setLocationNote(e.target.value)}
+                      placeholder="e.g. Guard house at the main gate"
+                      aria-describedby="location-note-hint"
+                    />
+                    <p id="location-note-hint" className="text-xs text-slate-600 dark:text-slate-400">
+                      Sent to the owner as part of your message.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAttachLocation}
+                      loading={locStatus === 'loading'}
+                      className="justify-start gap-2"
+                    >
+                      {locStatus !== 'loading' && <LocateFixed className="h-4 w-4" />}
+                      {locStatus === 'done'
+                        ? 'Update my location'
+                        : locStatus === 'loading'
+                          ? 'Getting your location…'
+                          : 'Share my current location'}
+                    </Button>
+                    {locStatus === 'done' && (
+                      <Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={removeLocation}>
+                        Remove location
+                      </Button>
+                    )}
+                  </div>
+                  <p
+                    className={cn('text-xs', locStatus === 'done' ? 'text-success' : 'text-slate-600 dark:text-slate-400')}
+                    aria-live="polite"
+                  >
+                    {locStatus === 'loading' ? 'This can take up to 25 seconds.' : locationStatusText}
+                  </p>
+                </fieldset>
+              )}
 
-              <Button type="submit" disabled={busy} variant={lost ? 'destructive' : 'primary'} className="gap-2">
+              <Button type="submit" loading={busy} variant={lost ? 'destructive' : 'primary'} size="lg" className="w-full gap-2">
                 {busy ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Sending…
-                  </>
+                  'Sending…'
                 ) : (
                   <>
-                    Send to owner <ArrowRight className="h-4 w-4" />
+                    Send message to owner <ArrowRight className="h-4 w-4" />
                   </>
                 )}
               </Button>
@@ -610,6 +641,26 @@ export default function NfcLanding() {
           </CardContent>
         </Card>
         )}
+
+        {tagProfile && <LinkPillsCard profile={tagProfile} />}
+
+        {/* Privacy, in plain words — only what the system really does. */}
+        <section aria-labelledby="finder-privacy" className="px-2 text-sm">
+          <h2 id="finder-privacy" className="mb-2 flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
+            <ShieldCheck className="h-4 w-4 text-success" aria-hidden="true" /> Your privacy
+          </h2>
+          <ul className="list-disc space-y-1 pl-5 text-slate-600 dark:text-slate-300">
+            <li>No app or account needed.</li>
+            <li>You message the owner through TagBack. Neither of you sees the other's phone number or email.</li>
+            <li>Sharing your location is optional.</li>
+            <li>Don't put your phone number, address or other personal details in messages unless you want the owner to have them.</li>
+          </ul>
+          <p className="mt-2 text-xs">
+            <Link to="/privacy" className="inline-flex min-h-11 items-center font-medium text-purple-700 underline-offset-2 hover:underline dark:text-purple-300">
+              What TagBack stores
+            </Link>
+          </p>
+        </section>
 
         </main>
       </div>

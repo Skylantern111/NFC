@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Bell, LayoutGrid, MessageSquare, Package, Settings } from 'lucide-react';
+import { Bell, LayoutGrid, MessageSquare, Package, Settings, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
 import SidebarShell from './SidebarShell';
@@ -19,6 +19,12 @@ export function useOwnerNavItems() {
   ];
 }
 
+// Phone drawer: only what the bottom tab bar doesn't have.
+const DRAWER_ITEMS = [
+  { to: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { to: '/privacy', label: 'Privacy', icon: ShieldCheck },
+];
+
 export default function DashboardSidebar() {
   const { user, logout, firebaseReady } = useAuth();
   const nav = useNavigate();
@@ -34,6 +40,7 @@ export default function DashboardSidebar() {
       subtitle="NFC Lost & Found"
       homeTo="/dashboard"
       navItems={navItems}
+      drawerItems={DRAWER_ITEMS}
       userLabel={user?.email || 'Signed in'}
       onLogout={onLogout}
     />

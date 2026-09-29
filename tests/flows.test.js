@@ -411,6 +411,13 @@ describe('7. owner recovers and releases (Chat, Items, lib/ownerItems#releaseTag
     const db = owner();
     const byTag = (name) => getDocs(query(collection(db, name), where('tagId', '==', TAG)));
     const [reports, notifs, chats] = await Promise.all([byTag('reports'), byTag('notifications'), byTag('chats')]);
+    // Messages of chats that will be deleted go first (subcollection).
+    for (const c of chats.docs.filter((d) => !d.data().blocked)) {
+      const msgs = await getDocs(collection(db, 'chats', c.id, 'messages'));
+      const mb = writeBatch(db);
+      msgs.docs.forEach((m) => mb.delete(m.ref));
+      await assertSucceeds(mb.commit());
+    }
     const batch = writeBatch(db);
     reports.docs.forEach((d) => batch.delete(d.ref));
     notifs.docs.forEach((d) => batch.delete(d.ref));

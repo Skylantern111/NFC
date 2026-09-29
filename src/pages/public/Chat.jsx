@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowDown, Ban, Check, CheckCircle2, Clock, Copy, Eye, MapPin, MessagesSquare, RefreshCw, Send } from 'lucide-react';
+import { AlertCircle, ArrowDown, Ban, Check, CheckCircle2, Clock, Copy, Eye, Link2, Lock, MapPin, MessagesSquare, RefreshCw, Send, ShieldCheck } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import {
@@ -65,6 +65,8 @@ function dayLabel(ms) {
 function timeLabel(ms) {
   return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
+const scrollBehavior = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 
 // Anonymous two-way chat. The owner is identified by Firebase Auth; the finder
 // by their localStorage session token. Neither party sees the other's PII.
@@ -129,6 +131,9 @@ export default function Chat() {
   // Sends that the server rejected, shown as "Not sent — Retry" (CHAT2).
   const [failed, setFailed] = useState([]);
   const [report, setReport] = useState(null);
+  // tags/{tagId}.status (public) — a blacklisted tag refuses finder messages
+  // in the rules, so say so instead of letting every send fail.
+  const [tagStatus, setTagStatus] = useState(null);
   const composerRef = useRef(null);
   const endRef = useRef(null);
   const scrollRef = useRef(null);
@@ -148,7 +153,8 @@ export default function Chat() {
   const holdsFinderToken = !firebaseReady || (!!chat?.finderSessionToken && chat.finderSessionToken === getFinderToken());
   const role =
     isAdminUser && !ownsChat ? 'admin' : ownsChat ? 'owner' : holdsFinderToken ? 'finder' : 'viewer';
-  const canWrite = role === 'owner' || role === 'finder';
+  const finderBlocked = role === 'finder' && tagStatus === 'blacklisted';
+  const canWrite = role === 'owner' || (role === 'finder' && !finderBlocked);
   // Until the chat and the admin/owner checks load, `role` may still flip —
   // don't act on it (e.g. mark the wrong side read) before then.
   const roleReady = !firebaseReady || (!!chat && (!user || (adminChecked && ownTagsLoaded)));
@@ -195,6 +201,17 @@ export default function Chat() {
   }, [chat?.tagId]);
 
   useEffect(() => {
+    if (!firebaseReady || !chat?.tagId) return;
+    let live = true;
+    getDoc(doc(db, 'tags', chat.tagId))
+      .then((snap) => live && setTagStatus(snap.exists() ? snap.data().status : null))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [chat?.tagId]);
+
+  useEffect(() => {
     setPageTitle(item?.itemName ? `Chat · ${item.itemName}` : 'Chat');
     return () => setPageTitle('');
   }, [item?.itemName]);
@@ -221,7 +238,7 @@ export default function Chat() {
   // Only auto-scroll to a new message if the reader was already at the
   // bottom — otherwise it yanks someone away from history they're reading.
   useEffect(() => {
-    if (atBottomRef.current) endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (atBottomRef.current) endRef.current?.scrollIntoView({ behavior: scrollBehavior() });
   }, [messages, failed]);
 
   function handleScroll() {
@@ -231,7 +248,7 @@ export default function Chat() {
   }
 
   function scrollToBottom() {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    endRef.current?.scrollIntoView({ behavior: scrollBehavior() });
     setAtBottom(true);
   }
 
@@ -369,6 +386,18 @@ export default function Chat() {
   // rather than letting a Send do nothing (UI_UX_IMPROVEMENT_PLAN.md BUG5).
   const showComposer = roleReady ? canWrite : true;
   const inAppBrowser = isInAppBrowser();
+  // Why there's no message box, said where the box would be.
+  const readOnlyReason =
+    !roleReady || canWrite
+      ? null
+      : role === 'admin'
+        ? 'Admins can read reported chats but not reply.'
+        : finderBlocked
+          ? 'TagBack deactivated this tag, so new messages can’t be sent.'
+          : 'Replies only work for the item’s owner, or in the browser the report was sent from.';
+  const lastMessage = messages[messages.length - 1];
+  const waitingForReply =
+    roleReady && canWrite && failed.length === 0 && lastMessage?.sender === role && !lastMessage.pending;
 
   // A chat link that points nowhere (mistyped, or deleted on release).
   if (firebaseReady && !loading && !chat && !listenerError) {
@@ -408,13 +437,26 @@ export default function Chat() {
                 ? 'Chat with the finder · contact details hidden'
                 : role === 'finder'
                   ? 'Chat with the owner · contact details hidden'
-                  : 'Read-only'}
+                  : 'Read-only conversation'}
           </p>
         </div>
         {resolved && (
           <span className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
             <CheckCircle2 className="h-3.5 w-3.5" /> Recovered
           </span>
+        )}
+        {role === 'finder' && finderTipHidden && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={copyChatLink}
+            aria-label="Copy this chat's link"
+            title="Copy this chat's link"
+            className="h-11 w-11 shrink-0"
+          >
+            <Link2 className="h-4 w-4" />
+          </Button>
         )}
         {role === 'admin' && (
           <span className="flex shrink-0 items-center gap-1 rounded-full border border-slate-300 dark:border-slate-700 bg-base px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -489,9 +531,13 @@ export default function Chat() {
           className="mx-3 mt-2 space-y-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
         >
           <p>
-            <span className="font-semibold">The owner has been notified.</span> Their reply shows up here. Keep this
-            page or save the link, and open it again <span className="font-semibold">in this same browser</span> to
-            reply.
+            <span className="font-semibold">The owner has been notified.</span> Their reply shows up on this page.
+          </p>
+          <p>
+            <span className="font-semibold">Keep this link to come back.</span> Bookmark it or copy it, and open it{' '}
+            <span className="font-semibold">in this same browser</span> to reply. From another browser or device, or
+            after clearing this browser's data, you can read the chat but not reply. Anyone with the link can read it,
+            so don't share it.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={copyChatLink} className="gap-1.5">
@@ -540,7 +586,7 @@ export default function Chat() {
             </div>
           )}
 
-          <ol className="space-y-1.5" aria-label="Messages">
+          <ol className="space-y-1.5" aria-label="Messages" aria-live="polite" aria-relevant="additions">
             {thread.map((entry) => {
               if (entry.kind === 'day') {
                 return (
@@ -604,6 +650,11 @@ export default function Chat() {
               );
             })}
           </ol>
+          {waitingForReply && (
+            <p className="pt-2 text-center text-xs text-slate-600 dark:text-slate-400">
+              {role === 'finder' ? 'Waiting for the owner to reply.' : 'Waiting for the finder to reply.'}
+            </p>
+          )}
           <div ref={endRef} />
         </div>
         {!atBottom && (
@@ -617,6 +668,18 @@ export default function Chat() {
           </button>
         )}
       </div>
+
+      {readOnlyReason && (
+        <div
+          role="status"
+          className={cn(GLASS, 'mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-start gap-2.5 px-4 py-3 text-sm')}
+        >
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" />
+          <p className="text-slate-700 dark:text-slate-200">
+            <span className="font-semibold">This conversation is read-only.</span> {readOnlyReason}
+          </p>
+        </div>
+      )}
 
       {showComposer && (
         <>
@@ -642,7 +705,7 @@ export default function Chat() {
                   type="button"
                   onClick={() => setText(reply)}
                   disabled={!roleReady}
-                  className="min-h-9 shrink-0 rounded-full bg-base px-3.5 text-sm text-slate-700 dark:text-slate-200 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm disabled:opacity-50"
+                  className="min-h-11 shrink-0 rounded-full bg-base px-3.5 text-sm text-slate-700 dark:text-slate-200 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm disabled:opacity-50"
                 >
                   {reply}
                 </button>
@@ -652,6 +715,10 @@ export default function Chat() {
             <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-base to-transparent" />
           </div>
 
+          <p className="mx-4 mb-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
+            Contact details stay hidden. Only share personal details if you want to.
+          </p>
           <form
             onSubmit={send}
             className={cn(GLASS, 'mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-end gap-2 p-2')}
@@ -696,7 +763,7 @@ export default function Chat() {
                 <ul className="list-disc space-y-0.5 pl-5">
                   <li>turn off Lost Mode on the item,</li>
                   <li>close the finder's report, and</li>
-                  <li>delete the location the finder shared.</li>
+                  <li>remove the location the finder shared from the report.</li>
                 </ul>
                 <p>The chat stays open so you can finish the handoff.</p>
               </div>
@@ -724,18 +791,23 @@ export default function Chat() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={confirmBlock} className="flex flex-col gap-4">
+            <label htmlFor="report-reason" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              What's wrong? <span className="font-normal text-slate-600 dark:text-slate-400">(optional)</span>
+            </label>
             <Textarea
+              id="report-reason"
               rows={3}
+              maxLength={500}
               value={blockReason}
               onChange={(e) => setBlockReason(e.target.value)}
-              placeholder="What's wrong? e.g. spam links, harassment…"
+              placeholder="e.g. spam links, harassment…"
             />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setBlockOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="destructive" disabled={blocking}>
-                {blocking ? 'Reporting…' : 'Report chat'}
+              <Button type="submit" variant="destructive" loading={blocking}>
+                {blocking ? 'Reporting…' : 'Report conversation'}
               </Button>
             </DialogFooter>
           </form>
