@@ -500,6 +500,26 @@ concrete mapping:
 
 ---
 
+## 6. Copy conventions (UI_UX_IMPROVEMENT_ROUND2.md B10)
+
+Decided 2026-09-29 after checking every button label in `src/` — sentence
+case was already used everywhere.
+
+- **Buttons and menu items: sentence case.** "Turn on Lost Mode", "Save
+  changes", "Send message to owner", "Continue your conversation", "Release
+  tag…".
+- **Capitalize only names:** page and section names used as names ("My
+  Items", "Messages", "Notifications", "Tag Content", "Inventory"), and the
+  feature names "Lost Mode" and "Lost & Found". So "Open Messages" and "Go
+  to My Items" keep their capitals; "Save Changes" does not.
+- **Say the action.** No "OK", "Yes", "Done", "Apply" or "Submit". A
+  confirm button repeats the action from the title ("Release tag",
+  "Unblacklist", "Turn off"), next to "Cancel".
+- **Busy labels** end with "…" and name the action: "Saving…",
+  "Releasing…", "Sending…".
+- **A menu item that opens a dialog** ends with "…" ("Release tag…",
+  "Blacklist…").
+
 ## Sequencing recommendation for implementation (not part of this plan's scope to execute)
 
 1. §1 (tokens/shadows) + §2 (AmbientBackground) first — nothing renders

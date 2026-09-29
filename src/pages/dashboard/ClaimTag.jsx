@@ -5,7 +5,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { MailCheck, Smartphone } from 'lucide-react';
 import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
-import { CATEGORIES, CATEGORY_ICON } from '../../lib/categories';
+import { validateItemDetails } from '../../lib/categories';
 import { normalizePhysicalUid, normalizeTagbackId, tagIdFromNdefMessage } from '../../lib/tags';
 import { isAdminManaged } from '../../lib/tagContent';
 import { friendlyFirestoreError } from '../../lib/utils';
@@ -13,16 +13,10 @@ import GlassCard from '../../components/GlassCard';
 import PageHeader from '../../components/PageHeader';
 import FormField, { FormError } from '../../components/FormField';
 import NfcScanPanel from '../../components/NfcScanPanel';
+import ItemDetailsFields from '../../components/ItemDetailsFields';
 import { EmptyState, InlineAlert } from '../../components/States';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../components/ui/select';
 
 const TAGBACK_ID = /^TB-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
@@ -123,9 +117,7 @@ export default function ClaimTag() {
     // A malformed id (e.g. a pasted URL) would otherwise reach doc() and
     // throw a cryptic "invalid document reference" (SYSTEM_AUDIT_PLAN.md B2).
     else if (!TAGBACK_ID.test(normalizedTagId)) next.tagId = 'That doesn’t look like a TagBack ID. It looks like TB-ABCD-2345.';
-    if (!itemName.trim()) next.itemName = 'Give the item a name, e.g. “Black backpack”.';
-    if (!category) next.category = 'Choose a category.';
-    return next;
+    return { ...next, ...validateItemDetails({ itemName, category }) };
   }
 
   async function onSubmit(e) {
@@ -280,36 +272,14 @@ export default function ClaimTag() {
 
         <GlassCard className="space-y-4">
           <h2 className="font-bold text-slate-800 dark:text-slate-100">2. Describe the item</h2>
-          <FormField id="itemName" label="Item name" hint="Finders see this name." error={errors.itemName}>
-            <Input
-              ref={itemNameRef}
-              placeholder="e.g. Black travel backpack"
-              value={itemName}
-              maxLength={100}
-              autoComplete="off"
-              autoCapitalize="sentences"
-              onChange={(e) => setItemName(e.target.value)}
-            />
-          </FormField>
-
-          <FormField id="category" label="Category" error={errors.category}>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="category" aria-invalid={errors.category ? true : undefined} className="h-11 w-full rounded-xl">
-                <SelectValue placeholder="Choose a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => {
-                  const Icon = CATEGORY_ICON[c];
-                  return (
-                    <SelectItem key={c} value={c}>
-                      <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                      {c}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </FormField>
+          <ItemDetailsFields
+            ref={itemNameRef}
+            itemName={itemName}
+            onItemNameChange={setItemName}
+            category={category}
+            onCategoryChange={setCategory}
+            errors={errors}
+          />
 
           <FormError>{errors.form}</FormError>
 

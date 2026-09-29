@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import PageHeader from '../../components/PageHeader';
-import { EmptyState, SkeletonList } from '../../components/States';
+import { EmptyState, LoadErrorState, SkeletonList } from '../../components/States';
 
 const TYPE_META = {
   report: { icon: PackageSearch, label: 'Someone found your item' },
@@ -32,7 +32,8 @@ const TYPE_META = {
 // Activity log (UI_UX_IMPROVEMENT_PLAN.md NAV3) — Messages is the inbox.
 export default function Notifications() {
   const { user } = useAuth();
-  const { notifications, unreadCount, loading: notifLoading, chats } = useOwnerNotificationsContext();
+  const { notifications, unreadCount, loading: notifLoading, error: notifError, retry: retryNotifs, chats } =
+    useOwnerNotificationsContext();
   const { items, loading: itemsLoading } = useOwnerItems(user);
   const loading = notifLoading || itemsLoading;
 
@@ -126,7 +127,9 @@ export default function Notifications() {
 
       {loading && <SkeletonList count={3} className="h-16" />}
 
-      {!loading && notifications.length === 0 && (
+      {notifError && <LoadErrorState what="your notifications" error={notifError} onRetry={retryNotifs} />}
+
+      {!loading && !notifError && notifications.length === 0 && (
         <EmptyState
           icon={Bell}
           title="You're all caught up"

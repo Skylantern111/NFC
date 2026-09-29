@@ -17,14 +17,16 @@ import {
   startAfter,
   writeBatch,
 } from 'firebase/firestore';
-import { db, auth } from '../../firebase/config';
+import { db, auth, firebaseReady } from '../../firebase/config';
 import { inventoryToCsv, normalizeTagbackId, tagUrl } from '../../lib/tags';
 import PageHeader from '@/components/PageHeader';
 import StatusBadge from '@/components/StatusBadge';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { InlineAlert } from '@/components/States';
 import { FormError } from '@/components/FormField';
 import { contentLabel } from '../../lib/tagContent';
 import { findOwnerByTag } from '../../lib/adminOwners';
-import { chunk, friendlyFirestoreError, relativeTimeFromMs, toMillis } from '../../lib/utils';
+import { chunk, friendlyFirestoreError, relativeTimeFromMs, returnFocusTo, toMillis } from '../../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -87,6 +89,21 @@ const WRITE_STATUS_LABEL = {
 
 const ROW_LIMIT = 100;
 
+// Preview mode (no Firebase config, UI_UX_IMPROVEMENT_ROUND2.md B8): sample
+// rows like the owner pages' *Mock() data, instead of queries that fail.
+// Nothing is read from or written to any real project.
+function inventoryMock() {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  return [
+    { tagId: 'TB-7KQ2-M9XA', physicalUid: '04A2248B7C6180', chipType: 'NTAG215', status: 'registered', writeStatus: 'written', registeredAt: now - day },
+    { tagId: 'TB-3HVR-8PXD', physicalUid: null, chipType: 'NTAG213', status: 'claimed', writeStatus: 'written', registeredAt: now - 5 * day },
+    { tagId: 'TB-WN4C-2TZE', physicalUid: '04B1733A9D2280', chipType: 'NTAG216', status: 'registered', writeStatus: 'write_failed', registeredAt: now - 8 * day },
+    { tagId: 'TB-Q9MF-6KAB', physicalUid: null, chipType: 'NTAG215', status: 'blacklisted', writeStatus: 'written', registeredAt: now - 20 * day },
+  ];
+}
+const PREVIEW_NOTE = 'Preview mode — sample tags only. Nothing is saved.';
+
 
 
 function toDate(createdAt) {
@@ -130,7 +147,7 @@ export default function Inventory() {
   // accurate regardless) — "Load more" pages the rest in via a startAfter
   // cursor instead of silently truncating inventory past 100 tags.
   async function loadMoreRows() {
-    if (!lastDoc) return;
+    if (!lastDoc || !firebaseReady) return;
     setPaged(true);
     setRowsMoreLoading(true);
     setRowsError('');
@@ -153,6 +170,7 @@ export default function Inventory() {
   }
 
   const loadCounts = useCallback(async () => {
+    if (!firebaseReady) return;
     try {
       const tagsRef = collection(db, 'tags');
       const [all, registered, claimed, blacklisted] = await Promise.all([
@@ -177,6 +195,14 @@ export default function Inventory() {
   // blacklisted) elsewhere without navigating away and back. Pagination
   // stays a one-shot fetch (loadMoreRows) — see `paged` above.
   useEffect(() => {
+    if (!firebaseReady) {
+      const mock = inventoryMock();
+      setRows(mock);
+      const count = (st) => mock.filter((t) => t.status === st).length;
+      setCounts({ all: mock.length, registered: count('registered'), claimed: count('claimed'), blacklisted: count('blacklisted') });
+      setRowsLoading(false);
+      return;
+    }
     setRowsLoading(true);
     setRowsError('');
     const q = query(collection(db, 'tags'), orderBy('registeredAt', 'desc'), limit(ROW_LIMIT));
@@ -214,6 +240,10 @@ export default function Inventory() {
   // denormalized onto the public tags doc (firestore.rules keeps tags
   // public-read; see NFC_REARCHITECTURE_PLAN.md §1.6/§7).
   async function onRevealOwner(tagId) {
+    if (!firebaseReady) {
+      toast.info(PREVIEW_NOTE);
+      return;
+    }
     setOwnerLookup((prev) => ({ ...prev, [tagId]: { loading: true } }));
     try {
       const { owner } = await findOwnerByTag(tagId);
@@ -235,6 +265,11 @@ export default function Inventory() {
 
   async function onConfirmBlacklist() {
     if (!blacklistTarget || !flagReason.trim()) return;
+    if (!firebaseReady) {
+      toast.info(PREVIEW_NOTE);
+      setBlacklistTarget(null);
+      return;
+    }
     setBlacklistBusy(true);
     try {
       const reason = flagReason.trim();
@@ -275,7 +310,16 @@ export default function Inventory() {
   // Tags blacklisted before tagAdmin existed keep that info on the tag doc
   // itself; those legacy public fields are removed here.
   const [unblacklistBusy, setUnblacklistBusy] = useState('');
-  async function onUnblacklist(tag) {
+  // B9: Unblacklist asks first and says which status the tag goes back to.
+  const [unblacklistTarget, setUnblacklistTarget] = useState(null); // { tag, fromStatus }
+  // Row whose ⋯ menu opened the current dialog; focus returns there on close.
+  const [lastMenuTag, setLastMenuTag] = useState(null);
+  async function prepareUnblacklist(tag) {
+    setLastMenuTag(tag.tagId);
+    if (!firebaseReady) {
+      toast.info(PREVIEW_NOTE);
+      return;
+    }
     setUnblacklistBusy(tag.tagId);
     try {
       const [adminSnap, ownerSnap] = await Promise.all([
@@ -288,6 +332,19 @@ export default function Inventory() {
       // (SYSTEM_AUDIT_ROUND4 C1): no owner left means back to stock, not an
       // ownerless 'claimed' tag.
       if (fromStatus === 'claimed' && !ownerSnap.exists()) fromStatus = 'registered';
+      setUnblacklistTarget({ tag, fromStatus });
+    } catch (err) {
+      setRowsError(friendlyFirestoreError(err, 'Could not check this tag. Try again.'));
+    } finally {
+      setUnblacklistBusy('');
+    }
+  }
+
+  async function onUnblacklist() {
+    if (!unblacklistTarget) return;
+    const { tag, fromStatus } = unblacklistTarget;
+    setUnblacklistBusy(tag.tagId);
+    try {
       const wb = writeBatch(db);
       wb.update(doc(db, 'tags', tag.tagId), {
         status: fromStatus,
@@ -308,8 +365,10 @@ export default function Inventory() {
       );
       await wb.commit();
       await loadCounts();
+      setUnblacklistTarget(null);
+      toast.success(`${tag.tagId} is ${fromStatus === 'claimed' ? 'claimed' : 'registered'} again.`);
     } catch (err) {
-      setRowsError(friendlyFirestoreError(err, 'Could not unblacklist. Try again.'));
+      toast.error(friendlyFirestoreError(err, 'Could not unblacklist. Try again.'));
     } finally {
       setUnblacklistBusy('');
     }
@@ -325,7 +384,7 @@ export default function Inventory() {
 
   useEffect(() => {
     const term = search.trim();
-    if (!term) {
+    if (!term || !firebaseReady) {
       setServerMatches([]);
       return;
     }
@@ -379,7 +438,7 @@ export default function Inventory() {
   const rowIdsKey = rows.map((t) => t.tagId).join(',');
   useEffect(() => {
     const ids = rowIdsKey ? rowIdsKey.split(',') : [];
-    if (ids.length === 0) return;
+    if (ids.length === 0 || !firebaseReady) return;
     let live = true;
     (async () => {
       try {
@@ -535,6 +594,7 @@ export default function Inventory() {
                   size="sm"
                   className="text-rose-600"
                   onClick={() => {
+                    setLastMenuTag(null);
                     setBlacklistTarget('__bulk__');
                     setFlagReason('');
                   }}
@@ -568,6 +628,7 @@ export default function Inventory() {
             </div>
           </div>
 
+          {!firebaseReady && <InlineAlert tone="info">{PREVIEW_NOTE}</InlineAlert>}
           <FormError>{rowsError}</FormError>
 
           {/* ADM3: cards on phones (stack-table), a table from `sm`. */}
@@ -678,6 +739,7 @@ export default function Inventory() {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
+                              id={`inv-menu-${t.tagId}`}
                               variant="ghost"
                               size="icon"
                               aria-label={`Actions for ${t.tagId}`}
@@ -723,6 +785,7 @@ export default function Inventory() {
                               <DropdownMenuItem
                                 variant="destructive"
                                 onSelect={() => {
+                                  setLastMenuTag(t.tagId);
                                   setBlacklistTarget(t.tagId);
                                   setFlagReason('');
                                 }}
@@ -732,7 +795,7 @@ export default function Inventory() {
                             ) : (
                               <DropdownMenuItem
                                 className="text-emerald-600 dark:text-emerald-400"
-                                onSelect={() => onUnblacklist(t)}
+                                onSelect={() => prepareUnblacklist(t)}
                               >
                                 <Undo2 className="text-emerald-600 dark:text-emerald-400" /> Unblacklist
                               </DropdownMenuItem>
@@ -756,8 +819,27 @@ export default function Inventory() {
         </CardContent>
       </Card>
 
+      <ConfirmDialog
+        open={!!unblacklistTarget}
+        onOpenChange={(open) => !open && setUnblacklistTarget(null)}
+        title={`Unblacklist ${unblacklistTarget?.tag.tagId || 'this tag'}?`}
+        description={
+          unblacklistTarget?.fromStatus === 'claimed'
+            ? 'The tag goes back to Claimed. Its owner keeps it, and finders can report and message on it again.'
+            : 'The tag goes back to Registered: ready to be claimed, and finders can report on it again.'
+        }
+        tone="primary"
+        onCloseAutoFocus={returnFocusTo(lastMenuTag && `inv-menu-${lastMenuTag}`)}
+        confirmLabel="Unblacklist"
+        busyLabel="Unblacklisting…"
+        busy={!!unblacklistTarget && unblacklistBusy === unblacklistTarget.tag.tagId}
+        onConfirm={onUnblacklist}
+      />
+
       <Dialog open={!!blacklistTarget} onOpenChange={(open) => !open && setBlacklistTarget(null)}>
-        <DialogContent>
+        <DialogContent
+          onCloseAutoFocus={returnFocusTo(lastMenuTag && `inv-menu-${lastMenuTag}`)}
+        >
           <DialogHeader>
             <DialogTitle>{blacklistTarget === '__bulk__' ? `Blacklist ${selectedIds.size} tags` : 'Blacklist tag'}</DialogTitle>
             <DialogDescription>

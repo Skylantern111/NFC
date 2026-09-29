@@ -67,6 +67,28 @@ export function EmptyState({ icon: Icon, title, description, action, className =
   );
 }
 
+// A list that failed to load (UI_UX_IMPROVEMENT_ROUND2.md B1). Says which
+// of offline / no access / failed it was — never an empty state, which
+// would claim there is nothing when we simply couldn't look.
+export function LoadErrorState({ what = 'this', error, onRetry, className = '' }) {
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  const code = error?.code;
+  let title;
+  let description;
+  if (offline || code === 'unavailable') {
+    title = "You're offline";
+    description = `Reconnect to the internet, then try again to load ${what}.`;
+  } else if (code === 'permission-denied') {
+    title = "You don't have access to this";
+    description =
+      'Sign out and sign in again. If it keeps happening, your account may have been disabled — contact TagBack.';
+  } else {
+    title = `We couldn't load ${what}`;
+    description = 'Something went wrong while loading. Check your connection and try again.';
+  }
+  return <ErrorState title={title} description={description} onRetry={onRetry} className={className} />;
+}
+
 export function ErrorState({ title = 'Something went wrong', description, onRetry, action, className = '' }) {
   return (
     <div role="alert" className={cn(SURFACE, 'flex flex-col items-center gap-3 px-6 py-10 text-center', className)}>

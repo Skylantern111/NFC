@@ -32,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { cn, friendlyFirestoreError, relativeTimeFromMs, toMillis } from '@/lib/utils';
+import { cn, friendlyFirestoreError, relativeTimeFromMs, returnFocusTo, toMillis } from '@/lib/utils';
 import { LoadingState } from '@/components/States';
 import StatusStepper, { recoveryStep } from '@/components/StatusStepper';
 import { setPageTitle } from '@/lib/pageTitle';
@@ -476,6 +476,7 @@ export default function Chat() {
             </span>
           ) : (
             <Button
+              id="chat-report-button"
               type="button"
               variant="ghost"
               size="icon"
@@ -501,64 +502,67 @@ export default function Chat() {
         </div>
       )}
 
-      {roleReady && role === 'viewer' && (
-        <div
-          role="status"
-          className="mx-3 mt-2 space-y-2 rounded-2xl border border-sky-200 dark:border-sky-500/30 bg-sky-50/90 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-100"
-        >
-          <p className="font-semibold">You can read this chat, but not reply from here.</p>
-          <p>
-            {user
-              ? 'This chat belongs to a different account or device.'
-              : "Replies only work in the browser you used to report the item. If you're the owner, sign in."}
-            {inAppBrowser && ' You opened this link inside another app — open it in Chrome instead (⋯ menu → Open in browser).'}
-          </p>
-          {!user && (
-            <Button asChild size="sm" variant="primary">
-              <Link to="/login" state={{ from: { pathname: `/chat/${chatId}` } }}>
-                Sign in as owner
-              </Link>
-            </Button>
-          )}
-        </div>
-      )}
-
-      {/* FIND7 / BUG4: a finder has no account — this link, in this browser,
-          is the only way back to the owner's replies. */}
-      {roleReady && role === 'finder' && !finderTipHidden && (
-        <div
-          role="status"
-          className="mx-3 mt-2 space-y-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
-        >
-          <p>
-            <span className="font-semibold">The owner has been notified.</span> Their reply shows up on this page.
-          </p>
-          <p>
-            <span className="font-semibold">Keep this link to come back.</span> Bookmark it or copy it, and open it{' '}
-            <span className="font-semibold">in this same browser</span> to reply. From another browser or device, or
-            after clearing this browser's data, you can read the chat but not reply. Anyone with the link can read it,
-            so don't share it.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={copyChatLink} className="gap-1.5">
-              <Copy className="h-3.5 w-3.5" /> Copy link
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={hideFinderTip}>
-              Got it
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {resolved && canWrite && (
-        <p className="mx-3 mt-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-800 dark:text-emerald-200">
-          Marked as recovered. You can still message here to finish the handoff.
-        </p>
-      )}
-
       <div className="relative flex-1 overflow-hidden">
         <div ref={scrollRef} onScroll={handleScroll} className="h-full space-y-2 overflow-y-auto px-4 py-4">
           {loading && <LoadingState variant="inline" label="Loading conversation…" className="py-6" />}
+
+          {/* Notices scroll with the thread, so on a short (landscape) screen
+              they don't squeeze the messages out of view. */}
+          {roleReady && role === 'viewer' && (
+            <div
+              role="status"
+              className="mx-auto mb-2 max-w-xl space-y-2 rounded-2xl border border-sky-200 dark:border-sky-500/30 bg-sky-50/90 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-100"
+            >
+              <p className="font-semibold">You can read this chat, but not reply from here.</p>
+              <p>
+                {user
+                  ? 'This chat belongs to a different account or device.'
+                  : "Replies only work in the browser you used to report the item. If you're the owner, sign in."}
+                {inAppBrowser && ' You opened this link inside another app — open it in Chrome instead (⋯ menu → Open in browser).'}
+              </p>
+              {!user && (
+                <Button asChild size="sm" variant="primary">
+                  <Link to="/login" state={{ from: { pathname: `/chat/${chatId}` } }}>
+                    Sign in as owner
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* FIND7 / BUG4: a finder has no account — this link, in this browser,
+              is the only way back to the owner's replies. */}
+          {roleReady && role === 'finder' && !finderTipHidden && (
+            <div
+              role="status"
+              className="mx-auto mb-2 max-w-xl space-y-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
+            >
+              <p>
+                <span className="font-semibold">The owner has been notified.</span> Their reply shows up on this page.
+              </p>
+              <p>
+                <span className="font-semibold">Keep this link to come back.</span> Bookmark it or copy it, and open it{' '}
+                <span className="font-semibold">in this same browser</span> to reply. From another browser or device, or
+                after clearing this browser's data, you can read the chat but not reply. Anyone with the link can read it,
+                so don't share it.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={copyChatLink} className="gap-1.5">
+                  <Copy className="h-3.5 w-3.5" /> Copy link
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={hideFinderTip}>
+                  Got it
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {resolved && canWrite && (
+            <p className="mx-auto mb-2 max-w-xl rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-800 dark:text-emerald-200">
+              Marked as recovered. You can still message here to finish the handoff.
+            </p>
+          )}
+
 
           {role === 'owner' && report && (
             <div className="mx-auto mb-2 max-w-md space-y-3 rounded-2xl bg-white/80 p-4 text-sm shadow-card dark:bg-white/5">
@@ -580,7 +584,7 @@ export default function Chat() {
           )}
 
           {!loading && messages.length === 0 && failed.length === 0 && (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-slate-600 dark:text-slate-400">
+            <div className="flex min-h-32 flex-col items-center justify-center gap-2 py-6 text-center text-slate-600 dark:text-slate-400">
               <MessagesSquare className="h-6 w-6" aria-hidden="true" />
               <p className="text-sm">No messages yet. Say hello to get started.</p>
             </div>
@@ -684,7 +688,7 @@ export default function Chat() {
       {showComposer && (
         <>
           {role === 'owner' && !resolved && (
-            <div className="mx-3 mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-white/5 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 backdrop-blur-xl">
+            <div className="mx-3 mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-white/5 px-4 py-2 text-sm [@media(max-height:500px)]:py-1 text-slate-700 dark:text-slate-200 backdrop-blur-xl">
               <span>Got your item back?</span>
               <Button
                 type="button"
@@ -697,7 +701,7 @@ export default function Chat() {
               </Button>
             </div>
           )}
-          <div className="relative mx-3 mb-2">
+          <div className="relative mx-3 mb-2 [@media(max-height:500px)]:hidden">
             <div className="flex gap-2 overflow-x-auto pb-1">
               {(QUICK_REPLIES[role] || QUICK_REPLIES.finder).map((reply) => (
                 <button
@@ -715,7 +719,7 @@ export default function Chat() {
             <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-base to-transparent" />
           </div>
 
-          <p className="mx-4 mb-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+          <p className="mx-4 mb-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 [@media(max-height:500px)]:hidden">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
             Contact details stay hidden. Only share personal details if you want to.
           </p>
@@ -781,7 +785,7 @@ export default function Chat() {
       </Dialog>
 
       <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={returnFocusTo('chat-report-button')}>
           <DialogHeader>
             <DialogTitle>Report this conversation?</DialogTitle>
             <DialogDescription>

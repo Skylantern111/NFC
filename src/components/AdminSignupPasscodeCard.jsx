@@ -6,6 +6,7 @@ import { auth, db, firebaseReady } from '../firebase/config';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
+import ConfirmDialog from './ConfirmDialog';
 
 const MIN_LENGTH = 8; // mirrors firestore.rules#validAdminPasscode
 
@@ -28,6 +29,7 @@ export default function AdminSignupPasscodeCard() {
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false); // show the passcode in clear (after Generate)
+  const [confirmOff, setConfirmOff] = useState(false); // UI_UX_IMPROVEMENT_ROUND2.md B9
 
   useEffect(() => {
     if (!firebaseReady) {
@@ -64,6 +66,7 @@ export default function AdminSignupPasscodeCard() {
     try {
       await deleteDoc(doc(db, 'meta', 'adminSignup'));
       setEnabled(false);
+      setConfirmOff(false);
       toast.success('Self-serve admin signup turned off.');
     } catch (err) {
       toast.error('Could not turn off: ' + err.message);
@@ -123,11 +126,21 @@ export default function AdminSignupPasscodeCard() {
             {enabled ? 'Change passcode' : 'Set passcode'}
           </Button>
           {enabled && (
-            <Button type="button" variant="outline" className="text-rose-600" disabled={busy} onClick={onDisable}>
+            <Button type="button" variant="outline" className="text-rose-600" disabled={busy} onClick={() => setConfirmOff(true)}>
               Turn off
             </Button>
           )}
         </form>
+        <ConfirmDialog
+          open={confirmOff}
+          onOpenChange={setConfirmOff}
+          title="Turn off admin sign-up?"
+          description="The passcode is deleted, so nobody can create an admin account at /admin/register until you set a new one. Existing admins keep their access."
+          confirmLabel="Turn off"
+          busyLabel="Turning off…"
+          busy={busy}
+          onConfirm={onDisable}
+        />
       </CardContent>
     </Card>
   );

@@ -20,6 +20,7 @@ name (e.g. "SYSTEM_AUDIT_ROUND2.md A0").
 | [REDESIGN_CHANGES.md](REDESIGN_CHANGES.md) | Change log of the design pass — done |
 | [LIGHT_NEUMORPHIC_REDESIGN_PLAN.md](LIGHT_NEUMORPHIC_REDESIGN_PLAN.md) | Current design system — implemented |
 | [UI_UX_IMPROVEMENT_PLAN.md](UI_UX_IMPROVEMENT_PLAN.md) | UI/UX audit, tester bug fixes and improvement plan — implemented in code; phone/browser checks pending |
+| [UI_UX_IMPROVEMENT_ROUND2.md](UI_UX_IMPROVEMENT_ROUND2.md) | Round 2: finder page, NFC scan states, chat, Lost Mode, privacy copy — Parts A and B implemented; real NFC hardware, TalkBack and VoiceOver checks pending |
 
 ## Features and improvement rounds
 | File | Status |

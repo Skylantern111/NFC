@@ -34,8 +34,11 @@ export default function NfcSetup() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  // uid of whoever saved the profile last — an admin edit shows a notice.
+  // Who saved the profile last. The notice shows only when that save was
+  // an admin's: editorRole 'admin' is rules-checked (only a real admin can
+  // write it), unlike "some other uid" (UI_UX_IMPROVEMENT_ROUND2.md B6).
   const [lastEditedBy, setLastEditedBy] = useState(null);
+  const [lastEditorRole, setLastEditorRole] = useState(null);
   // What was last loaded or saved — the form is "dirty" when it differs.
   const [savedProfile, setSavedProfile] = useState(EMPTY_PROFILE);
   const dirty = JSON.stringify(profile) !== JSON.stringify(savedProfile);
@@ -82,6 +85,7 @@ export default function NfcSetup() {
         setProfile(form);
         setSavedProfile(form);
         setLastEditedBy(savedProfile?.updatedBy || null);
+        setLastEditorRole(savedProfile?.editorRole || null);
       } finally {
         if (live) setLoading(false);
       }
@@ -102,6 +106,7 @@ export default function NfcSetup() {
     try {
       await saveTagProfile(tagId, formToProfile(profile));
       setLastEditedBy(user?.uid || null);
+      setLastEditorRole('owner');
       setSavedProfile(profile);
       toast.success('Saved. The next tap shows your changes.');
     } catch (err) {
@@ -211,7 +216,7 @@ export default function NfcSetup() {
 
       <form onSubmit={onSave}>
         <GlassCard className="space-y-5">
-          {lastEditedBy && user && lastEditedBy !== user.uid && (
+          {lastEditorRole === 'admin' && user && lastEditedBy !== user.uid && (
             <InlineAlert tone="warning" icon={UserCog}>
               Last edited by a TagBack admin. Your next save replaces their changes.
             </InlineAlert>

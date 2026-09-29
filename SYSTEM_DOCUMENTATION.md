@@ -7,8 +7,8 @@ workflows, business logic, data, authentication, NFC, privacy and security.
 - **Source of truth:** the code. Where a plan, README or ARCHITECTURE note
   disagrees with the code, this document follows the code and records the
   difference in [§26 Known gaps and inconsistencies](#26-known-gaps-and-inconsistencies).
-- **Snapshot:** branch `tag-content-security-audit`, after commit
-  `ad140ca` plus the UI/UX pass (2026-09-29). `npm test` passes 107/107
+- **Snapshot:** branch `tag-content-security-audit`, UI/UX Round 2 Parts A
+  and B (2026-09-29). `npm test` passes 107/107
   rules and flow tests.
 - **Related files:** [`README.md`](README.md) (setup),
   [`ARCHITECTURE.md`](ARCHITECTURE.md) (short system overview),
@@ -539,9 +539,11 @@ Shared behavior on every page:
 - **Empty:** "No items yet" + **Claim your first tag**. Search/filter with no
   match: "No items match "{term}"" or "Nothing is lost".
 - **Loading:** 3 skeleton cards.
-- **Not available here:** renaming an item or changing its category after
-  claiming (`Not Implemented`; no UI or function writes `itemName` or
-  `category` after the claim).
+- **Edit item…** (⋯ menu): dialog to rename the item or change its
+  category (`updateItemDetails`), same fields and validation as the claim
+  page. A **Recovered** section lists chats marked recovered.
+- **Load failure:** `LoadErrorState` (offline / no access / couldn't load)
+  with **Try again**, instead of the empty state.
 
 #### Claim a tag
 
@@ -926,7 +928,7 @@ Server-side (`firebase.json`): all paths rewrite to `index.html`;
 | Password reset | Implemented | Owner, admin | Login "Forgot password?", admin Settings | `sendPasswordResetEmail` | Auth |
 | Logout | Implemented | Owner, admin | Sidebar / drawer footer, admin Settings | `logout()` → `signOut` | Auth |
 | Delete account | Implemented | Owner | Settings → Danger zone | `lib/account.js#deleteMyAccount` | Deletes owned tag data, `users/{uid}`, Auth user |
-| Edit profile (name, email after verify) | Not Implemented | Owner | — | — | — |
+| Edit display name | Implemented | Owner | Settings → Account → Name | `updateProfile` + `NameForm` | `users/{uid}.displayName` |
 | Admin sign-up with passcode | Implemented | Guest | `/admin/register` | `SignupForm admin` | `users/{uid}` with `isAdmin: true` (rules check passcode) |
 | Admin custom claim | Implemented (script) | Operator | CLI | `scripts/setAdmin.js` | Auth custom claim |
 | Admin passcode management | Implemented | Admin | Admin Settings | `AdminSignupPasscodeCard.jsx` | `meta/adminSignup` set/delete |
@@ -942,7 +944,7 @@ Server-side (`firebase.json`): all paths rewrite to `index.html`;
 | Claim from a tap on an unclaimed tag | Implemented | Owner | `/nfc/:tagId` → claim page | `NfcLanding` `unclaimed` state | `tags`, `tagProfiles` read |
 | Hardware ID mismatch warning | Implemented | Owner | Claim toast | `ClaimTag.jsx` | `tags.physicalUid` read |
 | Item creation | Implemented (only at claim) | Owner | Claim page | Claim transaction | `items/{tagId}` create |
-| Item rename / category edit | Not Implemented | Owner | — | — | — |
+| Item rename / category edit | Implemented | Owner | My Items ⋯ → Edit item… | `updateItemDetails`, `validateItemDetails` | `items/{tagId}` update |
 | Lost Mode on/off, message, reward | Implemented | Owner | My Items dialogs | `toggleLostMode()` | `items/{tagId}` update |
 | Stale Lost Mode reminder | Implemented | Owner | Dashboard | `useStaleNudgeDismissals`, `dismissStaleNudge` | `users/{uid}.staleNudgeDismissed` |
 | Tap page content (lost & found / profile / redirect) | Implemented | Owner, admin | `/dashboard/nfc-setup`, `/admin/tags/:tagId` | `saveTagProfile()` | `tagProfiles/{tagId}` set |
@@ -959,7 +961,7 @@ Server-side (`firebase.json`): all paths rewrite to `index.html`;
 | Owner notifications (in-app) | Implemented | Owner | Notifications, Dashboard recent | `notifyOwner`, `useOwnerNotifications` | `notifications` |
 | Push / email notifications | Not Implemented | — | Settings says email alerts aren't available | — | — |
 | Mark recovered | Implemented | Owner | Chat | `markRecovered()` | `items`, `chats.resolved`, `reports.status/location` |
-| Recovery history view | Not Implemented | — | — (noted in `Dashboard.jsx` comment) | — | — |
+| Recovered list | Implemented | Owner | My Items → Recovered | resolved chats from `useOwnerChats` | `chats` read |
 | Release tag | Implemented | Owner | My Items ⋯ | `releaseTag()` | Deletes history; transaction on `itemOwners`, `items`, `tagProfiles`, `tags` |
 | Report a chat (owner → finder) | Implemented | Owner | Chat header | `reportChat()` | `chats.blocked`, `reportedByOwner` |
 | Report a chat (finder → owner) | Implemented | Finder | Chat header | `reportChatAsFinder()` | `chats.blocked`, `reportedByFinder` |
@@ -2499,7 +2501,7 @@ Breakpoints are Tailwind defaults (`sm` 640 px, `md` 768 px); no custom
 | Admin access | Implemented | Custom claim or verified passcode admin; passcode in `meta/adminSignup`. |
 | NFC | Partially Implemented | Web NFC read/write where `NDEFReader` exists; manual ID everywhere; no in-browser NFC on iOS. |
 | Tag registration & inventory | Implemented | Register, write, retry, re-register, test tags, counts, search, CSV, blacklist. |
-| Item management | Partially Implemented | Created at claim; Lost Mode editable; name/category not editable; delete only via release/account deletion. |
+| Item management | Implemented | Created at claim; name, category and Lost Mode editable; delete only via release/account deletion. |
 | Lost Mode | Implemented | Message, reward (₱), always shows Lost & Found; stale reminder after 14 days. |
 | Tag content | Implemented | Lost & Found / profile / redirect; owner and admin editors; bulk for unclaimed tags; vCard. |
 | Finder flow | Implemented | Tap page, report, optional location, chat; tap counter. |
@@ -2562,7 +2564,6 @@ Recorded as found. Nothing below was changed.
 
 ### Partially implemented / incomplete
 
-- Item rename and category change: no UI or function after the claim.
 - Recovery is three separate writes, not a transaction or batch; a
   failure midway leaves partial state.
 - `notificationPrefs` is written at sign-up and by the profile repair but
@@ -2571,18 +2572,13 @@ Recorded as found. Nothing below was changed.
   written.
 - `meta` rules comment says "currently unused by the NFC registration
   flow … kept for any future singleton", but `meta/adminSignup` is in use.
-- `lib/finderSession.js` comment says re-scanning a tag "restores the same
-  chat session"; `NfcLanding` never looks up an existing chat — a finder
-  who taps again files a new report and chat.
-- Preview mode: `Inventory.jsx` has no `firebaseReady` guard or mocks
-  (queries run against the placeholder project and fail);
-  `ARCHITECTURE.md` §4 says "every screen renders with zero setup".
-- Dashboard "Open reports" tile links to Messages `?filter=open`, which
-  filters chats by `resolved`, not reports by `status`; the counts can
-  differ.
+- Fixed in UI/UX Round 2 Part B (`docs/UI_UX_IMPROVEMENT_ROUND2.md`):
+  re-tapping a tag now offers "Continue your conversation" (same browser);
+  Inventory has preview-mode sample rows; the Dashboard tile is "Open
+  chats" and matches Messages' "Open" filter; the tap-page admin notice
+  checks `editorRole`; owner lists show a load error instead of an empty
+  state when a listener fails.
 - `Owners.jsx` still displays `phone`, a field the app no longer collects.
-- `NfcSetup` shows the admin-edit warning whenever `updatedBy` is a
-  different uid; it doesn't check `editorRole`.
 - Inventory blacklist records `blacklistedFromStatus` from loaded rows
   only (falls back to `registered` if the row isn't loaded or found by
   search).

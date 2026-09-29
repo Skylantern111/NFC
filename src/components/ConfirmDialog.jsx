@@ -25,11 +25,12 @@ export default function ConfirmDialog({
   irreversible = false,
   busy = false,
   onConfirm,
+  onCloseAutoFocus,
   children,
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {tone === 'destructive' && <TriangleAlert className="h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />}

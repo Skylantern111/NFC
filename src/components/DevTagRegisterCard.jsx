@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { auth, db, firebaseReady } from '../firebase/config';
 import { generateTagbackId } from '../lib/tags';
 import { friendlyFirestoreError } from '../lib/utils';
 import { FormError } from './FormField';
@@ -23,6 +23,10 @@ export default function DevTagRegisterCard({ className = '' }) {
   const [tagId, setTagId] = useState('');
 
   async function onRegister() {
+    if (!firebaseReady) {
+      setError('Preview mode — no Firebase project is configured, so no tag was created.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {

@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   addDoc,
   arrayRemove,
@@ -50,8 +50,11 @@ export function useResubscribeKey() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
-  return [key, () => setKey((k) => k + 1)];
+  const retry = useCallback(() => setKey((k) => k + 1), []);
+  return [key, retry];
 }
+
+const NOOP = () => {};
 
 // Realistic placeholder data so Dashboard/Items still preview when no real
 // Firebase project is configured (mirrors the `*Mock()` convention used in
@@ -70,6 +73,7 @@ export function ownerItemsMock() {
     {
       tagId: 'mock-tag-1',
       itemName: 'Black Travel Backpack',
+      category: 'Luggage',
       isLostMode: true,
       lostMessage: 'Lost at the airport — reward for safe return!',
       rewardAmount: 40,
@@ -81,12 +85,13 @@ export function ownerItemsMock() {
       // active-incident hero card.
       tagId: 'mock-tag-2',
       itemName: 'Car Keys',
+      category: 'Keys',
       isLostMode: true,
       lostMessage: 'Lost somewhere near the office parking lot.',
       rewardAmount: 0,
       lostSince: { toMillis: () => sixteenDaysAgo },
     },
-    { tagId: 'mock-tag-3', itemName: 'AirPods Case', isLostMode: false, lostMessage: '', rewardAmount: 0 },
+    { tagId: 'mock-tag-3', itemName: 'AirPods Case', category: 'Tech', isLostMode: false, lostMessage: '', rewardAmount: 0 },
   ];
 }
 
@@ -113,6 +118,15 @@ export function ownerChatsMock() {
       lastMessageText: 'Found it near baggage claim — left with the airline desk.',
       lastMessageAt: { toMillis: () => Date.now() - 2 * 60 * 60 * 1000 },
       unreadFor: ['owner'],
+    },
+    {
+      // A finished incident, so preview mode shows My Items' Recovered list.
+      id: 'mock-chat-4',
+      tagId: 'mock-tag-3',
+      lastMessageText: 'Thanks so much, got it back!',
+      lastMessageAt: { toMillis: () => Date.now() - 3 * 24 * 60 * 60 * 1000 },
+      resolved: true,
+      unreadFor: [],
     },
   ];
 }
@@ -142,31 +156,44 @@ export function ownerNotificationsMock() {
 // the hook falls back to its own listener.
 const OwnerTagIdsContext = createContext(null);
 
+// UI_UX_IMPROVEMENT_ROUND2.md B1: every owner hook below returns `error`
+// (and `retry`) instead of turning a failed listener into an empty list —
+// a permission error or dead connection used to read as "No items yet" or
+// "All clear".
 function useOwnerTagIdsListener(user, enabled) {
   const uid = user?.uid || null;
   const [tagIds, setTagIds] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(null);
+  const [resubscribeKey, retry] = useResubscribeKey();
 
   useEffect(() => {
     if (!enabled || !firebaseReady || !uid) {
       setTagIds([]);
       setLoaded(false);
+      setError(null);
       return;
     }
     setLoaded(false);
+    setError(null);
     const q = query(collection(db, 'itemOwners'), where('ownerUid', '==', uid));
     const unsub = onSnapshot(
       q,
       (snap) => {
         setTagIds(snap.docs.map((d) => d.id));
+        setError(null);
         setLoaded(true);
       },
-      () => setLoaded(true)
+      (err) => {
+        console.warn('owner tags listener failed:', err);
+        setError(err);
+        setLoaded(true);
+      }
     );
     return unsub;
-  }, [enabled, uid]);
+  }, [enabled, uid, resubscribeKey]);
 
-  return { uid, tagIds, loaded };
+  return { uid, tagIds, loaded, error, retry };
 }
 
 export function OwnerTagIdsProvider({ user, children }) {
@@ -180,10 +207,10 @@ export function useOwnerTagIds(user) {
   const own = useOwnerTagIdsListener(user, !useShared);
 
   if (!firebaseReady) {
-    return { tagIds: ownerItemsMock().map((i) => i.tagId), loaded: true };
+    return { tagIds: ownerItemsMock().map((i) => i.tagId), loaded: true, error: null, retry: NOOP };
   }
   const src = useShared ? shared : own;
-  return { tagIds: src.tagIds, loaded: src.loaded };
+  return { tagIds: src.tagIds, loaded: src.loaded, error: src.error, retry: src.retry };
 }
 
 // Live join: itemOwners (ownerUid == uid) -> items/{tagId}, plus each tag's
@@ -196,12 +223,15 @@ export function useOwnerTagIds(user) {
 // pages like Items.jsx can locally preview a toggle without persistence.
 export function useOwnerItems(user) {
   const [mockItems, setMockItems] = useState(ownerItemsMock);
-  const { tagIds, loaded: ownersLoaded } = useOwnerTagIds(user);
+  const { tagIds, loaded: ownersLoaded, error: tagIdsError, retry: retryTagIds } = useOwnerTagIds(user);
   const [itemsById, setItemsById] = useState({});
   const [statusById, setStatusById] = useState({});
+  const [itemError, setItemError] = useState(null);
+  const [resubscribeKey, retryItems] = useResubscribeKey();
 
   useEffect(() => {
     if (!firebaseReady || tagIds.length === 0) return;
+    setItemError(null);
     const unsubs = tagIds.flatMap((tagId) => [
       onSnapshot(
         doc(db, 'items', tagId),
@@ -211,7 +241,9 @@ export function useOwnerItems(user) {
             [tagId]: snap.exists() ? { tagId, ...snap.data() } : null,
           }));
         },
-        () => {
+        (err) => {
+          console.warn('item listener failed:', err);
+          setItemError(err);
           setItemsById((prev) => ({ ...prev, [tagId]: null }));
         }
       ),
@@ -222,21 +254,26 @@ export function useOwnerItems(user) {
     return () => unsubs.forEach((u) => u());
     // tagIds is derived data (small, changes rarely) — join for a stable dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tagIds.join(',')]);
+  }, [tagIds.join(','), resubscribeKey]);
 
   const updateMockItem = (tagId, patch) =>
     setMockItems((xs) => xs.map((x) => (x.tagId === tagId ? { ...x, ...patch } : x)));
+  const retry = useCallback(() => {
+    retryTagIds();
+    retryItems();
+  }, [retryTagIds, retryItems]);
 
   if (!firebaseReady) {
-    return { items: mockItems, loading: false, updateMockItem };
+    return { items: mockItems, loading: false, error: null, retry: NOOP, updateMockItem };
   }
 
   const items = tagIds
     .map((id) => itemsById[id])
     .filter(Boolean)
     .map((item) => ({ ...item, tagStatus: statusById[item.tagId] || null }));
-  const loading = !ownersLoaded || tagIds.some((id) => itemsById[id] === undefined);
-  return { items, loading, updateMockItem: () => {} };
+  const error = tagIdsError || itemError;
+  const loading = !error && (!ownersLoaded || tagIds.some((id) => itemsById[id] === undefined));
+  return { items, loading, error, retry, updateMockItem: () => {} };
 }
 
 // Live open reports for a set of owner tagIds. Firestore `in` caps at 30
@@ -248,8 +285,11 @@ export function useOwnerOpenReports(tagIds) {
   const key = useMemo(() => tagIds.slice().sort().join(','), [tagIds]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [resubscribeKey, retry] = useResubscribeKey();
 
   useEffect(() => {
+    setError(null);
     if (!firebaseReady) {
       setReports(ownerReportsMock());
       setLoading(false);
@@ -263,7 +303,6 @@ export function useOwnerOpenReports(tagIds) {
     setLoading(true);
     const groups = chunk(tagIds, 30);
     const partials = groups.map(() => []);
-    let pending = groups.length;
     const unsubs = groups.map((group, i) =>
       onSnapshot(
         query(collection(db, 'reports'), where('tagId', 'in', group), where('status', '==', 'open')),
@@ -272,17 +311,18 @@ export function useOwnerOpenReports(tagIds) {
           setReports(partials.flat());
           setLoading(false);
         },
-        () => {
-          pending -= 1;
-          if (pending <= 0) setLoading(false);
+        (err) => {
+          console.warn('open reports listener failed:', err);
+          setError(err);
+          setLoading(false);
         }
       )
     );
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, resubscribeKey]);
 
-  return { reports, loading: firebaseReady ? loading : false };
+  return { reports, loading: firebaseReady ? loading : false, error, retry };
 }
 
 // NfcLanding.jsx creates `reports` and `chats` as two separate addDoc calls
@@ -312,13 +352,15 @@ export async function findChatIdForReport(report) {
 // can't combine an `in` filter with orderBy on a different field without a
 // composite index.
 export function useOwnerChats(user) {
-  const { tagIds, loaded: tagsLoaded } = useOwnerTagIds(user);
+  const { tagIds, loaded: tagsLoaded, error: tagIdsError, retry: retryTagIds } = useOwnerTagIds(user);
   const key = useMemo(() => tagIds.slice().sort().join(','), [tagIds]);
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [resubscribeKey] = useResubscribeKey();
+  const [chatError, setChatError] = useState(null);
+  const [resubscribeKey, retryChats] = useResubscribeKey();
 
   useEffect(() => {
+    setChatError(null);
     if (!firebaseReady) {
       setChats(ownerChatsMock());
       setLoading(false);
@@ -343,7 +385,8 @@ export function useOwnerChats(user) {
           setLoading(false);
         },
         (err) => {
-          console.warn('owner listener failed:', err);
+          console.warn('owner chats listener failed:', err);
+          setChatError(err);
           setLoading(false);
         }
       )
@@ -387,20 +430,27 @@ export function useOwnerChats(user) {
     [chats, previews]
   );
 
-  return { chats: sorted, loading: firebaseReady ? loading : false };
+  const error = firebaseReady ? tagIdsError || chatError : null;
+  const retry = useCallback(() => {
+    retryTagIds();
+    retryChats();
+  }, [retryTagIds, retryChats]);
+  return { chats: sorted, loading: firebaseReady ? loading && !error : false, error, retry };
 }
 
 // Live: every notification against one of the owner's tags (same join
 // shape as useOwnerChats/useOwnerOpenReports). Newest first, plus an
 // unread count for the sidebar badge (§5.1).
 export function useOwnerNotifications(user) {
-  const { tagIds, loaded: tagsLoaded } = useOwnerTagIds(user);
+  const { tagIds, loaded: tagsLoaded, error: tagIdsError, retry: retryTagIds } = useOwnerTagIds(user);
   const key = useMemo(() => tagIds.slice().sort().join(','), [tagIds]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [resubscribeKey] = useResubscribeKey();
+  const [notifError, setNotifError] = useState(null);
+  const [resubscribeKey, retryNotifs] = useResubscribeKey();
 
   useEffect(() => {
+    setNotifError(null);
     if (!firebaseReady) {
       setNotifications(ownerNotificationsMock());
       setLoading(false);
@@ -430,7 +480,8 @@ export function useOwnerNotifications(user) {
           setLoading(false);
         },
         (err) => {
-          console.warn('owner listener failed:', err);
+          console.warn('owner notifications listener failed:', err);
+          setNotifError(err);
           setLoading(false);
         }
       )
@@ -448,7 +499,12 @@ export function useOwnerNotifications(user) {
   );
   const unreadCount = useMemo(() => sorted.filter((n) => !n.read).length, [sorted]);
 
-  return { notifications: sorted, unreadCount, loading: firebaseReady ? loading : false };
+  const error = firebaseReady ? tagIdsError || notifError : null;
+  const retry = useCallback(() => {
+    retryTagIds();
+    retryNotifs();
+  }, [retryTagIds, retryNotifs]);
+  return { notifications: sorted, unreadCount, loading: firebaseReady ? loading && !error : false, error, retry };
 }
 
 export async function markNotificationRead(notifId) {
@@ -509,6 +565,14 @@ export async function touchChatActivity(chatId, { sender, text }) {
 export async function markChatRead(chatId, role) {
   if (!firebaseReady) return;
   await updateDoc(doc(db, 'chats', chatId), { unreadFor: arrayRemove(role) });
+}
+
+// "Edit item" on My Items (UI_UX_IMPROVEMENT_ROUND2.md B3). The rules
+// already let the owner change these public item fields (items#update:
+// ownsTag + publicItemFieldsOnly, itemName ≤ 100).
+export async function updateItemDetails(tagId, { itemName, category }) {
+  if (!firebaseReady) return;
+  await updateDoc(doc(db, 'items', tagId), { itemName: itemName.trim(), category });
 }
 
 // Owner arms/disarms Lost Mode directly on the public-safe items doc.

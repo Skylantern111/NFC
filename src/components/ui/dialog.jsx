@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import * as React from "react";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 // Context to track composition state across dialog children
 const DialogCompositionContext = React.createContext({
@@ -83,6 +84,8 @@ const DialogContent = React.forwardRef(function DialogContent(
     children,
     showCloseButton = true,
     onEscapeKeyDown,
+    onOpenAutoFocus,
+    onCloseAutoFocus,
     ...props
   },
   ref
@@ -107,6 +110,8 @@ const DialogContent = React.forwardRef(function DialogContent(
     [isComposing, onEscapeKeyDown]
   );
 
+  const returnFocus = useReturnFocus(onOpenAutoFocus, onCloseAutoFocus);
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -122,6 +127,7 @@ const DialogContent = React.forwardRef(function DialogContent(
           className
         )}
         onEscapeKeyDown={handleEscapeKeyDown}
+        {...returnFocus}
         {...props}
       >
         {children}

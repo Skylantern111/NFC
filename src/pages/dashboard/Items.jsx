@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, Eye, MessageSquare, MoreVertical, Nfc, PackageSearch, PencilLine, SearchX, ShieldCheck, Unlink } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, Eye, MessageSquare, MoreVertical, Nfc, PackageSearch, Pencil, PencilLine, SearchX, ShieldCheck, Unlink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useOwnerNotificationsContext } from '../../context/OwnerNotificationsContext';
 import { firebaseReady } from '../../firebase/config';
@@ -11,10 +11,11 @@ import {
   useOwnerOpenReports,
   toggleLostMode,
   releaseTag,
+  updateItemDetails,
   getTagScanCount,
 } from '../../lib/ownerItems';
-import { CATEGORY_ICON } from '../../lib/categories';
-import { cn, formatReward, friendlyFirestoreError } from '../../lib/utils';
+import { CATEGORY_ICON, validateItemDetails } from '../../lib/categories';
+import { cn, formatReward, friendlyFirestoreError, relativeTimeFromMs, returnFocusTo, toMillis } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
@@ -35,16 +36,17 @@ import {
 } from '../../components/ui/dropdown-menu';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge, { itemStatus } from '../../components/StatusBadge';
-import FormField from '../../components/FormField';
+import FormField, { FormError } from '../../components/FormField';
+import ItemDetailsFields from '../../components/ItemDetailsFields';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { EmptyState, InlineAlert, SkeletonList } from '../../components/States';
+import { EmptyState, InlineAlert, LoadErrorState, SkeletonList } from '../../components/States';
 
 // Search only earns its space on a longer list (UI_UX_IMPROVEMENT_PLAN.md ITEM8).
 const SEARCH_MIN_ITEMS = 6;
 
 export default function Items() {
   const { user } = useAuth();
-  const { items, loading, updateMockItem } = useOwnerItems(user);
+  const { items, loading, error: loadError, retry: retryLoad, updateMockItem } = useOwnerItems(user);
   const { tagIds } = useOwnerTagIds(user);
   const { reports } = useOwnerOpenReports(tagIds);
   const { chats } = useOwnerNotificationsContext();
@@ -69,6 +71,16 @@ export default function Items() {
   }, [reports, chats]);
   const openTagSet = useMemo(() => new Set(reports.map((r) => r.tagId)), [reports]);
 
+  // B7: recovered incidents stay findable — built from chats the owner
+  // marked recovered (chats.resolved). No new data; released tags delete
+  // their chats, so only tags still owned appear.
+  const recovered = useMemo(() => {
+    const names = Object.fromEntries(items.map((i) => [i.tagId, i.itemName]));
+    return chats
+      .filter((c) => c.resolved && names[c.tagId])
+      .map((c) => ({ chat: c, itemName: names[c.tagId] }));
+  }, [chats, items]);
+
   const [search, setSearch] = useState('');
   const visibleItems = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -84,6 +96,12 @@ export default function Items() {
   const [justArmed, setJustArmed] = useState(null);
   const [disarmDialog, setDisarmDialog] = useState(null); // { tagId, name }
   const [releaseDialog, setReleaseDialog] = useState(null); // { tagId, name }
+  // B3: rename / change category. { tagId, itemName, category }
+  const [editDialog, setEditDialog] = useState(null);
+  const [editErrors, setEditErrors] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  // Which item's ⋯ menu opened the current dialog — focus goes back there.
+  const [lastMenuTag, setLastMenuTag] = useState(null);
   const [saving, setSaving] = useState(false);
   const [disarming, setDisarming] = useState(false);
   const [releasing, setReleasing] = useState(false);
@@ -122,6 +140,36 @@ export default function Items() {
       );
     } finally {
       setReleasing(false);
+    }
+  }
+
+  function openEdit(item) {
+    setLastMenuTag(item.tagId);
+    setEditErrors({});
+    setEditDialog({ tagId: item.tagId, itemName: item.itemName || '', category: item.category || '' });
+  }
+
+  async function confirmEdit(e) {
+    e.preventDefault();
+    if (!editDialog) return;
+    const errors = validateItemDetails(editDialog);
+    setEditErrors(errors);
+    const firstBad = Object.keys(errors)[0];
+    if (firstBad) {
+      document.getElementById(firstBad)?.focus();
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const patch = { itemName: editDialog.itemName.trim(), category: editDialog.category };
+      if (firebaseReady) await updateItemDetails(editDialog.tagId, patch);
+      else updateMockItem(editDialog.tagId, patch);
+      setEditDialog(null);
+      toast.success('Item saved. Finders see the new name on the next tap.');
+    } catch (err) {
+      setEditErrors({ form: friendlyFirestoreError(err, 'Could not save the item. Try again.') });
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -200,7 +248,9 @@ export default function Items() {
 
       {loading && <SkeletonList count={3} className="h-28" />}
 
-      {!loading && items.length === 0 && (
+      {loadError && <LoadErrorState what="your items" error={loadError} onRetry={retryLoad} />}
+
+      {!loading && !loadError && items.length === 0 && (
         <EmptyState
           icon={PackageSearch}
           title="No items yet"
@@ -289,11 +339,22 @@ export default function Items() {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="ghost" size="icon" aria-label={`More actions for ${it.itemName}`}>
+                    <Button
+                      id={`item-menu-${it.tagId}`}
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`More actions for ${it.itemName}`}
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {!flagged && (
+                      <DropdownMenuItem onSelect={() => openEdit(it)}>
+                        <Pencil className="h-4 w-4" /> Edit item…
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem asChild>
                       <Link to={`/dashboard/nfc-setup?tagId=${encodeURIComponent(it.tagId)}`}>
                         <PencilLine className="h-4 w-4" /> Edit tap page
@@ -310,7 +371,10 @@ export default function Items() {
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onSelect={() => setReleaseDialog({ tagId: it.tagId, name: it.itemName })}
+                          onSelect={() => {
+                            setLastMenuTag(it.tagId);
+                            setReleaseDialog({ tagId: it.tagId, name: it.itemName });
+                          }}
                           className="text-red-700 focus:text-red-700 dark:text-red-300"
                         >
                           <Unlink className="h-4 w-4" /> Release tag…
@@ -397,6 +461,42 @@ export default function Items() {
         })}
       </ul>
 
+      {!loading && !loadError && recovered.length > 0 && !lostOnly && !search && (
+        <section aria-labelledby="recovered-heading" className="space-y-2 pt-2">
+          <div>
+            <h2 id="recovered-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
+              Recovered
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Items finders helped return. Their chats stay open for any follow-up.
+            </p>
+          </div>
+          <ul className="glass divide-y divide-slate-200/70 overflow-hidden p-0 dark:divide-white/10">
+            {recovered.map(({ chat, itemName }) => (
+              <li key={chat.id}>
+                <Link
+                  to={`/chat/${chat.id}`}
+                  className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5"
+                >
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {itemName}
+                    </span>
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                      Marked recovered · last message {relativeTimeFromMs(toMillis(chat.lastMessageAt)) || '—'}
+                    </span>
+                  </span>
+                  <span className="hidden shrink-0 text-sm font-medium text-purple-700 dark:text-purple-300 sm:inline">Open chat</span>
+                  <span className="sr-only sm:hidden">Open chat</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <Dialog open={!!armDialog} onOpenChange={(open) => !open && !saving && setArmDialog(null)}>
         <DialogContent>
           <DialogHeader>
@@ -466,6 +566,39 @@ export default function Items() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!editDialog} onOpenChange={(open) => !open && !editSaving && setEditDialog(null)}>
+        <DialogContent onCloseAutoFocus={returnFocusTo(lastMenuTag && `item-menu-${lastMenuTag}`)}>
+          <DialogHeader>
+            <DialogTitle>Edit item</DialogTitle>
+            <DialogDescription>Change the name finders see and the item's category.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={confirmEdit} noValidate className="flex flex-col gap-4">
+            <ItemDetailsFields
+              itemName={editDialog?.itemName || ''}
+              onItemNameChange={(v) => {
+                setEditDialog((d) => ({ ...d, itemName: v }));
+                setEditErrors((er) => ({ ...er, itemName: undefined }));
+              }}
+              category={editDialog?.category || ''}
+              onCategoryChange={(v) => {
+                setEditDialog((d) => ({ ...d, category: v }));
+                setEditErrors((er) => ({ ...er, category: undefined }));
+              }}
+              errors={editErrors}
+            />
+            <FormError>{editErrors.form}</FormError>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditDialog(null)} disabled={editSaving}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" loading={editSaving}>
+                {editSaving ? 'Saving…' : 'Save changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog
         open={!!disarmDialog}
         onOpenChange={(open) => !open && setDisarmDialog(null)}
@@ -497,6 +630,7 @@ export default function Items() {
           </>
         }
         irreversible
+        onCloseAutoFocus={returnFocusTo(lastMenuTag && `item-menu-${lastMenuTag}`)}
         confirmLabel="Release tag"
         busyLabel="Releasing…"
         busy={releasing}

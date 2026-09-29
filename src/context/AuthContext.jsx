@@ -99,8 +99,15 @@ export function AuthProvider({ children }) {
     return verified;
   }, []);
 
+  // After updateProfile() (Settings → Name): the SDK changes the User in
+  // place, so give React a new object to re-render names shown elsewhere.
+  const refreshProfile = useCallback(() => {
+    if (!auth.currentUser) return;
+    setUser(Object.assign(Object.create(Object.getPrototypeOf(auth.currentUser)), auth.currentUser));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout, firebaseReady, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, logout, firebaseReady, refreshUser, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

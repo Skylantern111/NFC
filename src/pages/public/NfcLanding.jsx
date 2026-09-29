@@ -23,7 +23,7 @@ import { db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { captureLocation } from '../../lib/geolocation';
 import { isInAppBrowser } from '../../lib/inAppBrowser';
-import { getFinderToken } from '../../lib/finderSession';
+import { chatForTag, forgetChatForTag, getFinderToken, rememberChatForTag } from '../../lib/finderSession';
 import { notifyOwner, recordTagScan } from '../../lib/ownerItems';
 import { hasVisibleLinks, isAdminManaged, resolveLanding } from '../../lib/tagContent';
 import { LinkPills, ProfileCard } from '../../components/TagContent';
@@ -89,6 +89,35 @@ export default function NfcLanding() {
   // The optional "where is it" block starts folded, so the message and the
   // send button are on screen right away on a phone.
   const [showWhere, setShowWhere] = useState(false);
+  // B2: a chat this browser already started from this tag.
+  const [savedChatId, setSavedChatId] = useState(null);
+
+  useEffect(() => {
+    const id = chatForTag(tagId);
+    if (!id) {
+      setSavedChatId(null);
+      return;
+    }
+    if (!firebaseReady) {
+      setSavedChatId(id);
+      return;
+    }
+    // Only offer it if the chat still exists (released tags delete theirs).
+    let live = true;
+    getDoc(doc(db, 'chats', id))
+      .then((snap) => {
+        if (!live) return;
+        if (snap.exists()) setSavedChatId(id);
+        else {
+          forgetChatForTag(tagId);
+          setSavedChatId(null);
+        }
+      })
+      .catch(() => live && setSavedChatId(id));
+    return () => {
+      live = false;
+    };
+  }, [tagId]);
 
   useEffect(() => {
     let live = true;
@@ -266,6 +295,7 @@ export default function NfcLanding() {
       notifyOwner({ type: 'report', tagId, chatId: chat.id, reportId: report.id }).catch((err) =>
         console.warn('notifyOwner failed:', err)
       );
+      rememberChatForTag(tagId, chat.id);
       nav(`/chat/${chat.id}`);
     } catch (err) {
       // firestore.rules#isBlockedToken rejects a banned finder's session
@@ -522,6 +552,25 @@ export default function NfcLanding() {
           </CardContent>
         </Card>
 
+        {savedChatId && (
+          <Card className={cn(GLASS, 'border border-purple-200 dark:border-purple-500/30')}>
+            <CardContent className="flex flex-col gap-3 text-slate-800 dark:text-slate-100">
+              <div>
+                <p className="font-semibold">You already messaged this owner</p>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Your conversation is saved in this browser. On another browser or device, open the chat link you
+                  saved instead.
+                </p>
+              </div>
+              <Button asChild variant="primary" size="lg" className="w-full gap-2">
+                <Link to={`/chat/${savedChatId}`}>
+                  <MessageSquare className="h-4 w-4" /> Continue your conversation
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {reportingOff ? (
           <Card className={GLASS}>
             <CardContent className="text-center text-sm text-slate-600 dark:text-slate-400">
@@ -536,7 +585,7 @@ export default function NfcLanding() {
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="finder-message" className="text-base font-semibold text-slate-800 dark:text-slate-100">
-                    Message the owner
+                    {savedChatId ? 'Or send a new message' : 'Message the owner'}
                   </Label>
                   <span className="text-xs text-slate-600 dark:text-slate-400" aria-hidden="true">{note.length}/500</span>
                 </div>
@@ -628,7 +677,13 @@ export default function NfcLanding() {
                 </fieldset>
               )}
 
-              <Button type="submit" loading={busy} variant={lost ? 'destructive' : 'primary'} size="lg" className="w-full gap-2">
+              <Button
+                type="submit"
+                loading={busy}
+                variant={savedChatId ? 'secondary' : lost ? 'destructive' : 'primary'}
+                size="lg"
+                className="w-full gap-2"
+              >
                 {busy ? (
                   'Sending…'
                 ) : (

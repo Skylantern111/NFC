@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
+import { updateProfile } from 'firebase/auth';
 import { toast } from 'sonner';
 import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db, firebaseReady } from '../../firebase/config';
+import { auth, db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { deleteMyAccount } from '../../lib/account';
@@ -11,7 +12,7 @@ import { friendlyAuthError, friendlyFirestoreError } from '../../lib/utils';
 import GlassCard from '../../components/GlassCard';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import FormField from '../../components/FormField';
+import FormField, { FormError } from '../../components/FormField';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
@@ -23,6 +24,77 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+
+const NAME_MAX = 80;
+
+// Owner display name (UI_UX_IMPROVEMENT_ROUND2.md B4): the Auth profile and
+// users/{uid}.displayName, which the owner may already update. Private —
+// finders never see it (a tap page's display name is typed separately).
+function NameForm({ user }) {
+  const { refreshProfile } = useAuth();
+  const [name, setName] = useState(user.displayName || '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const unchanged = name.trim() === (user.displayName || '');
+
+  async function onSave(e) {
+    e.preventDefault();
+    const next = name.trim();
+    if (!next) {
+      setError('Enter your name.');
+      document.getElementById('settings-name')?.focus();
+      return;
+    }
+    if (next.length > NAME_MAX) {
+      setError(`Keep it under ${NAME_MAX} characters.`);
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await updateProfile(auth.currentUser, { displayName: next });
+      await updateDoc(doc(db, 'users', user.uid), { displayName: next });
+      refreshProfile();
+      setName(next);
+      toast.success('Name saved.');
+    } catch (err) {
+      setError(
+        err?.code?.startsWith?.('auth/')
+          ? friendlyAuthError(err)
+          : friendlyFirestoreError(err, 'Could not save your name. Try again.')
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSave} noValidate className="mt-3 flex flex-col gap-3">
+      <FormField
+        id="settings-name"
+        label="Name"
+        hint="Shown only to you and TagBack admins, never to finders."
+        error={error}
+      >
+        <Input
+          value={name}
+          maxLength={NAME_MAX}
+          autoComplete="name"
+          autoCapitalize="words"
+          onChange={(e) => {
+            setName(e.target.value);
+            if (error) setError('');
+          }}
+        />
+      </FormField>
+      <div>
+        <Button type="submit" variant="outline" size="sm" loading={saving} disabled={unchanged && !saving}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </Button>
+      </div>
+    </form>
+  );
+}
 
 export default function Settings() {
   const { user } = useAuth();
@@ -99,6 +171,7 @@ export default function Settings() {
               </Button>
             </div>
           )}
+          {firebaseReady && <NameForm user={user} />}
         </GlassCard>
       )}
 

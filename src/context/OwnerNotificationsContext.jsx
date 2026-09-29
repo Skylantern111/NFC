@@ -33,9 +33,11 @@ export function OwnerNotificationsProvider({ children }) {
       ...notifications,
       chats: chats.chats,
       chatsLoading: chats.loading,
+      chatsError: chats.error,
+      retryChats: chats.retry,
       unreadChatCount,
     }),
-    [notifications, chats.chats, chats.loading, unreadChatCount]
+    [notifications, chats.chats, chats.loading, chats.error, chats.retry, unreadChatCount]
   );
 
   return <OwnerNotificationsContext.Provider value={value}>{children}</OwnerNotificationsContext.Provider>;

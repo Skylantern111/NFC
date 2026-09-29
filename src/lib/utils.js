@@ -108,3 +108,15 @@ const PESO = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP'
 export function formatReward(amount) {
   return PESO.format(Number(amount) || 0);
 }
+
+// Radix Dialog's onCloseAutoFocus handler that returns focus to the element
+// with `id` — for dialogs opened from a menu item or a re-rendered button,
+// where Radix would otherwise drop focus on <body>.
+export function returnFocusTo(id) {
+  return (event) => {
+    const el = id && document.getElementById(id);
+    if (!el) return;
+    event.preventDefault();
+    el.focus();
+  };
+}

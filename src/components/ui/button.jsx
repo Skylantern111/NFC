@@ -19,7 +19,7 @@ const buttonVariants = cva(
         success:
           "bg-emerald-600 text-white shadow-neu-flat-sm active:shadow-neu-pressed-sm hover:bg-emerald-500",
         destructive:
-          "bg-destructive text-white shadow-neu-flat active:shadow-neu-pressed hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground shadow-neu-flat active:shadow-neu-pressed hover:bg-destructive/90",
         outline:
           "border border-slate-300 dark:border-slate-700 bg-base text-slate-700 dark:text-slate-200 shadow-neu-flat-sm active:shadow-neu-pressed-sm",
         secondary:

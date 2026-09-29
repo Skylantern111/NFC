@@ -18,6 +18,7 @@ import { Skeleton } from '../../components/ui/skeleton';
 import GlassCard from '../../components/GlassCard';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
+import { LoadErrorState } from '../../components/States';
 import StatusStepper, { recoveryStep } from '../../components/StatusStepper';
 import ReportLocationMap from '../../components/ReportLocationMap';
 
@@ -49,11 +50,17 @@ const VERIFY_STEP = { icon: MailCheck, title: 'Verify your email', detail: 'Tap 
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { items, loading: itemsLoading } = useOwnerItems(user);
+  const { items, loading: itemsLoading, error: itemsError, retry: retryItems } = useOwnerItems(user);
   const { tagIds } = useOwnerTagIds(user);
-  const { reports, loading: reportsLoading } = useOwnerOpenReports(tagIds);
+  const { reports, loading: reportsLoading, error: reportsError, retry: retryReports } = useOwnerOpenReports(tagIds);
   const { chats, notifications } = useOwnerNotificationsContext();
-  const loading = itemsLoading || reportsLoading;
+  // B1: a failed load must not read as "Get started" or "All clear".
+  const loadError = itemsError || reportsError;
+  const loading = !loadError && (itemsLoading || reportsLoading);
+  function retryLoad() {
+    retryItems();
+    retryReports();
+  }
 
   const itemsByTag = useMemo(() => Object.fromEntries(items.map((i) => [i.tagId, i])), [items]);
   // SYSTEM_AUDIT_ROUND2.md B2: each report has its own chat (chat.reportId).
@@ -77,11 +84,14 @@ export default function Dashboard() {
   );
 
   const lostCount = items.filter((i) => i.isLostMode).length;
+  // B5: the tile counts what its link shows — Messages' "Open" filter
+  // lists chats that aren't marked recovered.
+  const openChatCount = chats.filter((c) => !c.resolved).length;
   // Each tile opens the list it counts (UI_UX_IMPROVEMENT_PLAN.md DB2).
   const stats = [
     { label: 'Items tagged', value: items.length, icon: Package, to: '/dashboard/items', tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300' },
     { label: 'In Lost Mode', value: lostCount, icon: AlertTriangle, to: '/dashboard/items?filter=lost', tint: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
-    { label: 'Open reports', value: reports.length, icon: MessageSquareWarning, to: '/dashboard/messages?filter=open', tint: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300' },
+    { label: 'Open chats', value: openChatCount, icon: MessageSquareWarning, to: '/dashboard/messages?filter=open', tint: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300' },
   ];
 
   const openTagSet = useMemo(() => new Set(reports.map((r) => r.tagId)), [reports]);
@@ -110,7 +120,7 @@ export default function Dashboard() {
   const recent = notifications.slice(0, 3);
 
   const firstName = (user?.displayName || '').trim().split(/\s+/)[0];
-  const firstRun = !loading && items.length === 0;
+  const firstRun = !loading && !loadError && items.length === 0;
   // Unverified owners can't claim yet (firestore.rules), so verifying is
   // step one for them.
   const needsVerify = firebaseReady && !!user && !user.emailVerified;
@@ -137,6 +147,8 @@ export default function Dashboard() {
 
       {loading ? (
         <Skeleton className="h-40 rounded-3xl" />
+      ) : loadError ? (
+        <LoadErrorState what="your items" error={loadError} onRetry={retryLoad} />
       ) : firstRun ? (
         <GlassCard>
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
@@ -261,7 +273,7 @@ export default function Dashboard() {
 
       {/* Your items — counts, each opening the list it counts (DB2). Below
           anything that needs action, so numbers never outrank a finder. */}
-      {!firstRun && (
+      {!firstRun && !loadError && (
         <section aria-labelledby="items-heading" className="space-y-2">
           <h2 id="items-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
             Your items

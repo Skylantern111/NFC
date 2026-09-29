@@ -8,7 +8,7 @@ import { CATEGORY_ICON } from '../../lib/categories';
 import { cn, relativeTimeFromMs, toMillis } from '../../lib/utils';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import { EmptyState, SkeletonList } from '../../components/States';
+import { EmptyState, LoadErrorState, SkeletonList } from '../../components/States';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -20,7 +20,7 @@ const FILTERS = [
 // a finder, unread rows in bold, status as a badge.
 export default function Messages() {
   const { user } = useAuth();
-  const { chats, chatsLoading, unreadChatCount } = useOwnerNotificationsContext();
+  const { chats, chatsLoading, chatsError, retryChats, unreadChatCount } = useOwnerNotificationsContext();
   const { items, loading: itemsLoading } = useOwnerItems(user);
   const loading = chatsLoading || itemsLoading;
   const [params, setParams] = useSearchParams();
@@ -49,7 +49,9 @@ export default function Messages() {
 
       {loading && <SkeletonList count={3} className="h-16" />}
 
-      {!loading && chats.length === 0 && (
+      {chatsError && <LoadErrorState what="your conversations" error={chatsError} onRetry={retryChats} />}
+
+      {!loading && !chatsError && chats.length === 0 && (
         <EmptyState
           icon={MessageSquare}
           title="No conversations yet"
