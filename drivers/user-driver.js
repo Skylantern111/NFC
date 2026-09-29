@@ -17,6 +17,7 @@ import {
   TEST_TAG_ID,
   TIMEOUTS,
   VIEWPORTS,
+  hasEnv,
   requireEnv,
   startApp,
 } from './driver-config.js';
@@ -24,11 +25,28 @@ import { CriticalFailure, FAKE_NDEF_READER, assert, createRunner, launchBrowser 
 
 const ROLE = 'USER';
 const LIVE = MODE === 'live';
+// Live mode has three ways to run (see drivers/README.md):
+//   account — TEST_USER_EMAIL / TEST_USER_PASSWORD (an existing owner)
+//   temp    — DRIVER_CREATE_TEMP_USER=1: signs up a throw-away owner on the
+//             site, runs the owner flow, then deletes that account
+//   guest   — neither: signed-out checks only; creates nothing
+const HAVE_ACCOUNT = LIVE && hasEnv(['TEST_USER_EMAIL', 'TEST_USER_PASSWORD']);
+const TEMP_USER = LIVE && !HAVE_ACCOUNT && process.env.DRIVER_CREATE_TEMP_USER === '1';
+const GUEST = LIVE && !HAVE_ACCOUNT && !TEMP_USER;
 // Owner credentials only — this driver never reads the admin variables.
-const creds = LIVE ? requireEnv(['TEST_USER_EMAIL', 'TEST_USER_PASSWORD'], ROLE) : {};
-if (LIVE && process.env.TEST_ADMIN_EMAIL && process.env.TEST_ADMIN_EMAIL === creds.TEST_USER_EMAIL) {
+const creds = HAVE_ACCOUNT
+  ? requireEnv(['TEST_USER_EMAIL', 'TEST_USER_PASSWORD'], ROLE)
+  : TEMP_USER
+    ? {
+        // example.com never receives mail, so the account stays unverified.
+        TEST_USER_EMAIL: `tagback-driver-${Date.now()}@example.com`,
+        TEST_USER_PASSWORD: `Tb-${Math.random().toString(36).slice(2, 10)}!A7`,
+      }
+    : {};
+if (HAVE_ACCOUNT && process.env.TEST_ADMIN_EMAIL && process.env.TEST_ADMIN_EMAIL === creds.TEST_USER_EMAIL) {
   throw new Error('[USER] TEST_USER_EMAIL must be a different account from TEST_ADMIN_EMAIL.');
 }
+const NO_ACCOUNT = 'no owner account on the live site — set TEST_USER_* or DRIVER_CREATE_TEMP_USER=1';
 
 // Preview mode has one known mock item without Lost Mode, and a mock
 // recovered chat (lib/ownerItems.js *Mock()).
@@ -49,7 +67,7 @@ async function waitForItemsState() {
 
 let b; // browser
 let run; // step runner
-const state = { verified: true, itemName: null, ownsTestTag: false, testTagChatId: null };
+const state = { verified: true, itemName: null, ownsTestTag: false, testTagChatId: null, tempCreated: false };
 
 // ---- sign-up form (client-side checks only; never submits a real account)
 async function testRegistrationForm() {
@@ -69,12 +87,66 @@ async function testRegistrationForm() {
   });
 }
 
+// ---- signed out: owner and admin pages must refuse a visitor
+async function testSignedOutRedirects() {
+  if (!LIVE) return run.skip('Signed-out visitor is refused', 'preview mode bypasses route guards');
+  for (const [route, target] of [
+    ['/dashboard', '/login'],
+    ['/dashboard/items', '/login'],
+    ['/dashboard/settings', '/login'],
+    ['/admin/inventory', '/admin/login'],
+  ]) {
+    await run.step(`Signed-out visitor refused: ${route}`, { page: route }, async () => {
+      await b.goto(route);
+      await b.waitForPath(target, { timeout: TIMEOUTS.page });
+      assert((await b.count('a[href="/dashboard/items"]')) === 0, 'no owner navigation while signed out', 'owner nav visible');
+      return `redirected to ${target}`;
+    });
+  }
+}
+
+// ---- temporary account (DRIVER_CREATE_TEMP_USER=1): real sign-up
+async function createTempAccount() {
+  await run.step('Sign up a temporary owner account', { page: '/register', critical: true }, async () => {
+    await b.goto('/register');
+    await b.fill('#displayName', 'TEST_USER driver');
+    await b.fill('#email', creds.TEST_USER_EMAIL);
+    await b.fill('#confirmEmail', creds.TEST_USER_EMAIL);
+    await b.fill('#password', creds.TEST_USER_PASSWORD);
+    await b.fill('#confirmPassword', creds.TEST_USER_PASSWORD);
+    await b.click('Create account', { within: 'form' });
+    await b.waitForPath('/dashboard/verify-email', { timeout: TIMEOUTS.page });
+    state.tempCreated = true;
+    return `created ${creds.TEST_USER_EMAIL} (unverified); sent to the verify page`;
+  });
+}
+
+// Deletes the temporary account through Settings → Delete my account, so a
+// temp run leaves nothing behind. Runs even if earlier steps failed.
+async function deleteTempAccount() {
+  await run.step('Delete the temporary account', { page: '/dashboard/settings' }, async () => {
+    await b.setViewport(VIEWPORTS.desktop);
+    await b.goto('/dashboard/settings');
+    await b.click('Delete my account');
+    await b.waitFor(`document.querySelector('#delete-confirm')`, { what: 'delete dialog' });
+    await b.fill('#delete-confirm', 'DELETE');
+    await b.fill('#delete-password', creds.TEST_USER_PASSWORD);
+    await b.click('Delete account', { within: '[role=dialog]' });
+    await b.waitFor(`location.pathname === '/'`, { what: 'landing page after deletion', timeout: TIMEOUTS.page * 2 });
+    state.tempCreated = false;
+    await b.goto('/dashboard');
+    await b.waitForPath('/login', { timeout: TIMEOUTS.page });
+    return 'account, profile and sign-in deleted; owner pages redirect to /login';
+  });
+}
+
 // ---- sign-in
 async function loginAsUser() {
   if (!LIVE) {
     run.skip('Sign in as user', 'preview mode has no sign-in (auth guards are bypassed)');
     return;
   }
+  if (GUEST) return run.skip('Sign in as user', NO_ACCOUNT);
   await run.step('Sign in as user', { page: '/login', critical: true }, async () => {
     await b.goto('/login');
     await b.fill('#email', creds.TEST_USER_EMAIL);
@@ -443,7 +515,8 @@ async function logoutUser() {
 
 // ---- main
 async function main() {
-  console.log(`[USER] Starting user driver — mode: ${MODE}${LIVE ? `, writes: ${ALLOW_WRITES ? `on (TEST_TAG_ID=${TEST_TAG_ID || 'unset'})` : 'off'}` : ''}`);
+  const how = !LIVE ? '' : HAVE_ACCOUNT ? ', account: TEST_USER' : TEMP_USER ? ', account: temporary (deleted at the end)' : ', account: none (guest checks only)';
+  console.log(`[USER] Starting user driver — mode: ${MODE}${how}${LIVE ? `, writes: ${ALLOW_WRITES ? `on (TEST_TAG_ID=${TEST_TAG_ID || 'unset'})` : 'off'}` : ''}`);
   const app = await startApp(ROLE);
   b = await launchBrowser(ROLE, { debugPort: 9401, baseUrl: app.baseUrl });
   await b.init(VIEWPORTS.desktop);
@@ -452,6 +525,17 @@ async function main() {
   let code = 1;
   try {
     await testRegistrationForm();
+    await testSignedOutRedirects();
+    if (GUEST) {
+      // Nothing signed-in can run without an owner account; say so once.
+      run.skip('Owner console (dashboard, items, claim, Lost Mode, chat, settings)', NO_ACCOUNT);
+      run.skip('Admin console refused for a signed-in owner', NO_ACCOUNT);
+      return;
+    }
+    if (TEMP_USER) {
+      await createTempAccount();
+      await logoutUser(); // also proves sign-out, then sign back in below
+    }
     await loginAsUser();
     await testVerificationState();
     await testUserDashboard();
@@ -469,11 +553,19 @@ async function main() {
     await testSettings();
     await testUserCannotAccessAdmin();
     await releaseTestTag();
-    await logoutUser();
+    if (!TEMP_USER) await logoutUser();
   } catch (err) {
     if (!(err instanceof CriticalFailure)) throw err;
     console.log(`[USER] Stopped: ${err.message}`);
   } finally {
+    if (state.tempCreated) {
+      try {
+        await deleteTempAccount();
+      } catch (err) {
+        console.log(`[USER] Could not delete the temporary account ${creds.TEST_USER_EMAIL}: ${err.message}`);
+      }
+      if (state.tempCreated) console.log(`[USER] ⚠ Remove ${creds.TEST_USER_EMAIL} by hand (Firebase console → Authentication).`);
+    }
     code = run.summary();
     b.close();
     app.stop();

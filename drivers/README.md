@@ -64,21 +64,36 @@ Limits of preview mode (the app's own behavior, `firebaseReady === false`):
 
 These steps are reported as `SKIP` with the reason, never as `PASS`.
 
-### Live — real accounts
+### Live — the real site
 ```bash
-cp drivers/drivers.env.example drivers/.env.drivers   # then fill it in
+cp drivers/drivers.env.example drivers/.env.drivers   # then edit it
 npm run drivers:user
 npm run drivers:admin
 ```
+If `drivers/.env.drivers` sets `DRIVER_MODE=live`, force a preview run with
+`DRIVER_MODE=preview npm run drivers:user` (a variable already set in the
+shell wins over the file).
+
+Live mode runs as far as the accounts you give it allow:
+
+| Driver | Accounts given | What runs |
+|---|---|---|
+| user | none (**guest**) | Sign-up form checks and signed-out redirects (owner pages → `/login`, admin page → `/admin/login`). Creates nothing. |
+| user | `DRIVER_CREATE_TEMP_USER=1` (**temp**) | Signs up a throw-away owner (`tagback-driver-<time>@example.com`, stays unverified), signs out and back in, runs the owner flow (claim is blocked — unverified), checks admin pages refuse it, then **deletes the account** through Settings. If deletion fails, the log names the account to remove by hand. |
+| user | `TEST_USER_EMAIL` + `TEST_USER_PASSWORD` | Full owner flow with that account. |
+| admin | none (**guest**) | Every admin route refuses a signed-out visitor; a made-up account is refused at `/admin/login`; `/admin/register` requires the passcode. Creates nothing. |
+| admin | `TEST_ADMIN_EMAIL` + `TEST_ADMIN_PASSWORD` | Full admin console flow. The driver can't create an admin account (it needs the passcode and a verified email, or `scripts/setAdmin.js`). |
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `DRIVER_MODE=live` | both | Turn on live mode |
 | `BASE_URL` | both | App URL (local dev with real config, or the deployed site) |
 | `TEST_USER_EMAIL`, `TEST_USER_PASSWORD` | user only | Normal owner account |
+| `DRIVER_CREATE_TEMP_USER=1` | user only | No owner account: sign up a temporary one and delete it at the end (writes to the live site) |
 | `TEST_ADMIN_EMAIL`, `TEST_ADMIN_PASSWORD` | admin only | Admin account (must differ from the owner) |
 | `DRIVER_ALLOW_WRITES=1` + `TEST_TAG_ID` | both | Allow writes, only on this tag |
 | `CHROME_PATH`, `DRIVER_HEADLESS=0`, `DRIVER_*_TIMEOUT_MS` | both | Optional |
+| `DRIVER_PREVIEW_URL` | both | Preview only: reuse a local preview server (must be `http://localhost…`). Preview mode never uses `BASE_URL`. |
 
 **Writes are off by default.** Without `DRIVER_ALLOW_WRITES=1` and
 `TEST_TAG_ID`, a live run only reads and opens dialogs, then cancels them.

@@ -53,6 +53,10 @@ export const HEADLESS = env.DRIVER_HEADLESS !== '0';
 // Role credentials are read by each driver separately (never shared):
 // TEST_USER_EMAIL / TEST_USER_PASSWORD in user-driver.js,
 // TEST_ADMIN_EMAIL / TEST_ADMIN_PASSWORD in admin-driver.js.
+export function hasEnv(names) {
+  return names.every((n) => !!env[n]);
+}
+
 export function requireEnv(names, role) {
   const missing = names.filter((n) => !env[n]);
   if (missing.length) {
@@ -69,9 +73,14 @@ export async function startApp(role) {
     if (!env.BASE_URL) throw new Error(`[${role}] live mode needs BASE_URL.`);
     return { baseUrl: env.BASE_URL.replace(/\/$/, ''), stop: () => {} };
   }
-  if (env.BASE_URL) {
-    // Caller runs a preview server already.
-    return { baseUrl: env.BASE_URL.replace(/\/$/, ''), stop: () => {} };
+  // Preview never uses BASE_URL (that names the live site in
+  // .env.drivers). Only an explicitly named local preview server is reused.
+  if (env.DRIVER_PREVIEW_URL) {
+    const url = env.DRIVER_PREVIEW_URL.replace(/\/$/, '');
+    if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url)) {
+      throw new Error(`[${role}] DRIVER_PREVIEW_URL must be a localhost URL, got ${url}.`);
+    }
+    return { baseUrl: url, stop: () => {} };
   }
   const port = Number(env.DRIVER_PREVIEW_PORT || (role === 'ADMIN' ? 5298 : 5297));
   const blank = {

@@ -16,6 +16,7 @@ import {
   TEST_TAG_ID,
   TIMEOUTS,
   VIEWPORTS,
+  hasEnv,
   requireEnv,
   startApp,
 } from './driver-config.js';
@@ -23,9 +24,15 @@ import { CriticalFailure, FAKE_NDEF_READER, assert, createRunner, launchBrowser 
 
 const ROLE = 'ADMIN';
 const LIVE = MODE === 'live';
+// Live mode without TEST_ADMIN_* runs the signed-out checks only (guest):
+// admin accounts need the passcode plus a verified email, or setAdmin.js,
+// so the driver can't make one itself.
+const HAVE_ACCOUNT = LIVE && hasEnv(['TEST_ADMIN_EMAIL', 'TEST_ADMIN_PASSWORD']);
+const GUEST = LIVE && !HAVE_ACCOUNT;
+const NO_ACCOUNT = 'no admin account on the live site — set TEST_ADMIN_EMAIL / TEST_ADMIN_PASSWORD';
 // Admin credentials only — this driver never reads the owner variables.
-const creds = LIVE ? requireEnv(['TEST_ADMIN_EMAIL', 'TEST_ADMIN_PASSWORD'], ROLE) : {};
-if (LIVE && process.env.TEST_USER_EMAIL && process.env.TEST_USER_EMAIL === creds.TEST_ADMIN_EMAIL) {
+const creds = HAVE_ACCOUNT ? requireEnv(['TEST_ADMIN_EMAIL', 'TEST_ADMIN_PASSWORD'], ROLE) : {};
+if (HAVE_ACCOUNT && process.env.TEST_USER_EMAIL && process.env.TEST_USER_EMAIL === creds.TEST_ADMIN_EMAIL) {
   throw new Error('[ADMIN] TEST_ADMIN_EMAIL must be a different account from TEST_USER_EMAIL.');
 }
 
@@ -46,16 +53,46 @@ let run;
 // ---- access gate and sign-in
 async function testConsoleNeedsSignIn() {
   if (!LIVE) return run.skip('Console refuses signed-out visitors', 'preview mode bypasses the admin gate');
-  await run.step('Console refuses signed-out visitors', { page: '/admin/inventory' }, async () => {
-    await b.goto('/admin/inventory');
-    await b.waitForPath('/admin/login', { timeout: TIMEOUTS.page });
-    assert((await b.count('a[href="/admin/moderation"]')) === 0, 'no admin navigation before sign-in', 'admin nav visible');
-    return 'signed-out visitor sent to /admin/login';
+  for (const [route] of [...ADMIN_NAV, ['/admin/errors'], ['/admin/tags/TB-ZZZZ-9999']]) {
+    await run.step(`Signed-out visitor refused: ${route}`, { page: route }, async () => {
+      await b.goto(route);
+      await b.waitForPath('/admin/login', { timeout: TIMEOUTS.page });
+      assert((await b.count('a[href="/admin/moderation"]')) === 0, 'no admin navigation before sign-in', 'admin nav visible');
+      return 'sent to /admin/login';
+    });
+  }
+}
+
+// A made-up account can't get in (Firebase answers "wrong email or
+// password"); nothing is created.
+async function testWrongSignInRefused() {
+  if (!LIVE) return run.skip('Unknown account refused at admin sign-in', 'preview mode has no sign-in');
+  await run.step('Unknown account refused at admin sign-in', { page: '/admin/login' }, async () => {
+    await b.goto('/admin/login');
+    await b.fill('#admin-email', 'nobody.tagback-driver@example.com');
+    await b.fill('#admin-password', 'not-a-real-password-1A!');
+    await b.click('Sign in', { within: 'form' });
+    await b.waitFor(`document.querySelector('form [role=alert]')`, { what: 'sign-in error', timeout: TIMEOUTS.page });
+    const msg = await b.eval(`document.querySelector('form [role=alert]').innerText`);
+    assert((await b.path()).startsWith('/admin/login'), 'stays on /admin/login', await b.path());
+    return `refused: "${msg}"`;
+  });
+}
+
+async function testAdminSignupPage() {
+  if (!LIVE) return;
+  await run.step('Admin sign-up page needs the passcode', { page: '/admin/register' }, async () => {
+    await b.goto('/admin/register');
+    await b.click('Create admin account', { within: 'form' });
+    await b.waitForText('Enter the admin passcode.');
+    assert((await b.path()) === '/admin/register', 'nothing submitted', await b.path());
+    return 'passcode required; nothing submitted';
   });
 }
 
 async function loginAsAdmin() {
   if (!LIVE) return run.skip('Sign in as admin', 'preview mode has no sign-in (admin gate bypassed)');
+  if (GUEST) return run.skip('Sign in as admin', NO_ACCOUNT);
   await run.step('Sign in as admin', { page: '/admin/login', critical: true }, async () => {
     await b.goto('/admin/login');
     await b.fill('#admin-email', creds.TEST_ADMIN_EMAIL);
@@ -294,7 +331,8 @@ async function logoutAdmin() {
 
 // ---- main
 async function main() {
-  console.log(`[ADMIN] Starting admin driver — mode: ${MODE}${LIVE ? `, writes: ${ALLOW_WRITES ? `on (TEST_TAG_ID=${TEST_TAG_ID || 'unset'})` : 'off'}` : ''}`);
+  const how = !LIVE ? '' : HAVE_ACCOUNT ? ', account: TEST_ADMIN' : ', account: none (guest checks only)';
+  console.log(`[ADMIN] Starting admin driver — mode: ${MODE}${how}${LIVE ? `, writes: ${ALLOW_WRITES ? `on (TEST_TAG_ID=${TEST_TAG_ID || 'unset'})` : 'off'}` : ''}`);
   const app = await startApp(ROLE);
   b = await launchBrowser(ROLE, { debugPort: 9402, baseUrl: app.baseUrl });
   await b.init(VIEWPORTS.desktop);
@@ -303,6 +341,12 @@ async function main() {
   let code = 1;
   try {
     await testConsoleNeedsSignIn();
+    await testWrongSignInRefused();
+    await testAdminSignupPage();
+    if (GUEST) {
+      run.skip('Admin console (inventory, NFC, moderation, owners, error log, settings)', NO_ACCOUNT);
+      return;
+    }
     await loginAsAdmin();
     await testAdminConsole();
     await testNfcRegistration();
