@@ -85,6 +85,11 @@ CLI.
   blacklist → error log → account deletion). Added after two bugs that
   blocked every real owner slipped past the single-rule tests.
 
+**Browser drivers** (`drivers/`, see [`drivers/README.md`](drivers/README.md)):
+`npm run drivers:user` and `npm run drivers:admin` click through the owner
+console and the admin console separately in Chrome — preview mode by default
+(mock data, nothing real touched), live mode with test accounts.
+
 **CI** (`.github/workflows/ci.yml`) runs the build and both test files on
 every push and pull request.
 
