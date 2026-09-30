@@ -68,6 +68,22 @@ function timeLabel(ms) {
 const scrollBehavior = () =>
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 
+function readTabRole(key) {
+  try {
+    const value = sessionStorage.getItem(key);
+    return value === 'owner' || value === 'finder' ? value : null;
+  } catch {
+    return null;
+  }
+}
+function writeTabRole(key, role) {
+  try {
+    sessionStorage.setItem(key, role);
+  } catch {
+    // Storage blocked: the tab falls back to owner-first.
+  }
+}
+
 // Anonymous two-way chat. The owner is identified by Firebase Auth; the finder
 // by their localStorage session token. Neither party sees the other's PII.
 // Preview-mode placeholder when no real Firebase project is configured —
@@ -79,7 +95,7 @@ function previewItem(tagId) {
 
 export default function Chat() {
   const { chatId } = useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // An admin clicking "View chat" from Moderation.jsx lands here signed in
   // but not owning the tag — without this check they'd fall into the
@@ -151,13 +167,27 @@ export default function Chat() {
   // signed-out owner — is a read-only 'viewer' instead of a "finder" whose
   // every send the rules reject.
   const holdsFinderToken = !firebaseReady || (!!chat?.finderSessionToken && chat.finderSessionToken === getFinderToken());
+  // One browser can hold both sides of a chat: the finder token from filing
+  // the report, and a sign-in as the tag's owner. The sign-in is shared by
+  // every tab, so the owner signing in (to reply from the dashboard) turned
+  // the finder's open tab into the owner's view: the finder's own messages
+  // moved to the left and new ones were sent as the owner. Each tab keeps
+  // the side it was opened as instead (sessionStorage is per tab); a new
+  // tab with both still opens as the owner.
+  const roleKey = `tagback_chat_role_${chatId}`;
+  const pinnedRole = ownsChat && holdsFinderToken ? readTabRole(roleKey) : null;
   const role =
-    isAdminUser && !ownsChat ? 'admin' : ownsChat ? 'owner' : holdsFinderToken ? 'finder' : 'viewer';
+    isAdminUser && !ownsChat
+      ? 'admin'
+      : pinnedRole || (ownsChat ? 'owner' : holdsFinderToken ? 'finder' : 'viewer');
   const finderBlocked = role === 'finder' && tagStatus === 'blacklisted';
   const canWrite = role === 'owner' || (role === 'finder' && !finderBlocked);
   // Until the chat and the admin/owner checks load, `role` may still flip —
   // don't act on it (e.g. mark the wrong side read) before then.
-  const roleReady = !firebaseReady || (!!chat && (!user || (adminChecked && ownTagsLoaded)));
+  const roleReady = !firebaseReady || (!!chat && !authLoading && (!user || (adminChecked && ownTagsLoaded)));
+  useEffect(() => {
+    if (firebaseReady && roleReady && (role === 'owner' || role === 'finder')) writeTabRole(roleKey, role);
+  }, [roleKey, role, roleReady]);
   const listenerError = chatError || messagesError;
 
   const finderTipKey = `tagback_finder_tip_hidden_${chatId}`;

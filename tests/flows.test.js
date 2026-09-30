@@ -329,6 +329,43 @@ describe('5. owner inbox and reply (Dashboard, Messages, Notifications, Chat)', 
     await assertSucceeds(updateDoc(doc(owner(), 'notifications', ids.notif), { read: true }));
   });
 
+  test('the finder keeps replying after the owner replies', async () => {
+    for (const text of ['I found it near the lobby', 'Around 6 PM']) {
+      await assertSucceeds(updateDoc(doc(finder(), 'chats', ids.chat), { unreadFor: arrayRemove('finder') }));
+      await assertSucceeds(
+        addDoc(collection(finder(), 'chats', ids.chat, 'messages'), {
+          sender: 'finder',
+          text,
+          timestamp: serverTimestamp(),
+          finderSessionToken: TOKEN,
+        })
+      );
+      await assertSucceeds(
+        updateDoc(doc(finder(), 'chats', ids.chat), { lastMessageAt: serverTimestamp(), unreadFor: arrayUnion('owner') })
+      );
+      await assertSucceeds(
+        addDoc(collection(owner(), 'chats', ids.chat, 'messages'), { sender: 'owner', text: 'Thanks!', timestamp: serverTimestamp() })
+      );
+    }
+  });
+
+  // One browser can hold the finder token and also be signed in as the
+  // owner (pages/public/Chat.jsx keeps that tab on the finder side). The
+  // finder's messages still only need the token.
+  test('a finder message from a browser signed in as the owner', async () => {
+    await assertSucceeds(
+      addDoc(collection(owner(), 'chats', ids.chat, 'messages'), {
+        sender: 'finder',
+        text: 'Sent from the same browser',
+        timestamp: serverTimestamp(),
+        finderSessionToken: TOKEN,
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(owner(), 'chats', ids.chat), { lastMessageAt: serverTimestamp(), unreadFor: arrayUnion('owner') })
+    );
+  });
+
   test('both sides report the chat', async () => {
     await assertSucceeds(
       updateDoc(doc(owner(), 'chats', ids.chat), { blocked: true, reportedByOwner: { reason: 'spam', at: serverTimestamp() } })
