@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, doc, getCountFromServer, getDoc } from 'firebase/firestore';
-import { Bug, ChevronRight, KeyRound, LogOut } from 'lucide-react';
+import { Bug, ChevronRight, Compass, KeyRound, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { auth, db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTutorial } from '../../components/tutorial/TutorialProvider';
 import { friendlyAuthError } from '../../lib/utils';
 import AdminSignupPasscodeCard from '../../components/AdminSignupPasscodeCard';
 import DevTagRegisterCard from '../../components/DevTagRegisterCard';
@@ -26,6 +27,7 @@ export default function AdminSettings() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const nav = useNavigate();
+  const tutorial = useTutorial();
   const [access, setAccess] = useState(null); // 'claim' | 'passcode' | null
   const [errorCount, setErrorCount] = useState(null);
   const [sending, setSending] = useState(false);
@@ -69,7 +71,11 @@ export default function AdminSettings() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <PageHeader title="Settings" description="Your admin account, console settings and maintenance tools." />
+      <PageHeader
+        title="Settings"
+        description="Your admin account, console settings and maintenance tools."
+        tourId="admin-settings-header"
+      />
 
       <Card className={CARD}>
         <CardHeader>
@@ -113,6 +119,22 @@ export default function AdminSettings() {
           </label>
         </CardContent>
       </Card>
+
+      {tutorial && (
+        <Card className={CARD} data-tour="admin-settings-help">
+          <CardHeader>
+            <CardTitle>Help</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-slate-700 dark:text-slate-200">
+              A short tour of the admin console: inventory, registering and writing tags, moderation and owners.
+            </p>
+            <Button type="button" variant="outline" size="sm" className="mt-3 gap-1.5" onClick={tutorial.start}>
+              <Compass className="h-3.5 w-3.5" /> Start admin tour
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <section aria-labelledby="access-heading" className="space-y-2">
         <h2 id="access-heading" className="px-1 text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">

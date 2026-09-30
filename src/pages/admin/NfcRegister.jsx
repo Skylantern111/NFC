@@ -329,12 +329,13 @@ export default function NfcRegister() {
           )
         }
         documentTitle="Register tags"
+        tourId="nfc-register-header"
       />
 
       {loadingExisting && <LoadingState label="Loading tag…" />}
 
       {!loadingExisting && (
-      <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
+      <Card data-tour="nfc-register" className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
         <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
           {phase === 'idle' && (
             <>

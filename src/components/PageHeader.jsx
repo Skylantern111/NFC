@@ -6,14 +6,15 @@ import { setPageTitle } from '../lib/pageTitle';
 // am I?" the same way everywhere, names the browser tab (A11Y5), and gives
 // the page's main action one fixed place (top right, or under the title on
 // phones).
-export default function PageHeader({ title, description, backTo, backLabel = 'Back', actions, documentTitle }) {
+// `tourId` marks the header for the guided tour (components/tutorial).
+export default function PageHeader({ title, description, backTo, backLabel = 'Back', actions, documentTitle, tourId }) {
   useEffect(() => {
     setPageTitle(documentTitle ?? (typeof title === 'string' ? title : ''));
     return () => setPageTitle('');
   }, [title, documentTitle]);
 
   return (
-    <div className="mb-6 space-y-3">
+    <div className="mb-6 space-y-3" data-tour={tourId}>
       {backTo && <BackButton fallback={backTo} label={backLabel} className="-ml-1 min-h-11" />}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">

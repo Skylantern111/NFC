@@ -111,10 +111,11 @@ export default function Owners() {
     <div className="space-y-4">
       <PageHeader
         title="Owners"
+        tourId="owners-header"
         description="Look up which account holds a tag, see their other tags, and disable an abusive owner."
       />
 
-      <form onSubmit={onSearch} className="flex flex-wrap items-center gap-2">
+      <form onSubmit={onSearch} className="flex flex-wrap items-center gap-2" data-tour="owners-search">
         <Input
           aria-label="TagBack ID"
           placeholder="Paste a TagBack ID, e.g. TB-ABCD-2345"

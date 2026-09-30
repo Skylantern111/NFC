@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TriangleAlert } from 'lucide-react';
+import { Compass, TriangleAlert } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { toast } from 'sonner';
 import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTutorial } from '../../components/tutorial/TutorialProvider';
 import { deleteMyAccount } from '../../lib/account';
 import { friendlyAuthError, friendlyFirestoreError } from '../../lib/utils';
 import GlassCard from '../../components/GlassCard';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import FormField, { FormError } from '../../components/FormField';
+import FormField from '../../components/FormField';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
@@ -26,6 +27,24 @@ import {
 } from '../../components/ui/dialog';
 
 const NAME_MAX = 80;
+
+// Restarts the guided tour (components/tutorial). Absent outside the
+// dashboard layout, where there's no tour to start.
+function HelpCard() {
+  const tutorial = useTutorial();
+  if (!tutorial) return null;
+  return (
+    <GlassCard data-tour="settings-help">
+      <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Help</h2>
+      <p className="text-sm text-slate-700 dark:text-slate-200">
+        New to TagBack? Take a short tour of claiming tags, Lost Mode and messages.
+      </p>
+      <Button type="button" variant="outline" size="sm" className="mt-3" onClick={tutorial.start}>
+        <Compass className="h-4 w-4" /> Start the tour again
+      </Button>
+    </GlassCard>
+  );
+}
 
 // Owner display name (UI_UX_IMPROVEMENT_ROUND2.md B4): the Auth profile and
 // users/{uid}.displayName, which the owner may already update. Private —
@@ -144,7 +163,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" tourId="settings-header" />
 
       <GlassCard>
         <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Appearance</h2>
@@ -198,6 +217,8 @@ export default function Settings() {
           </p>
         </GlassCard>
       )}
+
+      <HelpCard />
 
       {/* OWN4: the one irreversible action lives on its own. */}
       {user && (

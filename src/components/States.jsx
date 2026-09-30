@@ -50,9 +50,9 @@ export function SkeletonList({ count = 3, className = 'h-20' }) {
   );
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className = '' }) {
+export function EmptyState({ icon: Icon, title, description, action, className = '', ...props }) {
   return (
-    <div className={cn(SURFACE, 'flex flex-col items-center gap-3 px-6 py-10 text-center', className)}>
+    <div className={cn(SURFACE, 'flex flex-col items-center gap-3 px-6 py-10 text-center', className)} {...props}>
       {Icon && (
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
           <Icon className="h-6 w-6 text-slate-600 dark:text-slate-400" aria-hidden="true" />

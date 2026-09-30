@@ -104,7 +104,9 @@ function Brand({ to, subtitle, admin }) {
 // `admin` gives the shell a small, deliberate identity distinct from the
 // owner dashboard it's structurally copied from: an amber subtitle pill and
 // an amber left-border on the active nav item.
-export default function SidebarShell({ subtitle, homeTo, navItems, drawerItems, userLabel, onLogout, admin }) {
+// `tourId` marks both the desktop rail and the phone top bar for the guided
+// tour; whichever is on screen gets highlighted.
+export default function SidebarShell({ subtitle, homeTo, navItems, drawerItems, userLabel, onLogout, admin, tourId }) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const menuItems = drawerItems || navItems;
@@ -122,14 +124,14 @@ export default function SidebarShell({ subtitle, homeTo, navItems, drawerItems, 
       </a>
 
       {/* Desktop rail */}
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-56 shrink-0 flex-col bg-base shadow-neu-flat md:flex">
+      <aside data-tour={tourId} className="fixed inset-y-0 left-0 z-20 hidden w-56 shrink-0 flex-col bg-base shadow-neu-flat md:flex">
         <Brand to={homeTo} subtitle={subtitle} admin={admin} />
         <NavList navItems={navItems} admin={admin} />
         <Footer userLabel={userLabel} onLogout={onLogout} />
       </aside>
 
       {/* Mobile top bar + drawer */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 bg-base px-4 py-2 shadow-neu-flat-sm md:hidden">
+      <header data-tour={tourId} className="sticky top-0 z-20 flex items-center justify-between gap-3 bg-base px-4 py-2 shadow-neu-flat-sm md:hidden">
         <Link to={homeTo} className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
             <Tag className="h-4 w-4 text-white" aria-hidden="true" />

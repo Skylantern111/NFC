@@ -133,6 +133,7 @@ export default function TagContentIndex() {
     <div className="space-y-4">
       <PageHeader
         title="Tag Content"
+        tourId="tag-content-header"
         description="Choose what a tap shows — the Lost & Found page, a profile card, or a redirect. Stickers only hold their TagBack link, so changes apply on the next tap with no rewrite."
       />
 

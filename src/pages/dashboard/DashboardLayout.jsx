@@ -9,6 +9,8 @@ import { useAuth, useVerificationWatch } from '../../context/AuthContext';
 import { InlineAlert } from '../../components/States';
 import { Button } from '../../components/ui/button';
 import { OwnerTagIdsProvider } from '../../lib/ownerItems';
+import TutorialProvider from '../../components/tutorial/TutorialProvider';
+import { USER_TOUR } from '../../components/tutorial/userTour';
 
 // Reminder on every owner page until the email is verified, except on the
 // verify page itself. Browsing stays open; only claiming needs it.
@@ -57,6 +59,7 @@ export default function DashboardLayout() {
   return (
     <OwnerTagIdsProvider user={user}>
       <OwnerNotificationsProvider>
+        <TutorialProvider tour={USER_TOUR}>
         <AmbientBackground />
         <DashboardSidebar />
         {/* pb-28 on phones keeps content clear of the bottom tab bar. */}
@@ -71,6 +74,7 @@ export default function DashboardLayout() {
           </div>
         </main>
         <BottomTabBar />
+        </TutorialProvider>
       </OwnerNotificationsProvider>
     </OwnerTagIdsProvider>
   );

@@ -131,6 +131,7 @@ export default function Dashboard() {
       <PageHeader
         title={firstName ? `Hi, ${firstName}` : 'Home'}
         documentTitle="Home"
+        tourId="dashboard-header"
         description={
           incidents.length > 0
             ? `${incidents.length === 1 ? 'Someone found one of your items' : `${incidents.length} of your items were found`}. Reply below.`
@@ -150,7 +151,7 @@ export default function Dashboard() {
       ) : loadError ? (
         <LoadErrorState what="your items" error={loadError} onRetry={retryLoad} />
       ) : firstRun ? (
-        <GlassCard>
+        <GlassCard data-tour="dashboard-status">
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             Get started in {steps.length === 4 ? 'four' : 'three'} steps
           </h2>
@@ -184,7 +185,7 @@ export default function Dashboard() {
           </p>
         </GlassCard>
       ) : incidents.length > 0 ? (
-        <section className="space-y-3" aria-labelledby="incidents-heading">
+        <section className="space-y-3" aria-labelledby="incidents-heading" data-tour="dashboard-status">
           <h2 id="incidents-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
             Action needed
           </h2>
@@ -222,7 +223,7 @@ export default function Dashboard() {
           ))}
         </section>
       ) : (
-        <GlassCard className="flex flex-col items-center gap-3 text-center">
+        <GlassCard className="flex flex-col items-center gap-3 text-center" data-tour="dashboard-status">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-success">
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </span>

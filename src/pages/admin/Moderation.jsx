@@ -138,6 +138,7 @@ export default function Moderation() {
     <div className="space-y-4">
       <PageHeader
         title="Moderation"
+        tourId="moderation-header"
         description="Reported conversations. Banning a finder blocks their browser from new reports and messages anywhere in TagBack."
       />
 

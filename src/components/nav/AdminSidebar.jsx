@@ -37,6 +37,7 @@ export default function AdminSidebar() {
       userLabel={user?.email || 'Signed in'}
       onLogout={onLogout}
       admin
+      tourId="admin-nav"
     />
   );
 }

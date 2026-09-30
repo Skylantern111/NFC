@@ -12,7 +12,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  updateDoc,
   where,
   startAfter,
   writeBatch,
@@ -498,7 +497,7 @@ export default function Inventory() {
   const allSelectableChecked = selectableRows.length > 0 && selectableRows.every((t) => selectedIds.has(t.tagId));
 
   function toggleSelectAll() {
-    setSelectedIds((prev) => {
+    setSelectedIds(() => {
       if (allSelectableChecked) return new Set();
       return new Set(selectableRows.map((t) => t.tagId));
     });
@@ -508,6 +507,7 @@ export default function Inventory() {
     <div className="space-y-4">
       <PageHeader
         title="Inventory"
+        tourId="inventory-header"
         description="Registered NFC stickers and where each one is in its life: registered, claimed or blacklisted."
         actions={
           <Button asChild variant="primary" className="gap-2">
@@ -519,7 +519,7 @@ export default function Inventory() {
       />
 
       {/* KPI strip — real counts from the tags collection */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-tour="inventory-status">
         {STATUS_TABS.map((s) => (
           <div key={s.value} className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
             <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
@@ -537,7 +537,7 @@ export default function Inventory() {
         ))}
       </div>
 
-      <Card className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-card">
+      <Card data-tour="inventory-table" className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-card">
         <CardHeader>
           <CardTitle>Tag lifecycle</CardTitle>
           <CardDescription className="text-slate-600 dark:text-slate-400">

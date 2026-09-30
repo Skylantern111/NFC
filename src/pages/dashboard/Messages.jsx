@@ -45,6 +45,7 @@ export default function Messages() {
             ? `${unreadChatCount} conversation${unreadChatCount === 1 ? '' : 's'} with new messages.`
             : 'Private chats with people who found your items.'
         }
+        tourId="messages-header"
       />
 
       {loading && <SkeletonList count={3} className="h-16" />}
@@ -53,6 +54,7 @@ export default function Messages() {
 
       {!loading && !chatsError && chats.length === 0 && (
         <EmptyState
+          data-tour="messages-empty"
           icon={MessageSquare}
           title="No conversations yet"
           description="You don't have any conversations yet. When someone finds your item and messages you, the chat shows up here."
@@ -60,7 +62,7 @@ export default function Messages() {
       )}
 
       {!loading && chats.length > 0 && (
-        <div role="group" aria-label="Filter conversations" className="flex flex-wrap gap-2">
+        <div role="group" aria-label="Filter conversations" className="flex flex-wrap gap-2" data-tour="messages-filters">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -88,7 +90,7 @@ export default function Messages() {
       )}
 
       {!loading && visibleChats.length > 0 && (
-        <ul className="glass divide-y divide-slate-200/70 dark:divide-white/10 overflow-hidden p-0">
+        <ul className="glass divide-y divide-slate-200/70 dark:divide-white/10 overflow-hidden p-0" data-tour="messages-list">
           {visibleChats.map((chat) => {
             const item = itemsByTag[chat.tagId];
             const unread = isChatUnreadForOwner(chat);

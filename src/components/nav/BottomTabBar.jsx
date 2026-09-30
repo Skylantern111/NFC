@@ -10,6 +10,7 @@ export default function BottomTabBar() {
   return (
     <nav
       aria-label="Main"
+      data-tour-bottom-bar=""
       className="fixed inset-x-0 bottom-0 z-20 flex border-t border-white/60 dark:border-white/10 bg-base/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
       {items.map(({ to, label, icon: Icon, end, badge, dot }) => (

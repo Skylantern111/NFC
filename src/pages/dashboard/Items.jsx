@@ -235,6 +235,7 @@ export default function Items() {
       <PageHeader
         title="My Items"
         description="Everything with a TagBack tag on it."
+        tourId="items-header"
         actions={
           items.length > 0 && (
             <Button asChild variant="primary">
@@ -252,6 +253,7 @@ export default function Items() {
 
       {!loading && !loadError && items.length === 0 && (
         <EmptyState
+          data-tour="items-empty"
           icon={PackageSearch}
           title="No items yet"
           description="You haven't claimed an NFC tag yet. Claim one to start protecting your belongings."
@@ -291,7 +293,7 @@ export default function Items() {
         />
       )}
 
-      <ul className="space-y-3">
+      <ul className="space-y-3" data-tour="items-list">
         {visibleItems.map((it) => {
           const status = itemStatus(it, openTagSet.has(it.tagId));
           const chat = chatByTag[it.tagId];
@@ -412,7 +414,7 @@ export default function Items() {
 
               {/* One clear next action per state (ITEM1/ITEM7). */}
               {!flagged && (
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-2" data-tour="lost-mode">
                   {chat && (
                     <Button asChild variant="primary" size="sm">
                       <Link to={`/chat/${chat.id}`}>

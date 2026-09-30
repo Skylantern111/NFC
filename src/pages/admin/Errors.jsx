@@ -72,6 +72,7 @@ export default function Errors() {
     <div className="space-y-4">
       <PageHeader
         title="Error log"
+        tourId="errors-header"
         backTo="/admin/settings"
         backLabel="Settings"
         description="Crashes reported from people's browsers (latest 100). Each browser reports at most 5 per page load."

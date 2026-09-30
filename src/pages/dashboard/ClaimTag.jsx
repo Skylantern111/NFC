@@ -207,7 +207,7 @@ export default function ClaimTag() {
   if (firebaseReady && user && !user.emailVerified) {
     return (
       <div className="mx-auto max-w-xl">
-        <PageHeader title="Claim a tag" backTo="/dashboard/items" />
+        <PageHeader title="Claim a tag" backTo="/dashboard/items" tourId="claim-header" />
         <EmptyState
           icon={MailCheck}
           title="Verify your email first"
@@ -228,9 +228,10 @@ export default function ClaimTag() {
         title="Claim a tag"
         description="Link a TagBack sticker to your account so finders can reach you."
         backTo="/dashboard/items"
+        tourId="claim-header"
       />
       <form onSubmit={onSubmit} noValidate className="space-y-4">
-        <GlassCard className="space-y-4">
+        <GlassCard className="space-y-4" data-tour="claim-find">
           <h2 className="font-bold text-slate-800 dark:text-slate-100">1. Find your tag</h2>
           {nfcSupported ? (
             <NfcScanPanel
@@ -270,7 +271,7 @@ export default function ClaimTag() {
           </FormField>
         </GlassCard>
 
-        <GlassCard className="space-y-4">
+        <GlassCard className="space-y-4" data-tour="claim-details">
           <h2 className="font-bold text-slate-800 dark:text-slate-100">2. Describe the item</h2>
           <ItemDetailsFields
             ref={itemNameRef}

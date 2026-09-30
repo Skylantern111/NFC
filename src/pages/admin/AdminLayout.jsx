@@ -4,6 +4,8 @@ import { ErrorState, LoadingState } from '../../components/States';
 import AdminSidebar from '../../components/nav/AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
 import { getAdminStatus } from '../../lib/adminAuth';
+import TutorialProvider from '../../components/tutorial/TutorialProvider';
+import { ADMIN_TOUR } from '../../components/tutorial/adminTour';
 
 // No AmbientBackground / backdrop-blur here: solid surfaces keep large
 // data tables scrolling at 60fps.
@@ -81,6 +83,9 @@ function AdminGate({ children }) {
 export default function AdminLayout() {
   return (
     <AdminGate>
+      {/* Inside AdminGate: the admin tour only mounts once admin access is
+          confirmed (the owner tour lives in DashboardLayout). */}
+      <TutorialProvider tour={ADMIN_TOUR}>
       <div className="min-h-screen bg-base">
         <AdminSidebar />
         <main id="main" tabIndex={-1} className="px-4 py-6 outline-none sm:px-8 sm:py-8 md:ml-56">
@@ -91,6 +96,7 @@ export default function AdminLayout() {
           </Suspense>
         </main>
       </div>
+      </TutorialProvider>
     </AdminGate>
   );
 }
