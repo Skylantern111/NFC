@@ -274,3 +274,28 @@ UI shouldn't pretend to fix them. Details in `SYSTEM_DOCUMENTATION.md` §26.
   round.
 - **TalkBack and VoiceOver:** not verified. Only markup-level checks
   (labels, `aria-describedby`, live regions, focus order).
+
+
+
+
+- Deploy retry: the first deploy attempt failed before uploading anything. The Firebase command line got a web page back instead of data, most likely a network or login blip. The retry went through completely.
+- Database rules: unchanged this round. They were deployed again alongside the website, as DEPLOY.md asks.
+- main is behind again: I deployed from tag-content-security-audit, and main hasn't been updated with this round yet. Say "merge" and I'll fast-forward it like last time.
+- CI: I can't see whether GitHub CI passed. Check GitHub → Actions.
+
+Your part
+
+Everything below needs a real phone, a real account, or your decision. I can't do these from here.
+
+
+3. Account housekeeping
+- [ ] Make sure your own admin account's email is verified. Unverified passcode admins no longer get admin rights.
+- [ ] Delete test or wrong-email accounts in the Firebase console (docs/FIREBASE_SETUP.md, "Cleaning up wrong-email accounts").
+
+4. Decide on the security issues (docs/UI_UX_IMPROVEMENT_ROUND2.md Part C). The most important: an owner can delete a finder's report against them. The fix is a database rule change, and I can do it next if you want.
+
+5. For your thesis
+- [ ] Run a short test with 3–5 people who have never seen TagBack. Give them a tagged item and ask them to "return it". Watch where they hesitate.
+- [ ] Take screenshots of the new flows for your write-up. SYSTEM_DOCUMENTATION.md is your technical reference.
+
+Send me whatever breaks in step 1 or 2 and I'll fix it.
