@@ -1601,7 +1601,6 @@ noted. "Rules" names the relevant `firestore.rules` match block.
 | Open reports | `useOwnerOpenReports` | `reports` where `tagId in [≤30]` and `status == 'open'` (chunked) | Yes | `reports` read (owner) |
 | Chats | `useOwnerChats` | `chats` where `tagId in [≤30]` (chunked); latest message per chat (`orderBy timestamp desc, limit 1`) | Yes / one-shot | `chats` list; `messages` read |
 | Notifications | `useOwnerNotifications` | `notifications` where `tagId in`, `orderBy createdAt desc`, `limit 200` per chunk | Yes | `notifications` read; needs the composite index |
-| Chat by report | `findChatIdForReport` | `chats` where `tagId ==`, `reportId ==`, limit 1 | No | `chats` list |
 | Chat + messages | `useChat`, `useChatMessages` | doc; `messages` orderBy timestamp asc | Yes | `chats` get, `messages` read |
 | Public item / profile | `getPublicItem`, `getTagProfile`, `NfcLanding` | by ID | No | `items`/`tagProfiles` get |
 | Scan counts | `getTagScanCount`, `getTagScanBreakdown` | `getCountFromServer` (+ `where landingMode ==`) | No | `scans` read (owner/admin) |
@@ -2080,7 +2079,7 @@ main.jsx
 #### `useChat(chatId)`, `useChatMessages(chatId)`
 - **File:** `src/lib/ownerItems.js` — live chat doc / messages with `pending`, `error`, `retry`.
 
-#### `findChatIdForReport(report)`, `getPublicItem(tagId)`
+#### `getPublicItem(tagId)`
 - **File:** `src/lib/ownerItems.js`.
 
 #### `notifyOwner({ type, tagId, chatId, reportId })`, `markNotificationRead(id)`, `markAllNotificationsRead(ids)`, `clearReadNotifications(ids)`

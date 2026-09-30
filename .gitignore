@@ -17,7 +17,3 @@ dist-ssr
 
 # Local Firestore backups from scripts/exportFirestore.js (private data).
 backups/
-
-# Browser driver failure screenshots (drivers/README.md). Credentials go in
-# drivers/.env.drivers, already ignored by .env.* above.
-drivers/output/

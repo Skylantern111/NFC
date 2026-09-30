@@ -9,9 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "firebase emulators:exec --only firestore \"vitest run\"",
-    "test:watch": "firebase emulators:exec --only firestore \"vitest\"",
-    "drivers:user": "node drivers/user-driver.js",
-    "drivers:admin": "node drivers/admin-driver.js"
+    "test:watch": "firebase emulators:exec --only firestore \"vitest\""
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.11",

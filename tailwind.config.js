@@ -112,47 +112,6 @@ export default {
         // Softer than shadow-lg for glass content cards (UI_UX_IMPROVEMENT_PLAN.md B.5).
         card: '0 8px 24px -12px rgba(30, 41, 59, 0.18)',
       },
-      keyframes: {
-        // Slowly drifting ambient orbs. Small translate range = cheap GPU work.
-        drift1: {
-          '0%,100%': { transform: 'translate(0, 0) scale(1)' },
-          '50%': { transform: 'translate(4%, 5%) scale(1.08)' },
-        },
-        drift2: {
-          '0%,100%': { transform: 'translate(0, 0) scale(1)' },
-          '50%': { transform: 'translate(-5%, 3%) scale(1.05)' },
-        },
-        drift3: {
-          '0%,100%': { transform: 'translate(0, 0) scale(1)' },
-          '50%': { transform: 'translate(3%, -4%) scale(1.1)' },
-        },
-        pulseGlow: {
-          '0%,100%': { boxShadow: '0 0 24px rgba(239,68,68,0.35)' },
-          '50%': { boxShadow: '0 0 40px rgba(239,68,68,0.6)' },
-        },
-        // shadcn/ui component animations (accordion, input-otp caret).
-        'accordion-down': {
-          from: { height: '0' },
-          to: { height: 'var(--radix-accordion-content-height)' },
-        },
-        'accordion-up': {
-          from: { height: 'var(--radix-accordion-content-height)' },
-          to: { height: '0' },
-        },
-        'caret-blink': {
-          '0%,70%,100%': { opacity: '1' },
-          '20%,50%': { opacity: '0' },
-        },
-      },
-      animation: {
-        drift1: 'drift1 18s ease-in-out infinite',
-        drift2: 'drift2 22s ease-in-out infinite',
-        drift3: 'drift3 15s ease-in-out infinite',
-        pulseGlow: 'pulseGlow 2.2s ease-in-out infinite',
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
-        'caret-blink': 'caret-blink 1.25s ease-out infinite',
-      },
     },
   },
   plugins: [require('tailwindcss-animate')],

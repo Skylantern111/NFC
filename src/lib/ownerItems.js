@@ -325,28 +325,6 @@ export function useOwnerOpenReports(tagIds) {
   return { reports, loading: firebaseReady ? loading : false, error, retry };
 }
 
-// NfcLanding.jsx creates `reports` and `chats` as two separate addDoc calls
-// (no chatId stored back on the report), so the hero card looks the paired
-// chat up by querying chats where reportId == report.id.
-export async function findChatIdForReport(report) {
-  if (!firebaseReady) return `preview-${report.tagId}`;
-  try {
-    // The tagId filter is what lets firestore.rules' chats `list` clause
-    // (owner of that tag only) approve this query.
-    const q = query(
-      collection(db, 'chats'),
-      where('tagId', '==', report.tagId),
-      where('reportId', '==', report.id),
-      limit(1)
-    );
-    const snap = await getDocs(q);
-    if (!snap.empty) return snap.docs[0].id;
-  } catch {
-    // Fall through to null — hero card just omits the "Open chat" link.
-  }
-  return null;
-}
-
 // Live: every chat against one of the owner's tags — the join described on
 // useOwnerTagIds. Sorted newest-activity-first client-side since Firestore
 // can't combine an `in` filter with orderBy on a different field without a
