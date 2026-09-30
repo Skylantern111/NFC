@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-card';
+const CARD = 'rounded-lg border-2 border-foreground bg-card shadow-card';
 const ROW_LIMIT = 100;
 
 const MODE_FILTERS = [{ value: 'all', label: 'All' }, ...LANDING_MODES.map(({ value, label }) => ({ value, label }))];
@@ -163,10 +163,10 @@ export default function TagContentIndex() {
                   type="button"
                   onClick={() => setModeFilter(m.value)}
                   aria-pressed={modeFilter === m.value}
-                  className={`min-h-9 rounded-full px-3 text-sm font-medium transition-shadow ${
+                  className={`min-h-9 rounded-md border-2 border-foreground px-3 text-sm font-bold transition-all ${
                     modeFilter === m.value
-                      ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-200 shadow-neu-pressed-sm'
-                      : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
+                      ? 'bg-primary text-primary-foreground shadow-brut-sm'
+                      : 'bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}
                 >
                   {m.label}
@@ -178,7 +178,7 @@ export default function TagContentIndex() {
                 <PencilLine className="h-3.5 w-3.5" /> Set content ({selected.size})
               </Button>
             ) : (
-              <p className="text-xs text-slate-600 dark:text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Select unclaimed tags to set their content in one go.
               </p>
             )}
@@ -189,12 +189,12 @@ export default function TagContentIndex() {
           <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
             <Table className="stack-table">
               <TableHeader>
-                <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                <TableRow className="border-foreground hover:bg-transparent">
                   <TableHead className="w-8" />
-                  <TableHead className="text-slate-600 dark:text-slate-400">TagBack ID</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Status</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Tap shows</TableHead>
-                  <TableHead className="text-right text-slate-600 dark:text-slate-400">Actions</TableHead>
+                  <TableHead className="text-muted-foreground">TagBack ID</TableHead>
+                  <TableHead className="text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-muted-foreground">Tap shows</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -211,7 +211,7 @@ export default function TagContentIndex() {
                   ))}
                 {!loading && visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={5} data-full className="py-8 text-center text-slate-600 dark:text-slate-400">
+                    <TableCell colSpan={5} data-full className="py-8 text-center text-muted-foreground">
                       {firebaseReady ? 'No tags in this view.' : 'Preview mode — no Firestore configured.'}
                     </TableCell>
                   </TableRow>
@@ -219,7 +219,7 @@ export default function TagContentIndex() {
                 {visible.map((t) => {
                   const profile = profiles[t.tagId];
                   return (
-                    <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
+                    <TableRow key={t.tagId} className="border-foreground hover:bg-muted">
                       <TableCell data-label="Select">
                         {/* Bulk only targets unclaimed tags — never overwrite an owner's content. */}
                         <Checkbox
@@ -230,13 +230,13 @@ export default function TagContentIndex() {
                           title={t.status !== 'registered' ? 'Owned tags are edited one at a time' : undefined}
                         />
                       </TableCell>
-                      <TableCell data-label="TagBack ID" className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">{t.tagId}</TableCell>
+                      <TableCell data-label="TagBack ID" className="font-mono text-xs font-semibold text-foreground">{t.tagId}</TableCell>
                       <TableCell data-label="Status">
                         <StatusBadge state={t.status || 'registered'} />
                       </TableCell>
                       <TableCell
                         data-label="Tap shows"
-                        className="max-w-56 truncate text-xs text-slate-600 dark:text-slate-300"
+                        className="max-w-56 truncate text-xs text-muted-foreground"
                         title={profile?.redirectUrl || contentLabel(profile)}
                       >
                         {contentLabel(profile)}

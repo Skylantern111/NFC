@@ -306,14 +306,14 @@ export default function Items() {
               ref={highlighted ? claimedRef : undefined}
               className={cn(
                 'glass p-4 sm:p-5',
-                it.isLostMode && 'border-2 border-red-400 dark:border-red-500/50 bg-red-50/70 dark:bg-red-500/10',
-                highlighted && 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent'
+                it.isLostMode && 'border-2 border-foreground bg-destructive-soft',
+                highlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-transparent'
               )}
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="break-words text-base font-bold text-slate-800 dark:text-slate-100">{it.itemName}</p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="break-words text-base font-bold text-foreground">{it.itemName}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <StatusBadge state={status} />
                     {it.category && (
                       <span className="inline-flex items-center gap-1">
@@ -330,9 +330,9 @@ export default function Items() {
                     )}
                   </div>
                   {it.isLostMode && (it.lostMessage || it.rewardAmount > 0) && (
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                    <p className="text-sm text-foreground">
                       {it.rewardAmount > 0 && (
-                        <span className="font-semibold text-warning">Reward {formatReward(it.rewardAmount)}. </span>
+                        <span className="font-semibold text-foreground">Reward {formatReward(it.rewardAmount)}. </span>
                       )}
                       {it.lostMessage}
                     </p>
@@ -377,7 +377,7 @@ export default function Items() {
                             setLastMenuTag(it.tagId);
                             setReleaseDialog({ tagId: it.tagId, name: it.itemName });
                           }}
-                          className="text-red-700 focus:text-red-700 dark:text-red-300"
+                          className="text-foreground focus:text-foreground"
                         >
                           <Unlink className="h-4 w-4" /> Release tag…
                         </DropdownMenuItem>
@@ -454,7 +454,7 @@ export default function Items() {
                 </div>
               )}
               {flagged && (
-                <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">
+                <p className="mt-3 text-sm text-foreground">
                   An admin flagged this tag, so finders can't report or message on it. Contact TagBack if this seems wrong.
                 </p>
               )}
@@ -466,32 +466,32 @@ export default function Items() {
       {!loading && !loadError && recovered.length > 0 && !lostOnly && !search && (
         <section aria-labelledby="recovered-heading" className="space-y-2 pt-2">
           <div>
-            <h2 id="recovered-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
+            <h2 id="recovered-heading" className="text-lg font-bold text-foreground">
               Recovered
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-muted-foreground">
               Items finders helped return. Their chats stay open for any follow-up.
             </p>
           </div>
-          <ul className="glass divide-y divide-slate-200/70 overflow-hidden p-0 dark:divide-white/10">
+          <ul className="glass divide-y divide-foreground/15 overflow-hidden p-0">
             {recovered.map(({ chat, itemName }) => (
               <li key={chat.id}>
                 <Link
                   to={`/chat/${chat.id}`}
-                  className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5"
+                  className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted"
                 >
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    <span className="block truncate text-sm font-semibold text-foreground">
                       {itemName}
                     </span>
-                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                    <span className="block text-xs text-muted-foreground">
                       Marked recovered · last message {relativeTimeFromMs(toMillis(chat.lastMessageAt)) || '—'}
                     </span>
                   </span>
-                  <span className="hidden shrink-0 text-sm font-medium text-purple-700 dark:text-purple-300 sm:inline">Open chat</span>
+                  <span className="hidden shrink-0 text-sm font-medium text-primary sm:inline">Open chat</span>
                   <span className="sr-only sm:hidden">Open chat</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </Link>
               </li>
             ))}
@@ -548,9 +548,9 @@ export default function Items() {
               />
             </FormField>
             {(armDialog?.lostMessage || Number(armDialog?.rewardAmount) > 0) && (
-              <div className="rounded-2xl bg-base px-4 py-3 text-sm shadow-neu-pressed-sm">
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Finders will see</p>
-                <p className="mt-1 text-slate-800 dark:text-slate-100">
+              <div className="rounded-lg bg-base px-4 py-3 text-sm shadow-neu-pressed-sm">
+                <p className="text-xs font-semibold text-muted-foreground">Finders will see</p>
+                <p className="mt-1 text-foreground">
                   {Number(armDialog?.rewardAmount) > 0 && <strong>Reward {formatReward(armDialog.rewardAmount)}. </strong>}
                   {armDialog?.lostMessage}
                 </p>

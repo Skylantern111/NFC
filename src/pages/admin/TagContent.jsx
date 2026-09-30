@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-card';
+const CARD = 'rounded-lg border-2 border-foreground bg-card shadow-card';
 const BULK_KEY = 'tagContentBulkSelection';
 
 // Admin editor for what a tap on a sticker shows (NFC_WRITE_DATA_ADMIN_PLAN.md).
@@ -184,32 +184,32 @@ export default function TagContent() {
         <CardContent className="space-y-2 p-6 text-sm">
           {bulk ? (
             <>
-              <p className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
+              <p className="flex items-center gap-1.5 font-semibold text-foreground">
                 <Users className="h-4 w-4" /> {bulkIds.length} unclaimed tag{bulkIds.length === 1 ? '' : 's'}
               </p>
-              <p className="max-h-24 overflow-y-auto font-mono text-xs text-slate-600 dark:text-slate-400">
+              <p className="max-h-24 overflow-y-auto font-mono text-xs text-muted-foreground">
                 {bulkIds.join(', ')}
               </p>
               {bulkSkipped > 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-300">
+                <p className="text-xs text-foreground">
                   {bulkSkipped} selected tag{bulkSkipped === 1 ? ' was' : 's were'} skipped: bulk content only applies to
                   unclaimed tags, so owners' own content is never overwritten.
                 </p>
               )}
-              <p className="text-xs text-slate-600 dark:text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Replaces any existing content on these tags.
               </p>
             </>
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-slate-800 dark:text-slate-100">{tag.tagId}</span>
+                <span className="font-mono text-foreground">{tag.tagId}</span>
                 <Badge variant="outline" className={TAG_STATUS_BADGE[tag.status] || TAG_STATUS_BADGE.registered}>
                   {tag.status}
                 </Badge>
                 {scanCount !== null && (
                   <span
-                    className="text-xs text-slate-600 dark:text-slate-400"
+                    className="text-xs text-muted-foreground"
                     title="Taps before tag content existed have no mode, so the parts can add up to less than the total."
                   >
                     {scanCount.total} tap{scanCount.total === 1 ? '' : 's'} recorded
@@ -218,16 +218,16 @@ export default function TagContent() {
                   </span>
                 )}
               </div>
-              {itemName && <p className="text-slate-600 dark:text-slate-300">Item: {itemName}</p>}
+              {itemName && <p className="text-muted-foreground">Item: {itemName}</p>}
               {tag.status === 'claimed' && (
-                <p className="flex items-start gap-1.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+                <p className="flex items-start gap-1.5 rounded-xl border border-foreground bg-warning-soft px-3.5 py-2.5 text-xs text-foreground">
                   <TriangleAlert className="h-3.5 w-3.5 shrink-0 translate-y-0.5" />
                   This tag belongs to an owner. Your save replaces their content, and their NFC profile page will show
                   it was last edited by an admin.
                 </p>
               )}
               {tag.status === 'registered' && (
-                <p className="text-xs text-slate-600 dark:text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   Unclaimed. Setting Profile card or Redirect makes this a TagBack-managed tag that nobody can claim.
                   Set it back to Lost &amp; Found to hand it out to an owner.
                 </p>
@@ -254,13 +254,13 @@ export default function TagContent() {
                 <Link to="/admin/tags">Back to Tag Content</Link>
               </Button>
               {!bulk && hasSaved && !confirmReset && (
-                <Button type="button" variant="outline" className="text-red-700 dark:text-red-300" onClick={() => setConfirmReset(true)}>
+                <Button type="button" variant="outline" className="text-foreground" onClick={() => setConfirmReset(true)}>
                   Reset content
                 </Button>
               )}
             </div>
             {confirmReset && (
-              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 dark:border-red-500/30 bg-destructive-soft px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-100">
+              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-foreground bg-destructive-soft px-3.5 py-2.5 text-sm text-foreground">
                 <span className="flex-1">
                   Delete this tag's content? A tap will show the default Lost &amp; Found page. This can't be undone.
                 </span>

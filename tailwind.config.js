@@ -1,26 +1,18 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Light-only now — no `.dark` theme. `darkMode: 'class'` kept harmless so any
+  // leftover `dark:` utility never matches (class is never applied).
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        // Reserved deep-canvas tokens (index.html's theme-color meta only —
-        // no `bg-void`/`bg-panel` call sites in src/). Left as static hex
-        // since nothing renders them; not part of the light/dark token
-        // system below.
-        void: '#0D0A1A',
-        panel: '#130E26',
-        // The neumorphic canvas color. CSS-var-backed (same var as the
-        // shadcn `background` token) so every `bg-base` surface — nav rails,
-        // buttons, inputs, the ambient background — flips with `.dark`
-        // automatically instead of needing a per-file edit.
+        // The paper canvas. CSS-var-backed (same var as the shadcn
+        // `background` token) so every `bg-base` surface flips together.
         base: 'hsl(var(--background))',
 
-        // shadcn/ui semantic tokens (Signal Glass palette), ported for the
-        // shadcn/Radix component kit under src/components/ui. Backed by CSS
-        // variables defined in src/index.css. Additive only — none of the
-        // custom tokens above are touched.
+        // shadcn/ui semantic tokens (neo-brutalist palette). Backed by CSS
+        // variables in src/index.css.
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {
@@ -52,8 +44,7 @@ export default {
           foreground: 'hsl(var(--destructive-foreground))',
           soft: 'hsl(var(--destructive-soft))',
         },
-        // State roles (UI_UX_IMPROVEMENT_PLAN.md B.1) — use these instead of
-        // raw emerald/amber/sky so both themes stay in step.
+        // State roles — use these instead of raw emerald/amber/sky.
         success: {
           DEFAULT: 'hsl(var(--success) / <alpha-value>)',
           foreground: 'hsl(var(--success-foreground) / <alpha-value>)',
@@ -97,20 +88,24 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['Space Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       boxShadow: {
-        // Light source: top-left. Two-layer shadow (light + dark) sells the
-        // "physical extrusion" — a single shadow reads flat. Colors come
-        // from CSS vars (src/index.css) so `.dark` can swap the grey-shadow/
-        // white-highlight light-mode pair for a black-shadow/faint-highlight
-        // dark-mode pair without editing any of the ~12 files that use
-        // these classes.
-        'neu-flat': '8px 8px 16px var(--neu-shadow-strong), -8px -8px 16px var(--neu-shadow-strong-light)',
-        'neu-flat-sm': '4px 4px 8px var(--neu-shadow-soft), -4px -4px 8px var(--neu-shadow-soft-light)',
-        'neu-pressed': 'inset 6px 6px 12px var(--neu-shadow-strong), inset -6px -6px 12px var(--neu-shadow-strong-light)',
-        'neu-pressed-sm': 'inset 3px 3px 6px var(--neu-shadow-soft), inset -3px -3px 6px var(--neu-shadow-soft-light)',
-        // Softer than shadow-lg for glass content cards (UI_UX_IMPROVEMENT_PLAN.md B.5).
-        card: '0 8px 24px -12px rgba(30, 41, 59, 0.18)',
+        // Neo-brutalist hard offset shadows (no blur), cast in ink (black).
+        // The signature "sticker peeling off the paper" look.
+        brut: '4px 4px 0 0 hsl(var(--foreground))',
+        'brut-sm': '2px 2px 0 0 hsl(var(--foreground))',
+        'brut-lg': '6px 6px 0 0 hsl(var(--foreground))',
+        'brut-xl': '8px 8px 0 0 hsl(var(--foreground))',
+        // Legacy neu-* names repointed to brutalist equivalents so the files
+        // that still reference them render correctly until migrated. `pressed`
+        // collapses the offset (used with a translate on :active).
+        'neu-flat': '4px 4px 0 0 hsl(var(--foreground))',
+        'neu-flat-sm': '2px 2px 0 0 hsl(var(--foreground))',
+        'neu-pressed': '0 0 0 0 hsl(var(--foreground))',
+        'neu-pressed-sm': '0 0 0 0 hsl(var(--foreground))',
+        card: '4px 4px 0 0 hsl(var(--foreground))',
       },
     },
   },

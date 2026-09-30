@@ -40,10 +40,10 @@ const FAILURES = {
 function PhoneAndTag({ scanning }) {
   return (
     <span className="relative flex h-20 w-20 items-center justify-center" aria-hidden="true">
-      {scanning && <span className="absolute inset-0 rounded-full bg-purple-400/30 motion-safe:animate-ping" />}
-      <span className={cn('absolute inset-2 rounded-full', scanning ? 'bg-purple-400/20' : 'bg-purple-100 dark:bg-purple-500/15')} />
-      <Smartphone className="relative h-10 w-10 text-purple-700 dark:text-purple-300" />
-      <span className="absolute bottom-3 right-2 flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
+      {scanning && <span className="absolute inset-0 rounded-full bg-primary/30 motion-safe:animate-ping" />}
+      <span className={cn('absolute inset-2 rounded-full', scanning ? 'bg-primary/20' : 'bg-primary/15')} />
+      <Smartphone className="relative h-10 w-10 text-primary" />
+      <span className="absolute bottom-3 right-2 flex h-6 w-6 items-center justify-center rounded-md border-2 border-foreground bg-primary shadow-brut-sm">
         <Nfc className="h-3.5 w-3.5 text-white" />
       </span>
     </span>
@@ -80,7 +80,7 @@ export default function NfcScanPanel({
   return (
     <div
       className={cn(
-        'flex flex-col items-center gap-3 rounded-2xl p-5 text-center',
+        'flex flex-col items-center gap-3 rounded-lg p-5 text-center',
         status === 'scanning' ? 'bg-base shadow-neu-pressed-sm' : 'bg-base shadow-neu-flat-sm'
       )}
       aria-live="polite"
@@ -89,8 +89,8 @@ export default function NfcScanPanel({
         <>
           <PhoneAndTag />
           <div>
-            <p className="font-semibold text-slate-800 dark:text-slate-100">{idleTitle}</p>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{idleHint}</p>
+            <p className="font-semibold text-foreground">{idleTitle}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{idleHint}</p>
           </div>
           <Button type="button" variant="primary" onClick={onStart} className="gap-2">
             <Nfc className="h-4 w-4" /> {startLabel}
@@ -103,8 +103,8 @@ export default function NfcScanPanel({
         <>
           <PhoneAndTag scanning />
           <div role="status">
-            <p className="font-semibold text-slate-800 dark:text-slate-100">Looking for NFC tag…</p>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            <p className="font-semibold text-foreground">Looking for NFC tag…</p>
+            <p className="mt-1 text-sm text-muted-foreground">
               Hold the tag against the back of your phone until it vibrates or this changes.
             </p>
           </div>
@@ -119,10 +119,10 @@ export default function NfcScanPanel({
 
       {status === 'detected' && (
         <>
-          <CheckCircle2 className="h-10 w-10 text-success motion-safe:animate-in motion-safe:zoom-in-50" aria-hidden="true" />
+          <CheckCircle2 className="h-10 w-10 text-foreground motion-safe:animate-in motion-safe:zoom-in-50" aria-hidden="true" />
           <div>
-            <p className="font-semibold text-slate-800 dark:text-slate-100">{detectedTitle}</p>
-            {detectedDetail && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{detectedDetail}</p>}
+            <p className="font-semibold text-foreground">{detectedTitle}</p>
+            {detectedDetail && <p className="mt-1 text-sm text-muted-foreground">{detectedDetail}</p>}
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={onStart} className="min-h-11 gap-1.5">
             <RotateCcw className="h-3.5 w-3.5" /> Scan a different tag
@@ -132,10 +132,10 @@ export default function NfcScanPanel({
 
       {failure && (
         <>
-          <XCircle className="h-10 w-10 text-red-600 dark:text-red-400" aria-hidden="true" />
+          <XCircle className="h-10 w-10 text-foreground" aria-hidden="true" />
           <div role="alert">
-            <p className="font-semibold text-slate-800 dark:text-slate-100">{failure.title}</p>
-            <ul className="mt-1 space-y-0.5 text-sm text-slate-600 dark:text-slate-300">
+            <p className="font-semibold text-foreground">{failure.title}</p>
+            <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
               {failure.tips.map((tip) => (
                 <li key={tip}>{tip}</li>
               ))}

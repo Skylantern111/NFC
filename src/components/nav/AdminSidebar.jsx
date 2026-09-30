@@ -7,7 +7,7 @@ import SidebarShell from './SidebarShell';
 // (design system §14), with `admin` on SidebarShell giving it a small
 // amber-accented identity distinct from the low-stakes owner console it's
 // structurally copied from (IMPROVEMENT_PLAN.md Round 7 #7). Solid,
-// non-blurred surface (no backdrop-blur) to match AdminLayout's existing
+// non-blurred surface (no) to match AdminLayout's existing
 // "ops console" perf note. Analytics (§4.14) isn't built yet, so it's left
 // off rather than 404ing.
 const navItems = [

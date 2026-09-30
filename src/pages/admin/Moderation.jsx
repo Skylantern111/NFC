@@ -144,26 +144,26 @@ export default function Moderation() {
 
       {!loading && chats.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
+          <div className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-warning-soft text-foreground">
               <Flag className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Reported</div>
-            <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{chats.length}</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Reported</div>
+            <div className="mt-1 text-2xl font-bold text-foreground">{chats.length}</div>
           </div>
-          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+          <div className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-soft text-foreground">
               <CheckCheck className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Reviewed</div>
-            <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{reviewedTotal}</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Reviewed</div>
+            <div className="mt-1 text-2xl font-bold text-foreground">{reviewedTotal}</div>
           </div>
-          <div className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300">
+          <div className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive-soft text-foreground">
               <ShieldBan className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Banned tokens</div>
-            <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{bannedTotal}</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Banned tokens</div>
+            <div className="mt-1 text-2xl font-bold text-foreground">{bannedTotal}</div>
           </div>
         </div>
       )}
@@ -191,7 +191,7 @@ export default function Moderation() {
             />
             <label className="flex items-center gap-2 rounded-full bg-base px-3 py-1.5 shadow-neu-flat-sm">
               <Switch checked={showReviewed} onCheckedChange={setShowReviewed} />
-              <Label className="text-slate-600 dark:text-slate-300">
+              <Label className="text-muted-foreground">
                 Show reviewed {reviewedCount > 0 && `(${reviewedCount})`}
               </Label>
             </label>
@@ -217,10 +217,10 @@ export default function Moderation() {
             />
           )}
           {visibleChats.length > 0 && (
-          <div className="rounded-2xl sm:overflow-x-auto sm:bg-white/80 sm:shadow-card sm:dark:bg-white/5">
+          <div className="rounded-lg sm:overflow-x-auto sm:border-2 sm:border-foreground sm:bg-card sm:shadow-brut">
           <Table className="stack-table">
             <TableHeader>
-              <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+              <TableRow className="border-foreground hover:bg-transparent">
                 <TableHead className="w-8">
                   <Checkbox
                     checked={allSelectableChecked}
@@ -239,8 +239,8 @@ export default function Moderation() {
             </TableHeader>
             <TableBody>
               {filteredChats.length === 0 && (
-                <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                  <TableCell colSpan={7} className="py-8 text-center text-slate-600 dark:text-slate-400">
+                <TableRow className="border-foreground hover:bg-transparent">
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     No reports match this search.
                   </TableCell>
                 </TableRow>
@@ -249,7 +249,7 @@ export default function Moderation() {
                 const banned = bannedTokens.has(chat.finderSessionToken);
                 const reviewed = !!chat.reviewedAt;
                 return (
-                  <TableRow key={chat.id} className="border-slate-200 dark:border-slate-700/60">
+                  <TableRow key={chat.id} className="border-foreground">
                     <TableCell data-label="Select">
                       <Checkbox
                         checked={selectedIds.has(chat.id)}
@@ -258,21 +258,21 @@ export default function Moderation() {
                         aria-label={`Select report for ${items[chat.tagId]?.itemName || chat.id}`}
                       />
                     </TableCell>
-                    <TableCell data-label="Item" className="font-semibold text-slate-800 dark:text-slate-100">{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
+                    <TableCell data-label="Item" className="font-semibold text-foreground">{items[chat.tagId]?.itemName || 'Unknown item'}</TableCell>
                     <TableCell data-label="Reason">
                       <div className="flex flex-col items-end gap-1 sm:items-start">
                         {chatReports(chat).map((r) => (
-                          <span key={r.by} className="whitespace-normal text-sm text-slate-700 dark:text-slate-200">
+                          <span key={r.by} className="whitespace-normal text-sm text-foreground">
                             <span className="font-semibold">{r.by === 'finder' ? 'Finder: ' : 'Owner: '}</span>
                             {r.reason || 'No reason given'}
                           </span>
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell data-label="Finder token" className="max-w-40 truncate font-mono text-xs text-slate-600 dark:text-slate-400" title={chat.finderSessionToken}>
+                    <TableCell data-label="Finder token" className="max-w-40 truncate font-mono text-xs text-muted-foreground" title={chat.finderSessionToken}>
                       {chat.finderSessionToken}
                     </TableCell>
-                    <TableCell data-label="Reported" className="text-xs text-slate-600 dark:text-slate-400">
+                    <TableCell data-label="Reported" className="text-xs text-muted-foreground">
                       {(() => {
                         const times = chatReports(chat).map((r) => toMillis(r.at)).filter(Boolean);
                         return times.length ? relativeTimeFromMs(Math.max(...times)) : '—';

@@ -8,12 +8,9 @@ const Card = React.forwardRef(function Card({ className, ...props }, ref) {
       ref={ref}
       data-slot="card"
       className={cn(
-        // No default `border` — every real usage in this app fully re-skins
-        // Card (glass or solid), and a bare `border` utility here bled an
-        // unintended grey outline through every one of them (see
-        // IMPROVEMENT_PLAN.md Round 4 #1). The app's one deliberate
-        // glass-with-border look lives in index.css's `.glass` class instead.
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl py-6 shadow-sm",
+        // Brutalist card: solid white block, 2px black frame, hard offset
+        // shadow. Call sites can still override via className.
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border-2 border-foreground py-6 shadow-brut",
         className
       )}
       {...props}

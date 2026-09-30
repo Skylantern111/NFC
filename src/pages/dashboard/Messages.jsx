@@ -70,10 +70,10 @@ export default function Messages() {
               aria-pressed={filter === f.value}
               onClick={() => setParams(f.value === 'all' ? {} : { filter: f.value })}
               className={cn(
-                'min-h-11 rounded-full px-3.5 text-sm font-medium transition-shadow',
+                'min-h-11 rounded-md border-2 border-foreground px-3.5 text-sm font-bold transition-all',
                 filter === f.value
-                  ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-200 shadow-neu-pressed-sm'
-                  : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
+                  ? 'bg-primary text-primary-foreground shadow-brut-sm'
+                  : 'bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
               {f.label}
@@ -90,7 +90,7 @@ export default function Messages() {
       )}
 
       {!loading && visibleChats.length > 0 && (
-        <ul className="glass divide-y divide-slate-200/70 dark:divide-white/10 overflow-hidden p-0" data-tour="messages-list">
+        <ul className="glass divide-y divide-foreground/15 overflow-hidden p-0" data-tour="messages-list">
           {visibleChats.map((chat) => {
             const item = itemsByTag[chat.tagId];
             const unread = isChatUnreadForOwner(chat);
@@ -100,23 +100,23 @@ export default function Messages() {
                 <Link
                   to={`/chat/${chat.id}`}
                   onClick={() => onOpenChat(chat.id)}
-                  className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5"
+                  className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
-                    <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" aria-hidden="true" />
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
                       <span
                         className={cn(
-                          'truncate text-sm text-slate-800 dark:text-slate-100',
+                          'truncate text-sm text-foreground',
                           unread ? 'font-bold' : 'font-medium'
                         )}
                       >
                         {item?.itemName || 'Unknown item'}
                       </span>
                       {unread && (
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-pink-600">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-destructive">
                           <span className="sr-only">Unread</span>
                         </span>
                       )}
@@ -124,14 +124,14 @@ export default function Messages() {
                     <span
                       className={cn(
                         'mt-0.5 block truncate text-sm',
-                        unread ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'
+                        unread ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       {chat.lastMessageText || 'No messages yet.'}
                     </span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1.5">
-                    <span className="text-xs text-slate-600 dark:text-slate-400">
+                    <span className="text-xs text-muted-foreground">
                       {relativeTimeFromMs(toMillis(chat.lastMessageAt))}
                     </span>
                     {chat.blocked && !chat.resolved ? (
@@ -140,7 +140,7 @@ export default function Messages() {
                       <StatusBadge state={chat.resolved ? 'recovered' : 'open'} />
                     )}
                   </span>
-                  <ChevronRight className="hidden h-4 w-4 shrink-0 text-slate-400 sm:block" aria-hidden="true" />
+                  <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
                 </Link>
               </li>
             );

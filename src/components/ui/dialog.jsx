@@ -68,7 +68,7 @@ const DialogOverlay = React.forwardRef(function DialogOverlay(
       ref={ref}
       data-slot="dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/60",
         className
       )}
       {...props}
@@ -121,9 +121,9 @@ const DialogContent = React.forwardRef(function DialogContent(
         className={cn(
           // Phones: a bottom sheet in thumb reach, safe-area aware. From `sm`: the
           // usual centered dialog (UI_UX_IMPROVEMENT_PLAN.md B.10).
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 grid w-full gap-4 border p-6 shadow-lg duration-200 max-h-[90dvh] overflow-y-auto",
-          "inset-x-0 bottom-0 rounded-t-3xl pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:slide-in-from-bottom-10 data-[state=closed]:slide-out-to-bottom-10",
-          "sm:inset-x-auto sm:bottom-auto sm:top-[50%] sm:left-[50%] sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-3xl sm:pb-6 sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95",
+          "bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 grid w-full gap-4 border-2 border-foreground p-6 shadow-brut-xl duration-200 max-h-[90dvh] overflow-y-auto",
+          "inset-x-0 bottom-0 rounded-t-lg border-b-0 pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:slide-in-from-bottom-10 data-[state=closed]:slide-out-to-bottom-10",
+          "sm:inset-x-auto sm:bottom-auto sm:top-[50%] sm:left-[50%] sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:border-b-2 sm:pb-6 sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95",
           className
         )}
         onEscapeKeyDown={handleEscapeKeyDown}
@@ -185,7 +185,7 @@ const DialogTitle = React.forwardRef(function DialogTitle(
     <DialogPrimitive.Title
       ref={ref}
       data-slot="dialog-title"
-      className={cn("text-lg leading-snug font-semibold", className)}
+      className={cn("font-display text-lg leading-snug font-bold", className)}
       {...props}
     />
   );

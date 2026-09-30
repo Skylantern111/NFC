@@ -33,13 +33,13 @@ export default function ConfirmDialog({
       <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {tone === 'destructive' && <TriangleAlert className="h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />}
+            {tone === 'destructive' && <TriangleAlert className="h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />}
             {title}
           </DialogTitle>
           <DialogDescription asChild>
-            <div className="space-y-2 text-left text-sm text-slate-600 dark:text-slate-300">
+            <div className="space-y-2 text-left text-sm text-muted-foreground">
               {typeof description === 'string' ? <p>{description}</p> : description}
-              {irreversible && <p className="font-semibold text-slate-800 dark:text-slate-100">This can't be undone.</p>}
+              {irreversible && <p className="font-bold text-foreground">This can't be undone.</p>}
             </div>
           </DialogDescription>
         </DialogHeader>

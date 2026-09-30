@@ -136,7 +136,7 @@ export default function Owners() {
 
       {owner && (
         <>
-          <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
+          <Card className="rounded-lg border-2 border-foreground bg-card shadow-card">
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -147,7 +147,7 @@ export default function Owners() {
                     app once verified (AuthContext); informational only. */}
                     <StatusBadge state={owner.emailVerified ? 'email_verified' : 'email_unverified'} />
                   </CardTitle>
-                  <CardDescription className="text-slate-600 dark:text-slate-400">
+                  <CardDescription className="text-muted-foreground">
                     {owner.email ? `Sign-up email: ${owner.email}` : 'No email on file'}
                   </CardDescription>
                 </div>
@@ -165,23 +165,23 @@ export default function Owners() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Owner UID</p>
-                <p className="font-mono text-xs text-slate-600 dark:text-slate-300">{owner.uid}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Owner UID</p>
+                <p className="font-mono text-xs text-muted-foreground">{owner.uid}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Phone</p>
-                <p className="text-slate-600 dark:text-slate-300">{owner.phone || '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Phone</p>
+                <p className="text-muted-foreground">{owner.phone || '—'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Member since</p>
-                <p className="text-slate-600 dark:text-slate-300">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Member since</p>
+                <p className="text-muted-foreground">
                   {owner.createdAt ? relativeTimeFromMs(toMillis(owner.createdAt)) : '—'}
                 </p>
               </div>
               {!owner.emailVerified &&
                 owner.createdAt &&
                 Date.now() - toMillis(owner.createdAt) > 7 * 24 * 60 * 60 * 1000 && (
-                  <p className="text-xs text-slate-600 dark:text-slate-400 sm:col-span-3">
+                  <p className="text-xs text-muted-foreground sm:col-span-3">
                     Not verified after 7 days — probably a mistyped email. It can be deleted in the Firebase console
                     (see FIREBASE_SETUP.md, cleaning up wrong-email accounts).
                   </p>
@@ -189,15 +189,15 @@ export default function Owners() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
+          <Card className="rounded-lg border-2 border-foreground bg-card shadow-card">
             <CardHeader>
               <CardTitle>
                 Tags owned
                 {ownerTags.length > 0 && (
-                  <span className="ml-1.5 font-normal text-slate-600 dark:text-slate-400">({ownerTags.length})</span>
+                  <span className="ml-1.5 font-normal text-muted-foreground">({ownerTags.length})</span>
                 )}
               </CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400">
+              <CardDescription className="text-muted-foreground">
                 Every tag registered to this account.
               </CardDescription>
             </CardHeader>
@@ -205,16 +205,16 @@ export default function Owners() {
               <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
                 <Table className="stack-table">
                   <TableHeader>
-                    <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                      <TableHead className="text-slate-600 dark:text-slate-400">Tag ID</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Item</TableHead>
-                      <TableHead className="text-slate-600 dark:text-slate-400">Status</TableHead>
+                    <TableRow className="border-foreground hover:bg-transparent">
+                      <TableHead className="text-muted-foreground">Tag ID</TableHead>
+                      <TableHead className="text-muted-foreground">Item</TableHead>
+                      <TableHead className="text-muted-foreground">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {tagsLoading &&
                       [0, 1, 2].map((i) => (
-                        <TableRow key={i} className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                        <TableRow key={i} className="border-foreground hover:bg-transparent">
                           {[0, 1, 2].map((c) => (
                             <TableCell key={c}>
                               <Skeleton className="h-4 w-full max-w-28" />
@@ -223,18 +223,18 @@ export default function Owners() {
                         </TableRow>
                       ))}
                     {!tagsLoading && ownerTags.length === 0 && (
-                      <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                        <TableCell colSpan={3} className="py-6 text-center text-slate-600 dark:text-slate-400">
+                      <TableRow className="border-foreground hover:bg-transparent">
+                        <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
                           No tags found for this owner.
                         </TableCell>
                       </TableRow>
                     )}
                     {ownerTags.map((t) => (
-                      <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60">
-                        <TableCell data-label="Tag ID" className="font-mono text-xs text-slate-700 dark:text-slate-200" title={t.tagId}>
+                      <TableRow key={t.tagId} className="border-foreground">
+                        <TableCell data-label="Tag ID" className="font-mono text-xs text-foreground" title={t.tagId}>
                           {t.tagId}
                         </TableCell>
-                        <TableCell data-label="Item" className="text-slate-700 dark:text-slate-200">{t.itemName || '—'}</TableCell>
+                        <TableCell data-label="Item" className="text-foreground">{t.itemName || '—'}</TableCell>
                         <TableCell data-label="Status">
                           <StatusBadge state={t.status || 'registered'} />
                         </TableCell>
@@ -253,7 +253,7 @@ export default function Owners() {
       )}
 
       {searched && !searching && !owner && !error && (
-        <p role="status" className="text-sm text-slate-600 dark:text-slate-400">No owner found for that tag.</p>
+        <p role="status" className="text-sm text-muted-foreground">No owner found for that tag.</p>
       )}
 
       <Dialog
@@ -281,7 +281,7 @@ export default function Owners() {
           </DialogHeader>
           {!owner?.disabled && (
             <div className="space-y-2">
-              <Label htmlFor="disable-reason" className="text-slate-600 dark:text-slate-300">Reason (optional)</Label>
+              <Label htmlFor="disable-reason" className="text-muted-foreground">Reason (optional)</Label>
               <Input
                 id="disable-reason"
                 autoFocus

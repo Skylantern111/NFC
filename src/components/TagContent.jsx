@@ -28,7 +28,7 @@ export const LINK_ICONS = {
 };
 
 const PILL =
-  'flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-neu-flat-sm';
+  'flex items-center gap-1.5 rounded-full bg-base px-3.5 py-2 text-xs font-medium text-foreground shadow-neu-flat-sm';
 
 // Social + contact link pills. `interactive` renders real links (public
 // page); otherwise plain spans (editor preview, so a click doesn't leave
@@ -78,12 +78,12 @@ export function ProfileCard({ profile, onReport, preview = false }) {
   const bio = profile.bio?.trim();
   return (
     <div className="flex flex-col items-center gap-3 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-2xl font-bold text-white">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-foreground bg-primary text-2xl font-bold text-primary-foreground">
         {(name || '?').charAt(0).toUpperCase()}
       </div>
       <div>
-        <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">{name || 'Your name'}</h2>
-        {bio && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{bio}</p>}
+        <h2 className="text-xl font-extrabold text-foreground">{name || 'Your name'}</h2>
+        {bio && <p className="mt-1 text-sm text-muted-foreground">{bio}</p>}
       </div>
       <LinkPills profile={profile} interactive={!preview} />
       <Button
@@ -111,12 +111,12 @@ export function TapPreview({ profile }) {
   const mode = profile.landingMode || 'lostfound';
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Preview — what a tap shows
       </p>
-      <div className="rounded-2xl bg-base p-5 shadow-neu-pressed-sm">
+      <div className="rounded-lg bg-base p-5 shadow-neu-pressed-sm">
         {mode === 'redirect' ? (
-          <p className="flex items-center justify-center gap-1.5 break-all text-center text-sm text-slate-600 dark:text-slate-300">
+          <p className="flex items-center justify-center gap-1.5 break-all text-center text-sm text-muted-foreground">
             <ExternalLink className="h-4 w-4 shrink-0" />
             {isHttpsUrl(profile.redirectUrl?.trim()) ? profile.redirectUrl.trim() : 'Enter a redirect URL'}
           </p>
@@ -124,16 +124,16 @@ export function TapPreview({ profile }) {
           <ProfileCard profile={profile} preview onReport={profile.lostFoundEnabled ? () => {} : undefined} />
         ) : (
           <div className="space-y-3 text-center">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Lost &amp; Found item page</p>
+            <p className="text-sm font-semibold text-foreground">Lost &amp; Found item page</p>
             <LinkPills profile={profile} />
             {profile.lostFoundEnabled === false && (
-              <p className="text-xs text-slate-600 dark:text-slate-400">Found-item reporting is off.</p>
+              <p className="text-xs text-muted-foreground">Found-item reporting is off.</p>
             )}
           </div>
         )}
       </div>
       {mode !== 'lostfound' && (
-        <p className="text-xs text-slate-600 dark:text-slate-400">
+        <p className="text-xs text-muted-foreground">
           When the item is marked lost, a tap always shows the Lost &amp; Found page instead.
         </p>
       )}
@@ -161,8 +161,8 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
             <label key={m.value} className={cn(BOX, 'flex cursor-pointer items-start gap-2.5')}>
               <RadioGroupItem value={m.value} className="mt-0.5" />
               <span>
-                <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{m.label}</span>
-                <span className="block text-xs text-slate-600 dark:text-slate-400">{m.description}</span>
+                <span className="block text-sm font-semibold text-foreground">{m.label}</span>
+                <span className="block text-xs text-muted-foreground">{m.description}</span>
               </span>
             </label>
           ))}
@@ -180,7 +180,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
             value={profile.redirectUrl || ''}
             onChange={(e) => set('redirectUrl', e.target.value)}
           />
-          {errors.redirectUrl && <p id="redirectUrl-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.redirectUrl}</p>}
+          {errors.redirectUrl && <p id="redirectUrl-error" role="alert" className="text-xs text-foreground">{errors.redirectUrl}</p>}
         </div>
       )}
 
@@ -197,7 +197,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
               value={profile.displayName || ''}
               onChange={(e) => set('displayName', e.target.value)}
             />
-            {errors.displayName && <p id="displayName-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.displayName}</p>}
+            {errors.displayName && <p id="displayName-error" role="alert" className="text-xs text-foreground">{errors.displayName}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="bio">Short bio (optional)</Label>
@@ -211,7 +211,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
               value={profile.bio || ''}
               onChange={(e) => set('bio', e.target.value)}
             />
-            {errors.bio && <p id="bio-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.bio}</p>}
+            {errors.bio && <p id="bio-error" role="alert" className="text-xs text-foreground">{errors.bio}</p>}
           </div>
         </div>
       )}
@@ -220,8 +220,8 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
         <>
           <div className={cn(BOX, 'flex items-center justify-between gap-3')}>
             <div>
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Lost &amp; Found reporting</p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
+              <p className="text-sm font-semibold text-foreground">Lost &amp; Found reporting</p>
+              <p className="text-xs text-muted-foreground">
                 {mode === 'profile'
                   ? 'Show a "Found this item? Report it" link on the card (claimed tags only).'
                   : 'Let finders report the item and message the owner.'}
@@ -233,8 +233,8 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
           <div className={BOX}>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Contact link</p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Show a way to reach you beyond anonymous chat.</p>
+                <p className="text-sm font-semibold text-foreground">Contact link</p>
+                <p className="text-xs text-muted-foreground">Show a way to reach you beyond anonymous chat.</p>
               </div>
               <Switch checked={profile.contactEnabled} onCheckedChange={(v) => set('contactEnabled', v)} />
             </div>
@@ -249,11 +249,11 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
                   value={profile.contactUrl || ''}
                   onChange={(e) => set('contactUrl', e.target.value)}
                 />
-                <p className="text-xs text-slate-600 dark:text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   A link, not a raw phone/email — e.g. a WhatsApp click-to-chat URL. Anyone who taps the tag can
                   see and open it. Your account email is never shown publicly.
                 </p>
-                {errors.contactUrl && <p id="contactUrl-error" role="alert" className="text-xs text-red-700 dark:text-red-300">{errors.contactUrl}</p>}
+                {errors.contactUrl && <p id="contactUrl-error" role="alert" className="text-xs text-foreground">{errors.contactUrl}</p>}
               </div>
             )}
           </div>
@@ -270,7 +270,7 @@ export function TagContentForm({ profile, setProfile, errors, setErrors }) {
                   value={profile[key] || ''}
                   onChange={(e) => set(key, e.target.value)}
                 />
-                {errors[key] && <p id={`${key}-error`} role="alert" className="text-xs text-red-700 dark:text-red-300">{errors[key]}</p>}
+                {errors[key] && <p id={`${key}-error`} role="alert" className="text-xs text-foreground">{errors[key]}</p>}
               </div>
             ))}
           </div>

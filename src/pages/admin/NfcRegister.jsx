@@ -335,7 +335,7 @@ export default function NfcRegister() {
       {loadingExisting && <LoadingState label="Loading tag…" />}
 
       {!loadingExisting && (
-      <Card data-tour="nfc-register" className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
+      <Card data-tour="nfc-register" className="rounded-lg border-2 border-foreground bg-card shadow-card">
         <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
           {phase === 'idle' && (
             <>
@@ -350,8 +350,8 @@ export default function NfcRegister() {
                   />
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                  <TriangleAlert className="h-5 w-5 text-amber-500" />
+                <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                  <TriangleAlert className="h-5 w-5 text-foreground" />
                   <p>
                     NFC reading is not supported in this browser. Please use Android + Chrome over
                     HTTPS to register physical stickers.
@@ -359,7 +359,7 @@ export default function NfcRegister() {
                 </div>
               )}
               {scanError && (
-                <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+                <p role="alert" className="text-sm text-foreground">
                   {scanError}
                 </p>
               )}
@@ -381,14 +381,14 @@ export default function NfcRegister() {
 
           {phase === 'existing' && existingTag && (
             <>
-              <ShieldAlert className="h-10 w-10 text-amber-500" />
-              <p className="font-semibold text-slate-800 dark:text-slate-100">
+              <ShieldAlert className="h-10 w-10 text-foreground" />
+              <p className="font-semibold text-foreground">
                 This NFC tag is already registered.
               </p>
               <div className="w-full space-y-1 rounded-xl bg-base p-4 text-left text-sm shadow-neu-pressed-sm">
-                <p><span className="text-slate-600 dark:text-slate-400">Tag ID:</span> <span className="font-mono">{existingTag.tagId}</span></p>
-                <p><span className="text-slate-600 dark:text-slate-400">Status:</span> <Badge variant="outline">{existingTag.status}</Badge></p>
-                <p><span className="text-slate-600 dark:text-slate-400">Write status:</span> {existingTag.writeStatus || 'not_written'}</p>
+                <p><span className="text-muted-foreground">Tag ID:</span> <span className="font-mono">{existingTag.tagId}</span></p>
+                <p><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{existingTag.status}</Badge></p>
+                <p><span className="text-muted-foreground">Write status:</span> {existingTag.writeStatus || 'not_written'}</p>
               </div>
               <Button variant="outline" onClick={reset} className="gap-2">
                 <RotateCcw className="h-4 w-4" /> Scan another tag
@@ -398,15 +398,15 @@ export default function NfcRegister() {
 
           {phase === 'preview' && reading && (
             <>
-              <Check className="h-10 w-10 text-emerald-600" />
-              <p className="font-semibold text-slate-800 dark:text-slate-100">Tag read successfully</p>
+              <Check className="h-10 w-10 text-foreground" />
+              <p className="font-semibold text-foreground">Tag read successfully</p>
               <div className="w-full space-y-1 rounded-xl bg-base p-4 text-left text-sm shadow-neu-pressed-sm">
                 <p>
-                  <span className="text-slate-600 dark:text-slate-400">Physical UID:</span>{' '}
+                  <span className="text-muted-foreground">Physical UID:</span>{' '}
                   <span className="font-mono">{reading.physicalUid || 'not exposed by this browser/tag'}</span>
                 </p>
-                <p><span className="text-slate-600 dark:text-slate-400">NFC capability:</span> {reading.nfcCapability}</p>
-                <p><span className="text-slate-600 dark:text-slate-400">Status:</span> Unregistered</p>
+                <p><span className="text-muted-foreground">NFC capability:</span> {reading.nfcCapability}</p>
+                <p><span className="text-muted-foreground">Status:</span> Unregistered</p>
               </div>
               <div className="w-full space-y-2 text-left">
                 <Label>Chip type</Label>
@@ -418,7 +418,7 @@ export default function NfcRegister() {
                   ))}
                 </RadioGroup>
               </div>
-              {registerError && <p className="text-sm text-red-700 dark:text-red-300">{registerError}</p>}
+              {registerError && <p className="text-sm text-foreground">{registerError}</p>}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={reset} disabled={registering}>Cancel</Button>
                 <Button onClick={onRegister} loading={registering} className="gap-2">
@@ -431,18 +431,18 @@ export default function NfcRegister() {
           {(phase === 'registered') && tag && (
             <div className="w-full space-y-4 text-left">
               <div className="flex flex-col items-center gap-2 text-center">
-                <Check className="h-10 w-10 text-emerald-600" />
-                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                <Check className="h-10 w-10 text-foreground" />
+                <p className="font-semibold text-foreground">
                   Registered as <span className="font-mono">{tag.tagId}</span>
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label>Written to the sticker</Label>
-                <div className="rounded-xl bg-base p-3 font-mono text-xs text-slate-600 dark:text-slate-300 shadow-neu-pressed-sm">
+                <div className="rounded-xl bg-base p-3 font-mono text-xs text-muted-foreground shadow-neu-pressed-sm">
                   {tagUrl(tag.tagId)}
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   The sticker only holds this link. What a tap shows (lost &amp; found page, profile
                   card, or a redirect) is set in the tag's content and can change any time without
                   rewriting the sticker.
@@ -450,12 +450,12 @@ export default function NfcRegister() {
               </div>
 
               {writeStatus === 'written' && (
-                <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                   <Check className="h-4 w-4" /> Successfully written.
                 </p>
               )}
               {writeStatus === 'write_failed' && (
-                <p className="flex items-center gap-1.5 text-sm font-medium text-red-500">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                   <TriangleAlert className="h-4 w-4" /> {writeError}
                 </p>
               )}
@@ -499,9 +499,9 @@ export default function NfcRegister() {
       )}
 
       {!loadingExisting && !nfcSupported && !rewriteTagId && !reregisterTagId && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-muted-foreground">
           Testing without NFC hardware? Create a test tag in{' '}
-          <Link to="/admin/settings" className="font-medium text-purple-700 underline dark:text-purple-300">
+          <Link to="/admin/settings" className="font-medium text-primary underline">
             Settings › Developer tools
           </Link>
           .
@@ -509,7 +509,7 @@ export default function NfcRegister() {
       )}
 
       {!firebaseReady && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-foreground">
           Preview mode — no Firestore configured, registration will not persist.
         </p>
       )}

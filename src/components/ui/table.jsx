@@ -20,7 +20,7 @@ function TableHeader({ className, ...props }) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn("[&_tr]:border-b-2 [&_tr]:border-foreground", className)}
       {...props}
     />
   );
@@ -54,7 +54,7 @@ function TableRow({ className, ...props }) {
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        "hover:bg-muted data-[state=selected]:bg-warning-soft border-b border-foreground/15 transition-colors",
         className
       )}
       {...props}
@@ -67,7 +67,7 @@ function TableHead({ className, ...props }) {
     <th
       data-slot="table-head"
       className={cn(
-        "text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "text-foreground h-10 px-2 text-left align-middle font-mono text-xs font-bold uppercase tracking-wide whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props}

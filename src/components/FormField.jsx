@@ -23,21 +23,21 @@ export default function FormField({ id, label, hint, error, optional = false, co
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-200">
+        <Label htmlFor={id} className="text-sm font-bold text-foreground">
           {label}
-          {optional && <span className="font-normal text-slate-600 dark:text-slate-400"> (optional)</span>}
+          {optional && <span className="font-normal text-muted-foreground"> (optional)</span>}
         </Label>
-        {counter && <span className="text-xs text-slate-600 dark:text-slate-400">{counter}</span>}
+        {counter && <span className="font-mono text-xs text-muted-foreground">{counter}</span>}
       </div>
       {wired}
       {hint && (
-        <p id={hintId} className="text-xs text-slate-600 dark:text-slate-400">
+        <p id={hintId} className="text-xs text-muted-foreground">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} role="alert" className="flex items-start gap-1.5 text-sm text-red-700 dark:text-red-300">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p id={errorId} role="alert" className="flex items-start gap-1.5 text-sm font-semibold text-foreground">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
           {error}
         </p>
       )}
@@ -50,8 +50,8 @@ export default function FormField({ id, label, hint, error, optional = false, co
 export function FormError({ children }) {
   if (!children) return null;
   return (
-    <p role="alert" className="flex items-start gap-1.5 text-sm text-red-700 dark:text-red-300">
-      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+    <p role="alert" className="flex items-start gap-2 rounded-md border-2 border-foreground bg-destructive-soft px-3 py-2 text-sm font-semibold text-foreground">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
       {children}
     </p>
   );

@@ -19,16 +19,16 @@ export default function Register() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" />
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-8">
-          <h1 className="text-center text-3xl font-extrabold text-slate-800 dark:text-slate-100">Create account</h1>
-          <p className="mb-6 mt-1 text-center text-sm text-slate-600 dark:text-slate-300">
+          <h1 className="text-center font-display text-3xl font-bold uppercase tracking-tight text-foreground">Create account</h1>
+          <p className="mb-6 mt-1 text-center text-sm text-muted-foreground">
             Free. Takes a minute. Then claim your first tag.
           </p>
           <GlassCard>
             <SignupForm />
           </GlassCard>
-          <p className="mt-5 text-center text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-5 text-center text-sm text-muted-foreground">
             Have an account?{' '}
-            <Link to="/login" className="font-semibold text-purple-700 dark:text-purple-300 hover:underline">
+            <Link to="/login" className="font-bold text-primary hover:underline underline-offset-4">
               Sign in
             </Link>
           </p>

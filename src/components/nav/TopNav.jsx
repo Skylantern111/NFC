@@ -13,22 +13,22 @@ export default function TopNav({ variant = 'simple', fallback = '/', historyOnly
   const location = useLocation();
   const hideBack = historyOnly && location.key === 'default';
   return (
-    <header className="relative z-10 mx-auto flex w-full max-w-5xl items-center justify-between border-b border-white/50 dark:border-white/10 bg-white/40 dark:bg-white/5 px-4 py-5 backdrop-blur-md sm:px-6">
+    <header className="relative z-10 mx-auto flex w-full max-w-5xl items-center justify-between border-b-2 border-foreground bg-card px-4 py-4 sm:px-6">
       <Link to="/" className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
-          <Tag className="h-4 w-4 text-white" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-md border-2 border-foreground bg-primary shadow-brut-sm">
+          <Tag className="h-4 w-4 text-primary-foreground" />
         </span>
-        <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100">TagBack</span>
+        <span className="font-display text-lg font-bold text-foreground">TagBack</span>
       </Link>
 
       {variant === 'landing' ? (
-        <nav className="flex items-center gap-4">
-          <Link to="/login" className="flex min-h-11 items-center text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-50">
+        <nav className="flex items-center gap-3">
+          <Link to="/login" className="flex min-h-11 items-center px-2 text-sm font-bold text-foreground hover:underline underline-offset-4">
             Sign in
           </Link>
           <Link
             to="/register"
-            className="flex min-h-11 items-center rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-neu-flat-sm hover:from-purple-400 hover:to-pink-400"
+            className="flex min-h-11 items-center rounded-md border-2 border-foreground bg-primary px-4 py-2 text-sm font-bold text-primary-foreground shadow-brut-sm transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brut active:translate-x-0 active:translate-y-0 active:shadow-brut-sm"
           >
             Get Started
           </Link>

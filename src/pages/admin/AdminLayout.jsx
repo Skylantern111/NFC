@@ -7,7 +7,7 @@ import { getAdminStatus } from '../../lib/adminAuth';
 import TutorialProvider from '../../components/tutorial/TutorialProvider';
 import { ADMIN_TOUR } from '../../components/tutorial/adminTour';
 
-// No AmbientBackground / backdrop-blur here: solid surfaces keep large
+// No AmbientBackground / here: solid surfaces keep large
 // data tables scrolling at 60fps.
 
 function AdminGate({ children }) {

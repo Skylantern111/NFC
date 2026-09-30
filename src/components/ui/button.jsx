@@ -5,34 +5,44 @@ import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+// Neo-brutalist buttons: flat color blocks, 2px black border, hard offset
+// shadow, hover lifts (translate up-left, shadow grows), active presses
+// (translate down-right into the shadow). No gradients.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  [
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-bold tracking-tight",
+    "border-2 border-foreground transition-all duration-100",
+    "disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none",
+    "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0",
+    "outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+    "aria-invalid:border-destructive",
+    // The signature interaction, shared by all filled/outlined variants.
+    "shadow-brut hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brut-lg active:translate-x-0 active:translate-y-0 active:shadow-brut-sm",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default:
-          "bg-base shadow-neu-flat active:shadow-neu-pressed [&_svg]:text-purple-600",
-        // Solid brand fill with white text — for the one main action on a
-        // screen (UI_UX_IMPROVEMENT_PLAN.md DS1/BUG2).
-        primary:
-          "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-neu-flat-sm active:shadow-neu-pressed-sm hover:from-purple-500 hover:to-pink-500",
-        success:
-          "bg-emerald-600 text-white shadow-neu-flat-sm active:shadow-neu-pressed-sm hover:bg-emerald-500",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-neu-flat active:shadow-neu-pressed hover:bg-destructive/90",
-        outline:
-          "border border-slate-300 dark:border-slate-700 bg-base text-slate-700 dark:text-slate-200 shadow-neu-flat-sm active:shadow-neu-pressed-sm",
-        secondary:
-          "bg-base text-slate-700 dark:text-slate-200 shadow-neu-flat-sm active:shadow-neu-pressed-sm",
+        // Neutral white block — the default.
+        default: "bg-card text-foreground",
+        // The one main action on a screen: cobalt fill, white text.
+        primary: "bg-primary text-primary-foreground",
+        // The loud CTA: electric yellow, black text.
+        accent: "bg-accent text-accent-foreground",
+        success: "bg-success text-success-foreground",
+        destructive: "bg-destructive text-destructive-foreground",
+        // Same frame as default but the paper canvas instead of white.
+        outline: "bg-background text-foreground",
+        secondary: "bg-muted text-foreground",
+        // No frame / no shadow — quiet inline actions.
         ghost:
-          "text-slate-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5",
-        link: "text-purple-600 underline-offset-4 hover:underline hover:text-pink-600",
+          "border-transparent shadow-none hover:translate-x-0 hover:translate-y-0 hover:shadow-none hover:bg-foreground/5 active:bg-foreground/10",
+        // Textual link.
+        link: "border-transparent shadow-none hover:translate-x-0 hover:translate-y-0 hover:shadow-none font-semibold text-primary underline-offset-4 hover:underline",
       },
-      // 44 px default/icon: comfortable touch targets
-      // (UI_UX_IMPROVEMENT_PLAN.md DS11). `sm` is for dense rows only.
+      // 44px default/icon: comfortable touch targets. `sm` for dense rows only.
       size: {
         default: "h-11 px-5 py-2 has-[>svg]:px-4",
-        sm: "h-9 gap-1.5 px-3.5 has-[>svg]:px-3",
+        sm: "h-9 gap-1.5 px-3.5 text-xs has-[>svg]:px-3",
         lg: "h-12 px-6 text-base has-[>svg]:px-5",
         icon: "size-11",
         "icon-sm": "size-9",
@@ -52,24 +62,8 @@ const Button = React.forwardRef(function Button(
 ) {
   const Comp = asChild ? Slot : "button";
 
-  // `default` is a neu-extruded bg-base surface with gradient *text* — a
-  // single element can't show a flat bg-base fill and clip a second
-  // gradient bg to its text, so the gradient lives on an inner span instead.
-  // That span needs its own inline-flex row: Tailwind's preflight sets
-  // `svg { display: block }`, and a block-level icon inside a plain
-  // (non-flex) span forces the text after it onto its own line — i.e. the
-  // icon renders above the label instead of beside it, on every default-
-  // variant button with an icon (Sign in, Look up owner, etc). Non-default
-  // variants don't hit this since their children go straight into the
-  // outer inline-flex button.
-  //
-  // A caller that paints its own fill (`bg-red-600`, `bg-gradient-…`) on a
-  // default button would get invisible gradient text on that fill
-  // (UI_UX_IMPROVEMENT_PLAN.md BUG2), so those keep plain text instead.
-  const ownFill = /(^|\s)bg-(?!base\b|transparent\b|clip-)/.test(className || "");
-  //
-  // `loading` (UI_UX_IMPROVEMENT_PLAN.md B.6): spinner first, disabled, and
-  // aria-busy, so every async button behaves the same.
+  // `loading`: spinner first, disabled, and aria-busy, so every async button
+  // behaves the same.
   const content =
     loading && !asChild ? (
       <>
@@ -78,14 +72,6 @@ const Button = React.forwardRef(function Button(
       </>
     ) : (
       children
-    );
-  const label =
-    !asChild && !ownFill && (variant === "default" || variant === undefined) ? (
-      <span className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-        {content}
-      </span>
-    ) : (
-      content
     );
 
   return (
@@ -97,7 +83,7 @@ const Button = React.forwardRef(function Button(
       aria-busy={loading || undefined}
       {...props}
     >
-      {label}
+      {content}
     </Comp>
   );
 });

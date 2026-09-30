@@ -43,7 +43,7 @@ const ReportLocationMap = lazy(() => import('../../components/ReportLocationMap'
 
 // Shared frosted-glass treatment applied over the ported ui/ primitives so
 // this page keeps the app's light glassmorphism language.
-const GLASS = 'rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-card';
+const GLASS = 'rounded-lg border-2 border-foreground bg-card shadow-card';
 
 // Canned strings only — purely a UX convenience that inserts text into the
 // real message input. Different for each side (UI_UX_IMPROVEMENT_PLAN.md CHAT5).
@@ -434,9 +434,9 @@ export default function Chat() {
     return (
       <div className="relative flex h-[100dvh] flex-col items-center justify-center gap-3 px-6 text-center">
         <AmbientBackground />
-        <MessagesSquare className="h-8 w-8 text-slate-400" />
-        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">This conversation isn't available</h1>
-        <p className="max-w-sm text-sm text-slate-600 dark:text-slate-400">
+        <MessagesSquare className="h-8 w-8 text-muted-foreground" />
+        <h1 className="text-lg font-bold text-foreground">This conversation isn't available</h1>
+        <p className="max-w-sm text-sm text-muted-foreground">
           The link may be incomplete, or the item's owner released the tag.
         </p>
         <Button asChild variant="secondary">
@@ -459,8 +459,8 @@ export default function Chat() {
           className="h-11 w-11 shrink-0 justify-center"
         />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-bold text-slate-800 dark:text-slate-100">{item?.itemName || 'Anonymous chat'}</h1>
-          <p className="truncate text-xs text-slate-600 dark:text-slate-400">
+          <h1 className="truncate font-bold text-foreground">{item?.itemName || 'Anonymous chat'}</h1>
+          <p className="truncate text-xs text-muted-foreground">
             {role === 'admin'
               ? 'Admin view · read-only'
               : role === 'owner'
@@ -471,7 +471,7 @@ export default function Chat() {
           </p>
         </div>
         {resolved && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+          <span className="flex shrink-0 items-center gap-1 rounded-full border border-foreground bg-success-soft px-2.5 py-1 text-xs font-semibold text-foreground">
             <CheckCircle2 className="h-3.5 w-3.5" /> Recovered
           </span>
         )}
@@ -489,7 +489,7 @@ export default function Chat() {
           </Button>
         )}
         {role === 'admin' && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full border border-slate-300 dark:border-slate-700 bg-base px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+          <span className="flex shrink-0 items-center gap-1 rounded-full border border-foreground bg-base px-2.5 py-1 text-xs font-semibold text-muted-foreground">
             <Eye className="h-3.5 w-3.5" /> Admin
           </span>
         )}
@@ -498,7 +498,7 @@ export default function Chat() {
         {canWrite &&
           (hasReportFrom(chat, role) ? (
             <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center text-red-600 dark:text-red-300"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-foreground"
               title="You reported this chat"
             >
               <Ban className="h-4 w-4" />
@@ -523,7 +523,7 @@ export default function Chat() {
       {listenerError && (
         <div
           role="alert"
-          className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/90 dark:bg-amber-500/10 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-200"
+          className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-lg border border-foreground bg-warning-soft px-4 py-2.5 text-sm text-foreground"
         >
           <span>Connection problem — new messages may not show.</span>
           <Button type="button" size="sm" variant="outline" onClick={retryListeners} className="shrink-0 gap-1.5">
@@ -541,7 +541,7 @@ export default function Chat() {
           {roleReady && role === 'viewer' && (
             <div
               role="status"
-              className="mx-auto mb-2 max-w-xl space-y-2 rounded-2xl border border-sky-200 dark:border-sky-500/30 bg-sky-50/90 dark:bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-100"
+              className="mx-auto mb-2 max-w-xl space-y-2 rounded-lg border border-foreground bg-info-soft px-4 py-3 text-sm text-foreground"
             >
               <p className="font-semibold">You can read this chat, but not reply from here.</p>
               <p>
@@ -565,7 +565,7 @@ export default function Chat() {
           {roleReady && role === 'finder' && !finderTipHidden && (
             <div
               role="status"
-              className="mx-auto mb-2 max-w-xl space-y-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
+              className="mx-auto mb-2 max-w-xl space-y-2 rounded-lg border border-foreground bg-success-soft px-4 py-3 text-sm text-foreground"
             >
               <p>
                 <span className="font-semibold">The owner has been notified.</span> Their reply shows up on this page.
@@ -588,20 +588,20 @@ export default function Chat() {
           )}
 
           {resolved && canWrite && (
-            <p className="mx-auto mb-2 max-w-xl rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/90 dark:bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-800 dark:text-emerald-200">
+            <p className="mx-auto mb-2 max-w-xl rounded-lg border border-foreground bg-success-soft px-4 py-2.5 text-sm text-foreground">
               Marked as recovered. You can still message here to finish the handoff.
             </p>
           )}
 
 
           {role === 'owner' && report && (
-            <div className="mx-auto mb-2 max-w-md space-y-3 rounded-2xl bg-white/80 p-4 text-sm shadow-card dark:bg-white/5">
-              <p className="font-semibold text-slate-800 dark:text-slate-100">
+            <div className="mx-auto mb-2 max-w-md space-y-3 rounded-lg border-2 border-foreground bg-card p-4 text-sm shadow-card">
+              <p className="font-semibold text-foreground">
                 Finder's report · {relativeTimeFromMs(toMillis(report.timestamp)) || 'just now'}
               </p>
               <StatusStepper step={recoveryStep({ chat, hasReport: true })} />
               {report.locationNote && (
-                <p className="flex items-start gap-1.5 text-slate-700 dark:text-slate-200">
+                <p className="flex items-start gap-1.5 text-foreground">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> {report.locationNote}
                 </p>
               )}
@@ -614,7 +614,7 @@ export default function Chat() {
           )}
 
           {!loading && messages.length === 0 && failed.length === 0 && (
-            <div className="flex min-h-32 flex-col items-center justify-center gap-2 py-6 text-center text-slate-600 dark:text-slate-400">
+            <div className="flex min-h-32 flex-col items-center justify-center gap-2 py-6 text-center text-muted-foreground">
               <MessagesSquare className="h-6 w-6" aria-hidden="true" />
               <p className="text-sm">No messages yet. Say hello to get started.</p>
             </div>
@@ -624,7 +624,7 @@ export default function Chat() {
             {thread.map((entry) => {
               if (entry.kind === 'day') {
                 return (
-                  <li key={entry.key} className="py-2 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  <li key={entry.key} className="py-2 text-center text-xs font-semibold text-muted-foreground">
                     {entry.label}
                   </li>
                 );
@@ -637,29 +637,29 @@ export default function Chat() {
               return (
                 <li key={m.id} className={cn('flex flex-col', mine ? 'items-end' : 'items-start', entry.firstInRun && 'pt-2')}>
                   {entry.firstInRun && !mine && (
-                    <span className="mb-0.5 px-1 text-xs font-semibold text-slate-600 dark:text-slate-400">{who}</span>
+                    <span className="mb-0.5 px-1 text-xs font-semibold text-muted-foreground">{who}</span>
                   )}
                   <div
                     className={cn(
-                      'max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm',
+                      'max-w-[80%] whitespace-pre-wrap break-words rounded-lg border-2 border-foreground px-4 py-2.5 text-sm shadow-brut-sm',
                       mine
-                        ? 'rounded-br-md bg-purple-700 text-white'
-                        : 'rounded-bl-md bg-white text-slate-800 shadow-card dark:bg-white/10 dark:text-slate-100',
-                      m.failed && 'bg-red-50 text-slate-800 ring-1 ring-red-300 dark:bg-red-500/10 dark:text-slate-100'
+                        ? 'rounded-br-md bg-primary text-primary-foreground'
+                        : 'rounded-bl-md bg-card text-foreground',
+                      m.failed && 'bg-destructive-soft text-foreground'
                     )}
                   >
                     <span className="sr-only">{mine ? 'You' : who}: </span>
                     {m.text}
                   </div>
-                  <span className="mt-0.5 flex items-center gap-1 px-1 text-xs text-slate-600 dark:text-slate-400">
+                  <span className="mt-0.5 flex items-center gap-1 px-1 text-xs text-muted-foreground">
                     {m.failed ? (
                       <>
-                        <AlertCircle className="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
-                        <span className="text-red-700 dark:text-red-300">Not sent. {m.reason}</span>
+                        <AlertCircle className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                        <span className="text-foreground">Not sent. {m.reason}</span>
                         <button
                           type="button"
                           onClick={() => retryFailed(m)}
-                          className="min-h-8 px-1 font-semibold text-purple-700 underline-offset-2 hover:underline dark:text-purple-300"
+                          className="min-h-8 px-1 font-semibold text-primary underline-offset-2 hover:underline"
                         >
                           Retry
                         </button>
@@ -685,7 +685,7 @@ export default function Chat() {
             })}
           </ol>
           {waitingForReply && (
-            <p className="pt-2 text-center text-xs text-slate-600 dark:text-slate-400">
+            <p className="pt-2 text-center text-xs text-muted-foreground">
               {role === 'finder' ? 'Waiting for the owner to reply.' : 'Waiting for the finder to reply.'}
             </p>
           )}
@@ -696,7 +696,7 @@ export default function Chat() {
             type="button"
             onClick={scrollToBottom}
             aria-label="Scroll to latest message"
-            className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-base text-slate-600 dark:text-slate-300 shadow-neu-flat transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm"
+            className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-foreground bg-card text-foreground shadow-brut-sm transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brut active:translate-x-0 active:translate-y-0 active:shadow-none"
           >
             <ArrowDown className="h-4 w-4" />
           </button>
@@ -708,8 +708,8 @@ export default function Chat() {
           role="status"
           className={cn(GLASS, 'mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-start gap-2.5 px-4 py-3 text-sm')}
         >
-          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" />
-          <p className="text-slate-700 dark:text-slate-200">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <p className="text-foreground">
             <span className="font-semibold">This conversation is read-only.</span> {readOnlyReason}
           </p>
         </div>
@@ -718,7 +718,7 @@ export default function Chat() {
       {showComposer && (
         <>
           {role === 'owner' && !resolved && (
-            <div className="mx-3 mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-white/5 px-4 py-2 text-sm [@media(max-height:500px)]:py-1 text-slate-700 dark:text-slate-200 backdrop-blur-xl">
+            <div className="mx-3 mb-2 flex items-center justify-between gap-3 rounded-lg border-2 border-foreground bg-card px-4 py-2 text-sm [@media(max-height:500px)]:py-1 text-foreground">
               <span>Got your item back?</span>
               <Button
                 type="button"
@@ -739,18 +739,18 @@ export default function Chat() {
                   type="button"
                   onClick={() => setText(reply)}
                   disabled={!roleReady}
-                  className="min-h-11 shrink-0 rounded-full bg-base px-3.5 text-sm text-slate-700 dark:text-slate-200 shadow-neu-flat-sm transition-shadow hover:shadow-neu-pressed-sm active:shadow-neu-pressed-sm disabled:opacity-50"
+                  className="min-h-11 shrink-0 rounded-md border-2 border-foreground bg-card px-3.5 text-sm font-bold text-foreground shadow-brut-sm transition-all hover:bg-muted active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-50"
                 >
                   {reply}
                 </button>
               ))}
             </div>
             {/* Fade hint that the row scrolls horizontally past the visible edge. */}
-            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-base to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent" />
           </div>
 
-          <p className="mx-4 mb-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 [@media(max-height:500px)]:hidden">
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
+          <p className="mx-4 mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground [@media(max-height:500px)]:hidden">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-foreground" aria-hidden="true" />
             Contact details stay hidden. Only share personal details if you want to.
           </p>
           <form
@@ -771,7 +771,7 @@ export default function Chat() {
               enterKeyHint="send"
               placeholder={roleReady ? 'Type a message…' : 'Connecting…'}
               disabled={!roleReady}
-              className="max-h-[120px] min-h-11 flex-1 resize-none rounded-xl bg-base px-3.5 py-2.5 text-base text-slate-800 shadow-neu-pressed-sm outline-none placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-purple-400/40 disabled:opacity-60 dark:text-slate-100 md:text-sm"
+              className="max-h-[120px] min-h-11 flex-1 resize-none rounded-md bg-card px-3.5 py-2.5 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 md:text-sm"
             />
             <Button
               type="submit"
@@ -792,7 +792,7 @@ export default function Chat() {
           <DialogHeader>
             <DialogTitle>Mark this item as recovered?</DialogTitle>
             <DialogDescription asChild>
-              <div className="space-y-2 text-left text-sm text-slate-600 dark:text-slate-300">
+              <div className="space-y-2 text-left text-sm text-muted-foreground">
                 <p>This will:</p>
                 <ul className="list-disc space-y-0.5 pl-5">
                   <li>turn off Lost Mode on the item,</li>
@@ -825,8 +825,8 @@ export default function Chat() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={confirmBlock} className="flex flex-col gap-4">
-            <label htmlFor="report-reason" className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              What's wrong? <span className="font-normal text-slate-600 dark:text-slate-400">(optional)</span>
+            <label htmlFor="report-reason" className="text-sm font-medium text-foreground">
+              What's wrong? <span className="font-normal text-muted-foreground">(optional)</span>
             </label>
             <Textarea
               id="report-reason"

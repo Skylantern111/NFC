@@ -101,12 +101,12 @@ function ChangeEmail({ user, returnTo }) {
 
   if (!open) {
     return (
-      <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-center text-sm text-muted-foreground">
         Wrong email?{' '}
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="min-h-11 font-medium text-purple-700 underline dark:text-purple-300"
+          className="min-h-11 font-medium text-primary underline"
         >
           Change it
         </button>
@@ -117,8 +117,8 @@ function ChangeEmail({ user, returnTo }) {
   return (
     <GlassCard className="space-y-4">
       <div className="flex items-center gap-2">
-        <PencilLine className="h-4 w-4 text-slate-600 dark:text-slate-300" aria-hidden="true" />
-        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Change your email</h2>
+        <PencilLine className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <h2 className="text-base font-semibold text-foreground">Change your email</h2>
       </div>
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <FormField id="newEmail" label="New email" error={fieldErr.newEmail}>
@@ -241,15 +241,15 @@ export default function VerifyEmail({ role = 'owner' }) {
 
       <GlassCard className="space-y-4">
         <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-info-soft">
-            <MailCheck className="h-5 w-5 text-info" aria-hidden="true" />
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-info-soft">
+            <MailCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
           </span>
-          <p className="text-sm text-slate-700 dark:text-slate-200">
+          <p className="text-sm text-foreground">
             We sent a link to <strong className="break-all">{user?.email}</strong>.
           </p>
         </div>
 
-        <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700 dark:text-slate-200">
+        <ol className="list-decimal space-y-1.5 pl-5 text-sm text-foreground">
           <li>Open the email from TagBack.</li>
           <li>Tap the verification link.</li>
           <li>Come back here. This page updates by itself.</li>
@@ -285,9 +285,9 @@ export default function VerifyEmail({ role = 'owner' }) {
 
       <ChangeEmail user={user} returnTo={meta.returnTo} />
 
-      <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-center text-sm text-muted-foreground">
         Or{' '}
-        <button type="button" onClick={onDifferentEmail} className="min-h-11 font-medium text-purple-700 underline dark:text-purple-300">
+        <button type="button" onClick={onDifferentEmail} className="min-h-11 font-medium text-primary underline">
           sign up with a different email
         </button>
       </p>

@@ -40,7 +40,7 @@ import { LoadingState } from '@/components/States';
 
 // Shared frosted-glass treatment applied over the ported ui/Card primitive so
 // public pages keep the app's light glassmorphism language.
-const GLASS = 'rounded-3xl bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-card';
+const GLASS = 'rounded-lg border-2 border-foreground bg-card shadow-card';
 
 // Public preview of an item. Intentionally only the fields a finder may see —
 // never ownerUid or any `users` data.
@@ -60,7 +60,7 @@ function LinkPillsCard({ profile }) {
   if (!hasVisibleLinks(profile)) return null;
   return (
     <Card className={GLASS}>
-      <CardContent className="text-slate-800 dark:text-slate-100">
+      <CardContent className="text-foreground">
         <LinkPills profile={profile} interactive />
       </CardContent>
     </Card>
@@ -323,9 +323,9 @@ export default function NfcLanding() {
           <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
-              <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
+              <CardContent className="flex flex-col items-center gap-3 text-foreground">
                 <h1 className="text-2xl font-bold">Tag not recognized</h1>
-                <p className="text-slate-600 dark:text-slate-300">
+                <p className="text-muted-foreground">
                   This tag isn't registered yet, or the link is incomplete. Try tapping the sticker again, holding
                   your phone still for a second.
                 </p>
@@ -350,10 +350,10 @@ export default function NfcLanding() {
           <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
-              <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
-                <TagIcon className="h-6 w-6 text-purple-600" />
+              <CardContent className="flex flex-col items-center gap-3 text-foreground">
+                <TagIcon className="h-6 w-6 text-primary" />
                 <h1 className="text-2xl font-bold">This tag isn't claimed yet</h1>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-muted-foreground">
                   {user
                     ? 'Claim it now to link it to your account.'
                     : 'Sign in to claim this tag and link it to your account.'}
@@ -377,9 +377,9 @@ export default function NfcLanding() {
                   </Button>
                 )}
                 {!user && (
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-muted-foreground">
                     No account?{' '}
-                    <Link to="/register" className="font-semibold text-purple-700 dark:text-purple-300 hover:underline">
+                    <Link to="/register" className="font-semibold text-primary hover:underline">
                       Create one
                     </Link>
                   </p>
@@ -394,12 +394,12 @@ export default function NfcLanding() {
 
   if (state === 'redirecting') {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 px-5 text-center text-slate-600 dark:text-slate-400">
+      <div className="flex h-screen flex-col items-center justify-center gap-3 px-5 text-center text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
         <p className="text-sm">Opening link…</p>
         <a
           href={tagProfile?.redirectUrl}
-          className="inline-flex items-center gap-1 break-all text-xs font-semibold text-purple-600 hover:text-pink-600"
+          className="inline-flex items-center gap-1 break-all text-xs font-semibold text-primary hover:text-primary"
         >
           <ExternalLink className="h-3.5 w-3.5 shrink-0" /> {tagProfile?.redirectUrl}
         </a>
@@ -421,14 +421,14 @@ export default function NfcLanding() {
           <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
-              <CardContent className="flex flex-col items-center gap-3 text-slate-800 dark:text-slate-100">
-                <ExternalLink className="h-6 w-6 text-purple-600" />
+              <CardContent className="flex flex-col items-center gap-3 text-foreground">
+                <ExternalLink className="h-6 w-6 text-primary" />
                 <h1 className="text-xl font-bold">You're leaving TagBack</h1>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  This tag's owner links to <span className="font-semibold text-slate-700 dark:text-slate-200">{host}</span>.
+                <p className="text-sm text-muted-foreground">
+                  This tag's owner links to <span className="font-semibold text-foreground">{host}</span>.
                   Only continue if you trust it.
                 </p>
-                <p className="break-all text-xs text-slate-600 dark:text-slate-400">{tagProfile?.redirectUrl}</p>
+                <p className="break-all text-xs text-muted-foreground">{tagProfile?.redirectUrl}</p>
                 <Button
                   className="mt-1 w-full gap-2"
                   onClick={() => window.location.replace(tagProfile.redirectUrl)}
@@ -472,10 +472,10 @@ export default function NfcLanding() {
           <TopNav fallback="/" historyOnly />
           <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 text-center">
             <Card className={GLASS}>
-              <CardContent className="flex flex-col items-center gap-2 text-slate-800 dark:text-slate-100">
-                <ShieldAlert className="h-6 w-6 text-rose-600" />
+              <CardContent className="flex flex-col items-center gap-2 text-foreground">
+                <ShieldAlert className="h-6 w-6 text-foreground" />
                 <h1 className="text-2xl font-bold">This tag is no longer active</h1>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-muted-foreground">
                   It's been flagged and can't accept new reports or messages. If you found this
                   item, there's no way to reach its owner through this tag right now.
                 </p>
@@ -516,15 +516,15 @@ export default function NfcLanding() {
         <Card
           className={cn(
             GLASS,
-            lost && 'border-2 border-red-400 dark:border-red-500/50 bg-red-50/70 dark:bg-red-500/10'
+            lost && 'border-2 border-foreground bg-destructive-soft'
           )}
         >
-          <CardContent className="text-slate-800 dark:text-slate-100">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-purple-700 dark:text-purple-300">
+          <CardContent className="text-foreground">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-primary">
               <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
               You found a TagBack item
             </p>
-            <h1 className="mt-1 break-words text-2xl font-extrabold text-slate-800 dark:text-slate-100 sm:text-3xl">
+            <h1 className="mt-1 break-words font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {item.itemName}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -535,17 +535,17 @@ export default function NfcLanding() {
             </div>
 
             {lost && item.lostMessage && (
-              <div className="mt-4 rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50/70 dark:bg-red-500/10 p-4">
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-300">
+              <div className="mt-4 rounded-lg border border-foreground bg-destructive-soft p-4">
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-foreground">
                   <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
                   Message from the owner
                 </p>
-                <p className="whitespace-pre-wrap break-words text-slate-800 dark:text-slate-100">{item.lostMessage}</p>
+                <p className="whitespace-pre-wrap break-words text-foreground">{item.lostMessage}</p>
               </div>
             )}
 
             {!reportingOff && (
-              <p className="mt-4 text-sm text-slate-700 dark:text-slate-200">
+              <p className="mt-4 text-sm text-foreground">
                 Send the owner a message below. You don't need an app or an account.
               </p>
             )}
@@ -553,11 +553,11 @@ export default function NfcLanding() {
         </Card>
 
         {savedChatId && (
-          <Card className={cn(GLASS, 'border border-purple-200 dark:border-purple-500/30')}>
-            <CardContent className="flex flex-col gap-3 text-slate-800 dark:text-slate-100">
+          <Card className={cn(GLASS, 'border border-foreground')}>
+            <CardContent className="flex flex-col gap-3 text-foreground">
               <div>
                 <p className="font-semibold">You already messaged this owner</p>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Your conversation is saved in this browser. On another browser or device, open the chat link you
                   saved instead.
                 </p>
@@ -573,21 +573,21 @@ export default function NfcLanding() {
 
         {reportingOff ? (
           <Card className={GLASS}>
-            <CardContent className="text-center text-sm text-slate-600 dark:text-slate-400">
+            <CardContent className="text-center text-sm text-muted-foreground">
               The owner has turned off found-item messages for this tag.
               {hasVisibleLinks(tagProfile) && ' You can use one of their links below instead.'}
             </CardContent>
           </Card>
         ) : (
         <Card className={GLASS}>
-          <CardContent className="text-slate-800 dark:text-slate-100">
+          <CardContent className="text-foreground">
             <form onSubmit={submitReport} noValidate className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="finder-message" className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                  <Label htmlFor="finder-message" className="text-base font-semibold text-foreground">
                     {savedChatId ? 'Or send a new message' : 'Message the owner'}
                   </Label>
-                  <span className="text-xs text-slate-600 dark:text-slate-400" aria-hidden="true">{note.length}/500</span>
+                  <span className="text-xs text-muted-foreground" aria-hidden="true">{note.length}/500</span>
                 </div>
                 <Textarea
                   id="finder-message"
@@ -603,11 +603,11 @@ export default function NfcLanding() {
                   aria-invalid={noteError ? true : undefined}
                 />
                 {noteError && (
-                  <p id="finder-message-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+                  <p id="finder-message-error" role="alert" className="text-sm text-foreground">
                     {noteError}
                   </p>
                 )}
-                <p id="finder-message-hint" className="text-xs text-slate-600 dark:text-slate-400">
+                <p id="finder-message-hint" className="text-xs text-muted-foreground">
                   This starts a private chat with the owner. You'll see their reply on the next page.
                 </p>
               </div>
@@ -623,16 +623,16 @@ export default function NfcLanding() {
                   <MapPin className="h-4 w-4" /> Add where it is (optional)
                 </Button>
               ) : (
-                <fieldset className="flex flex-col gap-3 rounded-2xl bg-base p-4 shadow-neu-pressed-sm">
+                <fieldset className="flex flex-col gap-3 rounded-lg border-2 border-foreground bg-muted p-4">
                   <legend className="sr-only">Where the item is (optional)</legend>
-                  <p className="flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <p className="flex items-center justify-between text-sm font-semibold text-foreground">
                     <span className="flex items-center gap-1.5">
                       <MapPin className="h-4 w-4" aria-hidden="true" /> Where is it now?
                     </span>
-                    <span className="text-xs font-normal text-slate-600 dark:text-slate-400">Optional</span>
+                    <span className="text-xs font-normal text-muted-foreground">Optional</span>
                   </p>
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="location-note" className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    <Label htmlFor="location-note" className="text-xs font-medium text-muted-foreground">
                       Describe the place
                     </Label>
                     <Input
@@ -643,7 +643,7 @@ export default function NfcLanding() {
                       placeholder="e.g. Guard house at the main gate"
                       aria-describedby="location-note-hint"
                     />
-                    <p id="location-note-hint" className="text-xs text-slate-600 dark:text-slate-400">
+                    <p id="location-note-hint" className="text-xs text-muted-foreground">
                       Sent to the owner as part of your message.
                     </p>
                   </div>
@@ -669,7 +669,7 @@ export default function NfcLanding() {
                     )}
                   </div>
                   <p
-                    className={cn('text-xs', locStatus === 'done' ? 'text-success' : 'text-slate-600 dark:text-slate-400')}
+                    className={cn('text-xs', locStatus === 'done' ? 'text-foreground' : 'text-muted-foreground')}
                     aria-live="polite"
                   >
                     {locStatus === 'loading' ? 'This can take up to 25 seconds.' : locationStatusText}
@@ -701,17 +701,17 @@ export default function NfcLanding() {
 
         {/* Privacy, in plain words — only what the system really does. */}
         <section aria-labelledby="finder-privacy" className="px-2 text-sm">
-          <h2 id="finder-privacy" className="mb-2 flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
-            <ShieldCheck className="h-4 w-4 text-success" aria-hidden="true" /> Your privacy
+          <h2 id="finder-privacy" className="mb-2 flex items-center gap-1.5 font-semibold text-foreground">
+            <ShieldCheck className="h-4 w-4 text-foreground" aria-hidden="true" /> Your privacy
           </h2>
-          <ul className="list-disc space-y-1 pl-5 text-slate-600 dark:text-slate-300">
+          <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
             <li>No app or account needed.</li>
             <li>You message the owner through TagBack. Neither of you sees the other's phone number or email.</li>
             <li>Sharing your location is optional.</li>
             <li>Don't put your phone number, address or other personal details in messages unless you want the owner to have them.</li>
           </ul>
           <p className="mt-2 text-xs">
-            <Link to="/privacy" className="inline-flex min-h-11 items-center font-medium text-purple-700 underline-offset-2 hover:underline dark:text-purple-300">
+            <Link to="/privacy" className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-2 hover:underline">
               What TagBack stores
             </Link>
           </p>

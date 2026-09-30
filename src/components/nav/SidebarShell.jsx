@@ -4,22 +4,17 @@ import { LogOut, Menu, Tag } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 
 // Shared shell for DashboardSidebar/AdminSidebar (design system §14): same
-// brand block, nav list, and logout footer for both consoles, so a rebrand
-// or nav-style change only happens in one place. Desktop keeps the fixed
-// w-56 rail; below `md` that rail is replaced by a top bar + slide-in Sheet.
+// brand block, nav list, and logout footer for both consoles, so a nav-style
+// change happens in one place. Desktop keeps the fixed w-56 rail; below `md`
+// that rail is replaced by a top bar + slide-in Sheet.
 //
-// UI_UX_IMPROVEMENT_PLAN.md NAV1/NAV6: the mobile top bar names the current
-// section, and the menu button carries a dot whenever something in the menu
-// needs attention. A skip link jumps past the nav (A11Y6).
-//
-// `drawerItems` (optional): what the phone drawer lists instead of
-// `navItems`. The owner console puts its main pages in the bottom tab bar,
-// so its drawer only holds the secondary ones (Settings, Privacy, Log out)
-// instead of repeating the tabs.
+// Brutalist chrome: solid surfaces framed in black, the active nav item is a
+// filled color block (cobalt for owner, yellow for admin) so the two consoles
+// stay visually distinct.
 function Badge({ badge, dot }) {
   if (badge > 0) {
     return (
-      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-1 text-xs font-bold text-white">
+      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md border-2 border-foreground bg-destructive px-1 text-xs font-bold text-destructive-foreground">
         {badge > 9 ? '9+' : badge}
         <span className="sr-only"> unread</span>
       </span>
@@ -27,7 +22,7 @@ function Badge({ badge, dot }) {
   }
   if (dot) {
     return (
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-purple-500">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-foreground bg-destructive">
         <span className="sr-only">New</span>
       </span>
     );
@@ -45,12 +40,12 @@ function NavList({ navItems, onNavigate, admin }) {
           end={end}
           onClick={onNavigate}
           className={({ isActive }) =>
-            `flex min-h-11 items-center gap-3 rounded-xl border-l-2 px-3 py-2.5 text-sm font-medium transition-all ${
+            `flex min-h-11 items-center gap-3 rounded-md border-2 px-3 py-2.5 text-sm font-bold transition-all ${
               isActive
                 ? admin
-                  ? 'border-amber-500 bg-base text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
-                  : 'border-transparent bg-base text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
+                  ? 'border-foreground bg-accent text-accent-foreground shadow-brut-sm'
+                  : 'border-foreground bg-primary text-primary-foreground shadow-brut-sm'
+                : 'border-transparent text-muted-foreground hover:border-foreground hover:bg-muted hover:text-foreground'
             }`
           }
         >
@@ -66,13 +61,13 @@ function NavList({ navItems, onNavigate, admin }) {
 function Footer({ userLabel, onLogout }) {
   return (
     <div className="px-3 py-4">
-      <p className="truncate px-3 py-2 text-xs text-slate-600 dark:text-slate-400" title={userLabel}>
+      <p className="truncate px-3 py-2 font-mono text-xs text-muted-foreground" title={userLabel}>
         {userLabel}
       </p>
       <button
         type="button"
         onClick={onLogout}
-        className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 transition-colors hover:text-red-600"
+        className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-md border-2 border-transparent px-3 py-2 text-sm font-bold text-muted-foreground transition-colors hover:border-foreground hover:bg-destructive-soft hover:text-foreground"
       >
         <LogOut className="h-4 w-4" aria-hidden="true" />
         Log out
@@ -84,26 +79,25 @@ function Footer({ userLabel, onLogout }) {
 function Brand({ to, subtitle, admin }) {
   return (
     <Link to={to} className="flex items-center gap-2.5 px-5 py-6">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
-        <Tag className="h-5 w-5 text-white" aria-hidden="true" />
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border-2 border-foreground bg-primary shadow-brut-sm">
+        <Tag className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-base font-extrabold leading-tight text-slate-800 dark:text-slate-100">TagBack</p>
+        <p className="truncate font-display text-base font-bold leading-tight text-foreground">TagBack</p>
         {admin ? (
-          <span className="mt-0.5 inline-block truncate rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+          <span className="mt-0.5 inline-block truncate rounded-md border-2 border-foreground bg-accent px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-accent-foreground">
             {subtitle}
           </span>
         ) : (
-          <p className="truncate text-xs text-slate-600 dark:text-slate-400">{subtitle}</p>
+          <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         )}
       </div>
     </Link>
   );
 }
 
-// `admin` gives the shell a small, deliberate identity distinct from the
-// owner dashboard it's structurally copied from: an amber subtitle pill and
-// an amber left-border on the active nav item.
+// `admin` gives the shell a distinct identity from the owner dashboard: a
+// yellow subtitle pill and yellow active nav blocks (owner uses cobalt).
 // `tourId` marks both the desktop rail and the phone top bar for the guided
 // tour; whichever is on screen gets highlighted.
 export default function SidebarShell({ subtitle, homeTo, navItems, drawerItems, userLabel, onLogout, admin, tourId }) {
@@ -118,29 +112,29 @@ export default function SidebarShell({ subtitle, homeTo, navItems, drawerItems, 
     <>
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-base focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:shadow-neu-flat"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:border-2 focus:border-foreground focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-accent-foreground focus:shadow-brut"
       >
         Skip to content
       </a>
 
       {/* Desktop rail */}
-      <aside data-tour={tourId} className="fixed inset-y-0 left-0 z-20 hidden w-56 shrink-0 flex-col bg-base shadow-neu-flat md:flex">
+      <aside data-tour={tourId} className="fixed inset-y-0 left-0 z-20 hidden w-56 shrink-0 flex-col border-r-2 border-foreground bg-card md:flex">
         <Brand to={homeTo} subtitle={subtitle} admin={admin} />
         <NavList navItems={navItems} admin={admin} />
         <Footer userLabel={userLabel} onLogout={onLogout} />
       </aside>
 
       {/* Mobile top bar + drawer */}
-      <header data-tour={tourId} className="sticky top-0 z-20 flex items-center justify-between gap-3 bg-base px-4 py-2 shadow-neu-flat-sm md:hidden">
+      <header data-tour={tourId} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b-2 border-foreground bg-card px-4 py-2 md:hidden">
         <Link to={homeTo} className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-neu-flat-sm">
-            <Tag className="h-4 w-4 text-white" aria-hidden="true" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-2 border-foreground bg-primary">
+            <Tag className="h-4 w-4 text-primary-foreground" aria-hidden="true" />
           </span>
-          <span className="truncate text-base font-extrabold text-slate-800 dark:text-slate-100">
+          <span className="truncate font-display text-base font-bold text-foreground">
             {current ? current.label : 'TagBack'}
           </span>
           {admin && (
-            <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+            <span className="shrink-0 rounded-md border-2 border-foreground bg-accent px-2 py-0.5 text-xs font-bold text-accent-foreground">
               Admin
             </span>
           )}
@@ -150,12 +144,12 @@ export default function SidebarShell({ subtitle, homeTo, navItems, drawerItems, 
             type="button"
             onClick={() => setOpen(true)}
             aria-label={needsAttention ? 'Open menu (new activity)' : 'Open menu'}
-            className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-base text-slate-700 dark:text-slate-300 shadow-neu-flat-sm"
+            className="relative flex h-11 w-11 items-center justify-center rounded-md border-2 border-foreground bg-card text-foreground shadow-brut-sm active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
-            {needsAttention && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-pink-600" aria-hidden="true" />}
+            {needsAttention && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border border-foreground bg-destructive" aria-hidden="true" />}
           </button>
-          <SheetContent side="left" className="flex w-64 flex-col gap-0 bg-base p-0">
+          <SheetContent side="left" className="flex w-64 flex-col gap-0 bg-card p-0">
             <SheetHeader className="p-0">
               <SheetTitle className="sr-only">Navigation</SheetTitle>
               <Brand to={homeTo} subtitle={subtitle} admin={admin} />

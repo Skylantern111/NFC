@@ -1,45 +1,32 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
 
 const ThemeContext = createContext(undefined);
 
-export function ThemeProvider({
-  children,
-  defaultTheme = "light",
-  switchable = false,
-}) {
-  const [theme, setTheme] = useState(() => {
-    if (switchable) {
-      const stored = localStorage.getItem("theme");
-      return stored || defaultTheme;
-    }
-    return defaultTheme;
-  });
+// Light-only after the brutalist redesign. The provider is kept (with its
+// original API surface) so every `useTheme()` call site and the `switchable`
+// prop keep working — but there is no dark theme and no toggle anymore.
+const PAPER = "#FDFBF7";
 
+export function ThemeProvider({ children }) {
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-    // Browser-bar color follows the theme (UI_UX_IMPROVEMENT_PLAN.md DS14).
+    root.classList.remove("dark");
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#0D0A1A" : "#E9EDF5");
-
-    if (switchable) {
-      localStorage.setItem("theme", theme);
+      ?.setAttribute("content", PAPER);
+    try {
+      // Clear any stale stored preference from the old dual-theme system.
+      localStorage.removeItem("theme");
+    } catch {
+      /* ignore */
     }
-  }, [theme, switchable]);
+  }, []);
 
-  const toggleTheme = switchable
-    ? () => {
-        setTheme(prev => (prev === "light" ? "dark" : "light"));
-      }
-    : undefined;
-
+  // toggleTheme is intentionally undefined so UI that offered a switch hides it.
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, switchable }}>
+    <ThemeContext.Provider
+      value={{ theme: "light", toggleTheme: undefined, switchable: false }}
+    >
       {children}
     </ThemeContext.Provider>
   );

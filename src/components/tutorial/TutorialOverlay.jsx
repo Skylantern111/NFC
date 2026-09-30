@@ -197,7 +197,7 @@ export default function TutorialOverlay({ step, index, total, onNext, onPrev, on
       {spot && (
         <div
           aria-hidden="true"
-          className={`pointer-events-none fixed z-[70] rounded-2xl ring-2 ring-purple-400 dark:ring-purple-300 ${motion}`}
+          className={`pointer-events-none fixed z-[70] rounded-lg ring-4 ring-accent ${motion}`}
           style={{
             left: spot.left,
             top: spot.top,
@@ -213,30 +213,30 @@ export default function TutorialOverlay({ step, index, total, onNext, onPrev, on
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={bodyId}
-        className={`fixed z-[71] w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border border-white/60 bg-base p-5 shadow-card dark:border-white/10 ${motion}`}
+        className={`fixed z-[71] w-[min(22rem,calc(100vw-1.5rem))] rounded-lg border-2 border-foreground bg-card p-5 shadow-brut-xl ${motion}`}
         style={{ left: pos.left, top: pos.top }}
       >
         {spot && pos.side !== 'center' && (
           <span
             aria-hidden="true"
-            className={`absolute h-3 w-3 rotate-45 border-white/60 bg-base dark:border-white/10 ${ARROW[pos.side]}`}
+            className={`absolute h-3 w-3 rotate-45 border-foreground bg-card ${ARROW[pos.side]}`}
             style={vertical ? { top: arrowAt } : { left: arrowAt }}
           />
         )}
-        <p className="text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
+        <p className="font-mono text-xs font-bold uppercase tracking-wide text-primary">
           Step {index + 1} of {total}
         </p>
-        <h2 id={titleId} className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-100">
+        <h2 id={titleId} className="mt-1 font-display text-lg font-bold text-foreground">
           {step.title}
         </h2>
-        <p id={bodyId} className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">
+        <p id={bodyId} className="mt-1.5 text-sm text-muted-foreground">
           {step.body}
         </p>
         <div className="mt-3 flex gap-1" aria-hidden="true">
           {Array.from({ length: total }, (_, i) => (
             <span
               key={i}
-              className={`h-1.5 flex-1 rounded-full ${i <= index ? 'bg-purple-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+              className={`h-2 flex-1 rounded-full border border-foreground ${i <= index ? 'bg-primary' : 'bg-muted'}`}
             />
           ))}
         </div>

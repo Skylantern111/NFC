@@ -35,7 +35,7 @@ const ItemDetailsFields = forwardRef(function ItemDetailsFields(
               const Icon = CATEGORY_ICON[c];
               return (
                 <SelectItem key={c} value={c}>
-                  <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                  <Icon className="h-4 w-4 text-muted-foreground" />
                   {c}
                 </SelectItem>
               );

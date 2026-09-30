@@ -73,10 +73,10 @@ import {
 } from 'lucide-react';
 
 const STATUS_TABS = [
-  { value: 'all', label: 'All', icon: Boxes, tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300' },
-  { value: 'registered', label: 'Registered', icon: CircleDashed, tint: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
-  { value: 'claimed', label: 'Claimed', icon: CheckCircle2, tint: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
-  { value: 'blacklisted', label: 'Blacklisted', icon: ShieldAlert, tint: 'bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300' },
+  { value: 'all', label: 'All', icon: Boxes, tint: 'bg-primary/15 text-primary' },
+  { value: 'registered', label: 'Registered', icon: CircleDashed, tint: 'bg-muted text-muted-foreground' },
+  { value: 'claimed', label: 'Claimed', icon: CheckCircle2, tint: 'bg-success-soft text-foreground' },
+  { value: 'blacklisted', label: 'Blacklisted', icon: ShieldAlert, tint: 'bg-destructive-soft text-foreground' },
 ];
 
 const WRITE_STATUS_LABEL = {
@@ -521,15 +521,15 @@ export default function Inventory() {
       {/* KPI strip — real counts from the tags collection */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-tour="inventory-status">
         {STATUS_TABS.map((s) => (
-          <div key={s.value} className="rounded-2xl bg-white/80 dark:bg-white/5 p-4 shadow-card">
+          <div key={s.value} className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
             <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
               <s.icon className="h-4.5 w-4.5" />
             </span>
-            <div className="mt-3 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">{s.label}</div>
+            <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">{s.label}</div>
             {counts[s.value] === null ? (
               <Skeleton className="mt-1 h-7 w-12" />
             ) : (
-              <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">
+              <div className="mt-1 text-2xl font-bold text-foreground">
                 {counts[s.value].toLocaleString()}
               </div>
             )}
@@ -537,12 +537,12 @@ export default function Inventory() {
         ))}
       </div>
 
-      <Card data-tour="inventory-table" className="rounded-3xl bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 shadow-card">
+      <Card data-tour="inventory-table" className="rounded-lg border-2 border-foreground bg-card text-foreground shadow-card">
         <CardHeader>
           <CardTitle>Tag lifecycle</CardTitle>
-          <CardDescription className="text-slate-600 dark:text-slate-400">
+          <CardDescription className="text-muted-foreground">
             Most recent {ROW_LIMIT} tags, newest registration first. New rows only ever come from{' '}
-            <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
+            <Link to="/admin/nfc-register" className="font-semibold text-primary hover:text-primary">
               registering a physical tap
             </Link>
             .
@@ -560,12 +560,12 @@ export default function Inventory() {
                 className="sm:max-w-xs"
               />
               {serverSearching && (
-                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 shadow-neu-pressed-sm">
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-muted-foreground shadow-neu-pressed-sm">
                   <Search className="h-3 w-3 animate-pulse" /> Searching full inventory…
                 </span>
               )}
               {!serverSearching && serverMatches.length > 0 && (
-                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 shadow-neu-pressed-sm">
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-muted-foreground shadow-neu-pressed-sm">
                   <Search className="h-3 w-3" /> Found beyond the loaded {ROW_LIMIT} — showing full-inventory match.
                 </span>
               )}
@@ -592,7 +592,7 @@ export default function Inventory() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="text-rose-600"
+                  className="text-foreground"
                   onClick={() => {
                     setLastMenuTag(null);
                     setBlacklistTarget('__bulk__');
@@ -617,12 +617,12 @@ export default function Inventory() {
                   aria-pressed={statusFilter === s.value}
                   className={`min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
                     statusFilter === s.value
-                      ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-neu-pressed-sm'
-                      : 'bg-base text-slate-600 dark:text-slate-400 shadow-neu-flat-sm hover:text-slate-800 dark:hover:text-slate-100'
+                      ? 'bg-primary/15 text-primary shadow-neu-pressed-sm'
+                      : 'bg-base text-muted-foreground shadow-neu-flat-sm hover:text-foreground'
                   }`}
                 >
                   {s.label}
-                  {counts[s.value] !== null && <span className="ml-1 text-slate-600 dark:text-slate-400">({counts[s.value]})</span>}
+                  {counts[s.value] !== null && <span className="ml-1 text-muted-foreground">({counts[s.value]})</span>}
                 </button>
               ))}
             </div>
@@ -635,7 +635,7 @@ export default function Inventory() {
           <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
             <Table className="stack-table">
               <TableHeader>
-                <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                <TableRow className="border-foreground hover:bg-transparent">
                   <TableHead className="w-8">
                     <Checkbox
                       checked={allSelectableChecked}
@@ -644,21 +644,21 @@ export default function Inventory() {
                       aria-label="Select all"
                     />
                   </TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">TagBack ID</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Physical UID</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Chip</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Status</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Write status</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Content</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Registered</TableHead>
-                  <TableHead className="text-slate-600 dark:text-slate-400">Owner</TableHead>
-                  <TableHead className="text-right text-slate-600 dark:text-slate-400">Actions</TableHead>
+                  <TableHead className="text-muted-foreground">TagBack ID</TableHead>
+                  <TableHead className="text-muted-foreground">Physical UID</TableHead>
+                  <TableHead className="text-muted-foreground">Chip</TableHead>
+                  <TableHead className="text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-muted-foreground">Write status</TableHead>
+                  <TableHead className="text-muted-foreground">Content</TableHead>
+                  <TableHead className="text-muted-foreground">Registered</TableHead>
+                  <TableHead className="text-muted-foreground">Owner</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rowsLoading &&
                   [0, 1, 2, 3, 4].map((i) => (
-                    <TableRow key={i} className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
+                    <TableRow key={i} className="border-foreground hover:bg-transparent">
                       {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((c) => (
                         <TableCell key={c}>
                           <Skeleton className="h-4 w-full max-w-24" />
@@ -667,10 +667,10 @@ export default function Inventory() {
                     </TableRow>
                   ))}
                 {!rowsLoading && filteredRows.length === 0 && (
-                  <TableRow className="border-slate-200 dark:border-slate-700 hover:bg-transparent">
-                    <TableCell colSpan={10} data-full className="py-10 text-center text-slate-600 dark:text-slate-400">
+                  <TableRow className="border-foreground hover:bg-transparent">
+                    <TableCell colSpan={10} data-full className="py-10 text-center text-muted-foreground">
                       {rows.length === 0 && !search ? 'No NFC tags have been registered yet.' : 'No tags match this view.'}{' '}
-                      <Link to="/admin/nfc-register" className="font-semibold text-purple-600 hover:text-pink-600">
+                      <Link to="/admin/nfc-register" className="font-semibold text-primary hover:text-primary">
                         Register a physical tap
                       </Link>{' '}
                       to add inventory.
@@ -681,7 +681,7 @@ export default function Inventory() {
                   const created = toDate(t.registeredAt);
                   const lookup = ownerLookup[t.tagId];
                   return (
-                    <TableRow key={t.tagId} className="border-slate-200 dark:border-slate-700/60 hover:bg-slate-900/5 dark:hover:bg-white/5">
+                    <TableRow key={t.tagId} className="border-foreground hover:bg-muted">
                       <TableCell data-label="Select">
                         <Checkbox
                           checked={selectedIds.has(t.tagId)}
@@ -690,13 +690,13 @@ export default function Inventory() {
                           aria-label={`Select ${t.tagId}`}
                         />
                       </TableCell>
-                      <TableCell data-label="TagBack ID" className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100" title={t.tagId}>
+                      <TableCell data-label="TagBack ID" className="font-mono text-xs font-semibold text-foreground" title={t.tagId}>
                         {t.tagId}
                       </TableCell>
-                      <TableCell data-label="Physical UID" className="font-mono text-xs text-slate-600 dark:text-slate-300" title={t.physicalUid || ''}>
+                      <TableCell data-label="Physical UID" className="font-mono text-xs text-muted-foreground" title={t.physicalUid || ''}>
                         {t.physicalUid || '—'}
                       </TableCell>
-                      <TableCell data-label="Chip" className="text-slate-600 dark:text-slate-300">{t.chipType || '—'}</TableCell>
+                      <TableCell data-label="Chip" className="text-muted-foreground">{t.chipType || '—'}</TableCell>
                       <TableCell data-label="Status">
                         <StatusBadge state={t.status || 'registered'} />
                       </TableCell>
@@ -708,15 +708,15 @@ export default function Inventory() {
                       </TableCell>
                       <TableCell
                         data-label="Tap shows"
-                        className="max-w-48 truncate text-xs text-slate-600 dark:text-slate-300"
+                        className="max-w-48 truncate text-xs text-muted-foreground"
                         title={profiles[t.tagId]?.redirectUrl || contentLabel(profiles[t.tagId])}
                       >
                         {contentLabel(profiles[t.tagId])}
                       </TableCell>
-                      <TableCell data-label="Registered" className="text-slate-600 dark:text-slate-400" title={created ? created.toLocaleString() : ''}>
+                      <TableCell data-label="Registered" className="text-muted-foreground" title={created ? created.toLocaleString() : ''}>
                         {created ? relativeTimeFromMs(toMillis(created)) : '—'}
                       </TableCell>
-                      <TableCell data-label="Owner" className="text-slate-600 dark:text-slate-300">
+                      <TableCell data-label="Owner" className="text-muted-foreground">
                         {t.status !== 'claimed' ? (
                           '—'
                         ) : lookup?.owner ? (
@@ -750,7 +750,7 @@ export default function Inventory() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="w-52 rounded-xl border-slate-200 dark:border-slate-700 [&_[role=menuitem]]:cursor-pointer [&_[role=menuitem]]:outline-none"
+                            className="w-52 rounded-xl border-foreground [&_[role=menuitem]]:cursor-pointer [&_[role=menuitem]]:outline-none"
                           >
                             {t.status !== 'blacklisted' && (
                               <DropdownMenuItem asChild>
@@ -794,10 +794,10 @@ export default function Inventory() {
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
-                                className="text-emerald-600 dark:text-emerald-400"
+                                className="text-foreground"
                                 onSelect={() => prepareUnblacklist(t)}
                               >
-                                <Undo2 className="text-emerald-600 dark:text-emerald-400" /> Unblacklist
+                                <Undo2 className="text-foreground" /> Unblacklist
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -847,12 +847,12 @@ export default function Inventory() {
                 ? 'This marks every selected tag as blacklisted so none of them can be claimed or resolved.'
                 : 'This marks the tag as blacklisted so it can no longer be claimed or resolved.'}
               {blacklistTarget && blacklistTarget !== '__bulk__' && (
-                <span className="mt-1 block font-mono text-xs text-slate-600 dark:text-slate-400">{blacklistTarget}</span>
+                <span className="mt-1 block font-mono text-xs text-muted-foreground">{blacklistTarget}</span>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="blacklist-reason" className="text-slate-600 dark:text-slate-300">Reason (required)</Label>
+            <Label htmlFor="blacklist-reason" className="text-muted-foreground">Reason (required)</Label>
             <Input
               id="blacklist-reason"
               autoFocus

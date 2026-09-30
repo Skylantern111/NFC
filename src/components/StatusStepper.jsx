@@ -27,18 +27,18 @@ export default function StatusStepper({ step, className = '' }) {
             {i > 0 && (
               <span
                 className={cn(
-                  'absolute right-1/2 top-2.5 mr-3 h-px w-[calc(100%-1.5rem)]',
-                  i <= step ? 'bg-success' : 'bg-slate-300 dark:bg-white/10'
+                  'absolute right-1/2 top-2.5 mr-3 h-0.5 w-[calc(100%-1.5rem)]',
+                  i <= step ? 'bg-foreground' : 'bg-foreground/20'
                 )}
                 aria-hidden="true"
               />
             )}
             <span
               className={cn(
-                'relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-bold',
+                'relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-foreground text-[0.7rem] font-bold',
                 done && 'bg-success text-success-foreground',
                 current && 'bg-primary text-primary-foreground',
-                !done && !current && 'bg-slate-200 text-slate-600 dark:bg-white/10 dark:text-slate-300'
+                !done && !current && 'bg-muted text-muted-foreground'
               )}
             >
               {done ? <Check className="h-3 w-3" aria-hidden="true" /> : i + 1}
@@ -46,7 +46,7 @@ export default function StatusStepper({ step, className = '' }) {
             <span
               className={cn(
                 'text-center leading-tight',
-                current ? 'font-semibold text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'
+                current ? 'font-bold text-foreground' : 'text-muted-foreground'
               )}
             >
               {label}

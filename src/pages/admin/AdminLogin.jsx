@@ -66,13 +66,13 @@ export default function AdminLogin() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-base px-5 py-8">
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-warning-soft text-foreground">
           <ShieldAlert className="h-5.5 w-5.5" />
         </span>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Admin console</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-300">For TagBack staff. Sign in to continue.</p>
+        <h1 className="text-2xl font-extrabold text-foreground">Admin console</h1>
+        <p className="text-sm text-muted-foreground">For TagBack staff. Sign in to continue.</p>
       </div>
-      <Card className="w-full max-w-sm rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
+      <Card className="w-full max-w-sm rounded-lg border-2 border-foreground bg-card shadow-card">
         <CardHeader className="sr-only">
           <CardTitle>Admin sign in</CardTitle>
           <CardDescription>Sign in with an admin account.</CardDescription>
@@ -108,7 +108,7 @@ export default function AdminLogin() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-muted-foreground hover:text-foreground"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -121,16 +121,16 @@ export default function AdminLogin() {
           </form>
         </CardContent>
       </Card>
-      <div className="mt-5 flex flex-col items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
-        <Link to="/login" className="hover:text-slate-800 dark:hover:text-slate-100">
+      <div className="mt-5 flex flex-col items-center gap-1.5 text-sm text-muted-foreground">
+        <Link to="/login" className="hover:text-foreground">
           Not an admin? Go to owner sign in
         </Link>
-        <Link to="/admin/register" className="hover:text-slate-800 dark:hover:text-slate-100">
+        <Link to="/admin/register" className="hover:text-foreground">
           Need an admin account? Create one with the admin passcode
         </Link>
       </div>
       {!firebaseReady && (
-        <p className="mt-4 text-center text-xs text-amber-600">
+        <p className="mt-4 text-center text-xs text-foreground">
           Firebase not configured — sign-in is stubbed for preview.
         </p>
       )}

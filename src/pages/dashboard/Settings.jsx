@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { deleteField, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, firebaseReady } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { useTutorial } from '../../components/tutorial/TutorialProvider';
 import { deleteMyAccount } from '../../lib/account';
 import { friendlyAuthError, friendlyFirestoreError } from '../../lib/utils';
@@ -16,7 +15,6 @@ import StatusBadge from '../../components/StatusBadge';
 import FormField from '../../components/FormField';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Switch } from '../../components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -35,8 +33,8 @@ function HelpCard() {
   if (!tutorial) return null;
   return (
     <GlassCard data-tour="settings-help">
-      <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Help</h2>
-      <p className="text-sm text-slate-700 dark:text-slate-200">
+      <h2 className="mb-2 font-bold text-foreground">Help</h2>
+      <p className="text-sm text-foreground">
         New to TagBack? Take a short tour of claiming tags, Lost Mode and messages.
       </p>
       <Button type="button" variant="outline" size="sm" className="mt-3" onClick={tutorial.start}>
@@ -117,7 +115,6 @@ function NameForm({ user }) {
 
 export default function Settings() {
   const { user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const nav = useNavigate();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -165,18 +162,10 @@ export default function Settings() {
     <div className="mx-auto max-w-xl space-y-4">
       <PageHeader title="Settings" tourId="settings-header" />
 
-      <GlassCard>
-        <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Appearance</h2>
-        <label className="flex min-h-11 items-center justify-between gap-3">
-          <span className="text-sm text-slate-700 dark:text-slate-200">Dark mode</span>
-          <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
-        </label>
-      </GlassCard>
-
       {user && (
         <GlassCard>
-          <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Account</h2>
-          <p className="break-all text-sm text-slate-700 dark:text-slate-200">{user.email}</p>
+          <h2 className="mb-2 font-bold text-foreground">Account</h2>
+          <p className="break-all text-sm text-foreground">{user.email}</p>
           <div className="mt-2">
             <StatusBadge
               state={user.emailVerified ? 'claimed' : 'review'}
@@ -195,11 +184,11 @@ export default function Settings() {
       )}
 
       <GlassCard>
-        <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
+        <h2 className="mb-2 font-bold text-foreground">Notifications</h2>
         {/* SYSTEM_AUDIT_ROUND2.md B6 / UI_UX_IMPROVEMENT_PLAN.md OWN5: no
             switches for channels that don't exist — alerts are in-app only
             (no email backend on the Spark plan). */}
-        <p className="text-sm text-slate-700 dark:text-slate-200">
+        <p className="text-sm text-foreground">
           Alerts show in the app: the Messages badge, Notifications, and the browser tab title. Email alerts aren't
           available yet.
         </p>
@@ -207,10 +196,10 @@ export default function Settings() {
 
       {user && (
         <GlassCard>
-          <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">Privacy</h2>
-          <p className="text-sm text-slate-700 dark:text-slate-200">
+          <h2 className="mb-2 font-bold text-foreground">Privacy</h2>
+          <p className="text-sm text-foreground">
             See what TagBack stores, who can see it, and how long it's kept on the{' '}
-            <Link to="/privacy" className="font-semibold text-purple-700 underline-offset-2 hover:underline dark:text-purple-300">
+            <Link to="/privacy" className="font-semibold text-primary underline-offset-2 hover:underline">
               Privacy page
             </Link>
             .
@@ -224,12 +213,12 @@ export default function Settings() {
       {user && (
         <section
           aria-labelledby="danger-heading"
-          className="rounded-3xl border border-red-200 dark:border-red-500/30 bg-destructive-soft p-5 sm:p-6"
+          className="rounded-lg border border-foreground bg-destructive-soft p-5 sm:p-6"
         >
-          <h2 id="danger-heading" className="font-bold text-red-800 dark:text-red-200">
+          <h2 id="danger-heading" className="font-bold text-foreground">
             Danger zone
           </h2>
-          <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+          <p className="mt-1 text-sm text-foreground">
             Delete your account and everything linked to it.
           </p>
           <Button variant="destructive" className="mt-3" onClick={() => setDeleteOpen(true)}>
@@ -252,7 +241,7 @@ export default function Settings() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <TriangleAlert className="h-5 w-5 text-red-600" aria-hidden="true" /> Delete your account?
+              <TriangleAlert className="h-5 w-5 text-foreground" aria-hidden="true" /> Delete your account?
             </DialogTitle>
             <DialogDescription>
               This permanently deletes your account, your items and their tap pages, and every finder report, chat and
@@ -280,7 +269,7 @@ export default function Settings() {
               />
             </FormField>
             {progress && (
-              <p role="status" className="text-sm text-slate-600 dark:text-slate-300">
+              <p role="status" className="text-sm text-muted-foreground">
                 {progress}
               </p>
             )}

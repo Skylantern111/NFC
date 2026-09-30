@@ -17,13 +17,17 @@ import { cn } from '../lib/utils';
 // One badge for every status in the app (UI_UX_IMPROVEMENT_PLAN.md DS3,
 // B.7): same words, color and icon everywhere, and never color alone
 // (A11Y3). States are derived from existing data — see itemStatus() below.
+// Brutalist tone blocks: a soft tinted fill with a 2px black frame and black
+// text/icon. Hue + icon + label carry the meaning; `rose` uses the solid
+// coral fill to mark the strongest admin actions (ban/blacklist) apart from
+// the softer "danger" tint.
 const TONES = {
-  success: 'bg-success-soft text-success border-success/20',
-  danger: 'bg-destructive-soft text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/30',
-  info: 'bg-info-soft text-info border-info/20',
-  warning: 'bg-warning-soft text-warning border-warning/20',
-  rose: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30',
-  neutral: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-white/5 dark:text-slate-300 dark:border-white/10',
+  success: 'bg-success-soft text-foreground border-foreground',
+  danger: 'bg-destructive-soft text-foreground border-foreground',
+  info: 'bg-info-soft text-foreground border-foreground',
+  warning: 'bg-warning-soft text-foreground border-foreground',
+  rose: 'bg-destructive text-destructive-foreground border-foreground',
+  neutral: 'bg-muted text-foreground border-foreground',
 };
 
 const STATES = {
@@ -66,7 +70,7 @@ export default function StatusBadge({ state, label, className = '' }) {
   return (
     <span
       className={cn(
-        'inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-md border-2 px-2 py-0.5 text-xs font-bold',
         TONES[meta.tone],
         className
       )}

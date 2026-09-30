@@ -232,7 +232,7 @@ export default function ClaimTag() {
       />
       <form onSubmit={onSubmit} noValidate className="space-y-4">
         <GlassCard className="space-y-4" data-tour="claim-find">
-          <h2 className="font-bold text-slate-800 dark:text-slate-100">1. Find your tag</h2>
+          <h2 className="font-bold text-foreground">1. Find your tag</h2>
           {nfcSupported ? (
             <NfcScanPanel
               status={nfcStatus}
@@ -272,7 +272,7 @@ export default function ClaimTag() {
         </GlassCard>
 
         <GlassCard className="space-y-4" data-tour="claim-details">
-          <h2 className="font-bold text-slate-800 dark:text-slate-100">2. Describe the item</h2>
+          <h2 className="font-bold text-foreground">2. Describe the item</h2>
           <ItemDetailsFields
             ref={itemNameRef}
             itemName={itemName}

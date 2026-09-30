@@ -89,9 +89,9 @@ export default function Dashboard() {
   const openChatCount = chats.filter((c) => !c.resolved).length;
   // Each tile opens the list it counts (UI_UX_IMPROVEMENT_PLAN.md DB2).
   const stats = [
-    { label: 'Items tagged', value: items.length, icon: Package, to: '/dashboard/items', tint: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300' },
-    { label: 'In Lost Mode', value: lostCount, icon: AlertTriangle, to: '/dashboard/items?filter=lost', tint: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
-    { label: 'Open chats', value: openChatCount, icon: MessageSquareWarning, to: '/dashboard/messages?filter=open', tint: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300' },
+    { label: 'Items tagged', value: items.length, icon: Package, to: '/dashboard/items', tint: 'bg-primary/15 text-primary' },
+    { label: 'In Lost Mode', value: lostCount, icon: AlertTriangle, to: '/dashboard/items?filter=lost', tint: 'bg-destructive-soft text-foreground' },
+    { label: 'Open chats', value: openChatCount, icon: MessageSquareWarning, to: '/dashboard/messages?filter=open', tint: 'bg-info-soft text-foreground' },
   ];
 
   const openTagSet = useMemo(() => new Set(reports.map((r) => r.tagId)), [reports]);
@@ -147,25 +147,25 @@ export default function Dashboard() {
       />
 
       {loading ? (
-        <Skeleton className="h-40 rounded-3xl" />
+        <Skeleton className="h-40 rounded-lg" />
       ) : loadError ? (
         <LoadErrorState what="your items" error={loadError} onRetry={retryLoad} />
       ) : firstRun ? (
         <GlassCard data-tour="dashboard-status">
-          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+          <h2 className="text-lg font-bold text-foreground">
             Get started in {steps.length === 4 ? 'four' : 'three'} steps
           </h2>
           <ol className="mt-4 space-y-3">
             {steps.map(({ icon: Icon, title, detail }, i) => (
               <li key={title} className="flex gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base text-sm font-bold text-purple-700 dark:text-purple-300 shadow-neu-flat-sm">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base text-sm font-bold text-primary shadow-neu-flat-sm">
                   {i + 1}
                 </span>
                 <div>
-                  <p className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
-                    <Icon className="h-4 w-4 text-purple-700 dark:text-purple-300" aria-hidden="true" /> {title}
+                  <p className="flex items-center gap-1.5 font-semibold text-foreground">
+                    <Icon className="h-4 w-4 text-primary" aria-hidden="true" /> {title}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">{detail}</p>
+                  <p className="text-sm text-muted-foreground">{detail}</p>
                 </div>
               </li>
             ))}
@@ -178,24 +178,24 @@ export default function Dashboard() {
             )}
           </Button>
           {/* Privacy explainer only on first run (DB5) — not on every visit. */}
-          <p className="mt-5 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+          <p className="mt-5 flex items-start gap-2 text-sm text-muted-foreground">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-foreground" aria-hidden="true" />
             Finders see only your tap page: the item name, its lost status, your message and reward, and any links
             you add. Your account email is never shown.
           </p>
         </GlassCard>
       ) : incidents.length > 0 ? (
         <section className="space-y-3" aria-labelledby="incidents-heading" data-tour="dashboard-status">
-          <h2 id="incidents-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
+          <h2 id="incidents-heading" className="text-lg font-bold text-foreground">
             Action needed
           </h2>
           {incidents.map(({ report, item, chat }) => (
-            <GlassCard key={report.id} className="space-y-4 border-sky-200 dark:border-sky-500/30">
+            <GlassCard key={report.id} className="space-y-4 border-foreground">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">Someone found your item</p>
-                  <h3 className="truncate text-xl font-extrabold text-slate-800 dark:text-slate-100">{item.itemName}</h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                  <p className="text-sm font-semibold text-foreground">Someone found your item</p>
+                  <h3 className="truncate text-xl font-extrabold text-foreground">{item.itemName}</h3>
+                  <p className="text-xs text-muted-foreground">
                     Reported {relativeTimeFromMs(toMillis(report.timestamp)) || 'just now'}
                   </p>
                 </div>
@@ -204,7 +204,7 @@ export default function Dashboard() {
               <StatusStepper step={recoveryStep({ chat, hasReport: true })} />
               <ReportLocationMap location={report.location} />
               {chat?.lastMessageText && (
-                <blockquote className="rounded-2xl bg-base px-4 py-3 text-sm text-slate-700 dark:text-slate-200 shadow-neu-pressed-sm">
+                <blockquote className="rounded-lg bg-base px-4 py-3 text-sm text-foreground shadow-neu-pressed-sm">
                   “{chat.lastMessageText}”
                 </blockquote>
               )}
@@ -224,12 +224,12 @@ export default function Dashboard() {
         </section>
       ) : (
         <GlassCard className="flex flex-col items-center gap-3 text-center" data-tour="dashboard-status">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-success">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-foreground">
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="mb-1 text-lg font-bold text-slate-800 dark:text-slate-100">All clear</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
+            <h2 className="mb-1 text-lg font-bold text-foreground">All clear</h2>
+            <p className="text-sm text-muted-foreground">
               No one has reported finding your items. If something goes missing, turn on Lost Mode.
             </p>
           </div>
@@ -244,13 +244,13 @@ export default function Dashboard() {
       {visibleStale.map((item) => (
         <div
           key={item.tagId}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warning/20 bg-warning-soft p-4"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/20 bg-warning-soft p-4"
         >
           <div className="flex min-w-0 items-center gap-3">
-            <Clock className="h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
+            <Clock className="h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">Still missing: {item.itemName}</p>
-              <p className="text-xs text-slate-700 dark:text-slate-300">
+              <p className="truncate text-sm font-semibold text-foreground">Still missing: {item.itemName}</p>
+              <p className="text-xs text-foreground">
                 Lost {daysSinceMs(toMillis(item.lostSince))} days ago. Update the message or add a reward?
               </p>
             </div>
@@ -276,7 +276,7 @@ export default function Dashboard() {
           anything that needs action, so numbers never outrank a finder. */}
       {!firstRun && !loadError && (
         <section aria-labelledby="items-heading" className="space-y-2">
-          <h2 id="items-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
+          <h2 id="items-heading" className="text-lg font-bold text-foreground">
             Your items
           </h2>
           <div className="grid grid-cols-3 gap-3 sm:gap-4">
@@ -292,9 +292,9 @@ export default function Dashboard() {
                 {loading ? (
                   <Skeleton className="h-8 w-10" />
                 ) : (
-                  <span className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{s.value}</span>
+                  <span className="text-2xl font-extrabold text-foreground">{s.value}</span>
                 )}
-                <span className="text-xs text-slate-600 dark:text-slate-400">{s.label}</span>
+                <span className="text-xs text-muted-foreground">{s.label}</span>
               </Link>
             ))}
           </div>
@@ -305,30 +305,30 @@ export default function Dashboard() {
       {!firstRun && recent.length > 0 && (
         <section aria-labelledby="recent-heading" className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 id="recent-heading" className="text-lg font-bold text-slate-800 dark:text-slate-100">
+            <h2 id="recent-heading" className="text-lg font-bold text-foreground">
               Recent activity
             </h2>
-            <Link to="/dashboard/notifications" className="text-sm font-semibold text-purple-700 dark:text-purple-300 hover:underline">
+            <Link to="/dashboard/notifications" className="text-sm font-semibold text-primary hover:underline">
               See all
             </Link>
           </div>
-          <ul className="glass divide-y divide-slate-200/70 dark:divide-white/10 overflow-hidden p-0">
+          <ul className="glass divide-y divide-foreground/15 overflow-hidden p-0">
             {recent.map((n) => (
               <li key={n.id}>
                 <Link
                   to={n.chatId ? `/chat/${n.chatId}` : '/dashboard/notifications'}
-                  className="flex min-h-14 items-center gap-3 px-4 py-3 hover:bg-slate-900/5 dark:hover:bg-white/5"
+                  className="flex min-h-14 items-center gap-3 px-4 py-3 hover:bg-muted"
                 >
-                  <Bell className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+                  <Bell className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-sm ${n.read ? 'text-slate-700 dark:text-slate-300' : 'font-semibold text-slate-800 dark:text-slate-100'}`}>
+                    <span className={`block truncate text-sm ${n.read ? 'text-foreground' : 'font-semibold text-foreground'}`}>
                       {NOTIFICATION_LABEL[n.type] || 'Update'}
                     </span>
-                    <span className="block truncate text-xs text-slate-600 dark:text-slate-400">
+                    <span className="block truncate text-xs text-muted-foreground">
                       {itemsByTag[n.tagId]?.itemName || 'One of your items'} · {relativeTimeFromMs(toMillis(n.createdAt))}
                     </span>
                   </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </Link>
               </li>
             ))}

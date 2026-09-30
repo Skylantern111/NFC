@@ -56,9 +56,9 @@ export default function SignupForm({ admin = false }) {
   const passwordsMatch = form.password === form.confirmPassword;
 
   const STRENGTH_META = {
-    weak: { label: 'Weak', className: 'bg-red-500', textClassName: 'text-red-600 dark:text-red-400' },
-    medium: { label: 'Medium', className: 'bg-amber-500', textClassName: 'text-amber-600 dark:text-amber-400' },
-    strong: { label: 'Strong', className: 'bg-emerald-500', textClassName: 'text-emerald-600 dark:text-emerald-400' },
+    weak: { label: 'Weak', className: 'bg-destructive', textClassName: 'text-foreground' },
+    medium: { label: 'Medium', className: 'bg-warning', textClassName: 'text-foreground' },
+    strong: { label: 'Strong', className: 'bg-success', textClassName: 'text-foreground' },
   };
 
   async function onSubmit(e) {
@@ -177,7 +177,7 @@ export default function SignupForm({ admin = false }) {
         />
       </FormField>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-200">Password</Label>
+        <Label htmlFor="password" className="text-sm font-bold text-foreground">Password</Label>
         <div className="relative">
           <Input
             id="password"
@@ -193,7 +193,7 @@ export default function SignupForm({ admin = false }) {
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground"
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -201,7 +201,7 @@ export default function SignupForm({ admin = false }) {
 
         {form.password.length > 0 && strength && (
           <div className="mt-1 flex items-center gap-2">
-            <div className="flex h-1.5 flex-1 gap-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+            <div className="flex h-2 flex-1 gap-1 overflow-hidden rounded-full border border-foreground bg-muted">
               <div
                 className={`h-full rounded-full transition-all ${STRENGTH_META[strength].className}`}
                 style={{ width: strength === 'weak' ? '33%' : strength === 'medium' ? '66%' : '100%' }}
@@ -218,7 +218,7 @@ export default function SignupForm({ admin = false }) {
             <li
               key={r.key}
               className={`flex items-center gap-1.5 text-xs ${
-                r.met ? 'text-success' : 'text-slate-600 dark:text-slate-400'
+                r.met ? 'font-semibold text-foreground' : 'text-muted-foreground'
               }`}
             >
               {r.met ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
@@ -228,13 +228,13 @@ export default function SignupForm({ admin = false }) {
           ))}
         </ul>
         {fieldErr.password && (
-          <p id="password-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+          <p id="password-error" role="alert" className="text-sm font-semibold text-foreground">
             {fieldErr.password}
           </p>
         )}
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700 dark:text-slate-200">Confirm password</Label>
+        <Label htmlFor="confirmPassword" className="text-sm font-bold text-foreground">Confirm password</Label>
         <div className="relative">
           <Input
             id="confirmPassword"
@@ -250,21 +250,19 @@ export default function SignupForm({ admin = false }) {
             type="button"
             onClick={() => setShowConfirmPassword((v) => !v)}
             aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground"
           >
             {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
         {fieldErr.confirmPassword && (
-          <p id="confirmPassword-error" role="alert" className="text-sm text-red-700 dark:text-red-300">
+          <p id="confirmPassword-error" role="alert" className="text-sm font-semibold text-foreground">
             {fieldErr.confirmPassword}
           </p>
         )}
         {confirmTouched && !fieldErr.confirmPassword && (
           <p
-            className={`flex items-center gap-1.5 text-xs ${
-              passwordsMatch ? 'text-success' : 'text-red-700 dark:text-red-300'
-            }`}
+            className={`flex items-center gap-1.5 text-xs font-semibold text-foreground`}
             aria-live="polite"
           >
             {passwordsMatch ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
@@ -286,9 +284,9 @@ export default function SignupForm({ admin = false }) {
       <Button type="submit" variant="primary" loading={busy}>
         {busy ? 'Creating account…' : admin ? 'Create admin account' : 'Create account'}
       </Button>
-      <p className="text-center text-xs text-slate-600 dark:text-slate-400">
+      <p className="text-center text-xs text-muted-foreground">
         See what we store and how to delete it:{' '}
-        <Link to="/privacy" className="font-semibold text-purple-700 dark:text-purple-300 hover:underline">
+        <Link to="/privacy" className="font-bold text-primary hover:underline underline-offset-4">
           Privacy
         </Link>
       </p>

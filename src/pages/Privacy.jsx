@@ -47,28 +47,28 @@ export default function Privacy() {
           />
           {/* UI_UX_IMPROVEMENT_PLAN.md C.14: the short answer first. */}
           <GlassCard>
-            <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">In short</h2>
+            <h2 className="mb-2 font-bold text-foreground">In short</h2>
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
               <div>
-                <dt className="font-semibold text-slate-800 dark:text-slate-100">What we store</dt>
-                <dd className="text-slate-700 dark:text-slate-300">Your account, your items, and the chats about them.</dd>
+                <dt className="font-semibold text-foreground">What we store</dt>
+                <dd className="text-foreground">Your account, your items, and the chats about them.</dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-800 dark:text-slate-100">Who sees it</dt>
-                <dd className="text-slate-700 dark:text-slate-300">
+                <dt className="font-semibold text-foreground">Who sees it</dt>
+                <dd className="text-foreground">
                   Finders see only the item page. Owners see only what finders send.
                 </dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-800 dark:text-slate-100">How to delete it</dt>
-                <dd className="text-slate-700 dark:text-slate-300">Release a tag, or delete your account in Settings.</dd>
+                <dt className="font-semibold text-foreground">How to delete it</dt>
+                <dd className="text-foreground">Release a tag, or delete your account in Settings.</dd>
               </div>
             </dl>
           </GlassCard>
           {SECTIONS.map((s) => (
             <GlassCard key={s.title}>
-              <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">{s.title}</h2>
-              <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-600 dark:text-slate-300">
+              <h2 className="mb-2 font-bold text-foreground">{s.title}</h2>
+              <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
                 {s.items.map((t) => (
                   <li key={t}>{t}</li>
                 ))}
@@ -76,8 +76,8 @@ export default function Privacy() {
             </GlassCard>
           ))}
           <GlassCard>
-            <h2 className="mb-2 font-bold text-slate-800 dark:text-slate-100">How long, and deleting it</h2>
-            <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-600 dark:text-slate-300">
+            <h2 className="mb-2 font-bold text-foreground">How long, and deleting it</h2>
+            <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
               <li>
                 Data stays until you remove it. Releasing a tag deletes its reports, alerts, and chats with their
                 messages. Chats that were reported are kept for TagBack&apos;s moderation review.

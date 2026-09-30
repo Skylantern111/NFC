@@ -60,7 +60,7 @@ export const USER_TOUR = {
       route: '/dashboard/settings',
       targets: ['settings-help', 'settings-header'],
       title: 'Settings',
-      body: 'Manage your account, name, dark mode and privacy here. You can start this tour again from Help at any time.',
+      body: 'Manage your account, name and privacy here. You can start this tour again from Help at any time.',
     },
   ],
 };

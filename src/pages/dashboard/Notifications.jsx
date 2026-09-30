@@ -138,7 +138,7 @@ export default function Notifications() {
       )}
 
       {!loading && notifications.length > 0 && (
-        <ul className="glass divide-y divide-slate-200/70 dark:divide-white/10 overflow-hidden p-0">
+        <ul className="glass divide-y divide-foreground/15 overflow-hidden p-0">
           {notifications.map((n) => {
             const meta = TYPE_META[n.type] || TYPE_META.message;
             const Icon = meta.icon;
@@ -151,30 +151,30 @@ export default function Notifications() {
                 <Link
                   to={chatId ? `/chat/${chatId}` : '/dashboard/messages'}
                   onClick={() => onOpenNotification(n)}
-                  className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-900/5 dark:hover:bg-white/5"
+                  className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900/5 dark:bg-white/5">
-                    <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" aria-hidden="true" />
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span
                       className={cn(
-                        'block truncate text-sm text-slate-800 dark:text-slate-100',
+                        'block truncate text-sm text-foreground',
                         n.read ? 'font-medium' : 'font-bold'
                       )}
                     >
                       {meta.label}
                     </span>
-                    <span className="mt-0.5 block truncate text-sm text-slate-600 dark:text-slate-400">
+                    <span className="mt-0.5 block truncate text-sm text-muted-foreground">
                       {item?.itemName || 'One of your items'}
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-slate-600 dark:text-slate-400">
+                    <span className="text-xs text-muted-foreground">
                       {relativeTimeFromMs(toMillis(n.createdAt))}
                     </span>
                     {!n.read && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-pink-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-destructive">
                         <span className="sr-only">Unread</span>
                       </span>
                     )}

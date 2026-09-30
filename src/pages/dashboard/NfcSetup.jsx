@@ -189,9 +189,9 @@ export default function NfcSetup() {
           Changes you save show on the next tap. You don't need to rewrite the sticker.
         </InlineAlert>
         <div className="flex flex-col gap-1.5">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Tap link</p>
+          <p className="text-sm font-medium text-foreground">Tap link</p>
           <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-xl bg-base px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 shadow-neu-pressed-sm">
+            <code className="min-w-0 flex-1 truncate rounded-xl bg-base px-3 py-2.5 text-xs text-foreground shadow-neu-pressed-sm">
               {tapUrl}
             </code>
             <Button type="button" variant="outline" size="icon" onClick={copyTapLink} aria-label="Copy tap link">
@@ -201,7 +201,7 @@ export default function NfcSetup() {
         </div>
         {/* OWN1: hardware details are for troubleshooting, not the first thing
             an owner sees. */}
-        <details className="text-sm text-slate-600 dark:text-slate-300">
+        <details className="text-sm text-muted-foreground">
           <summary className="min-h-11 cursor-pointer py-2 font-medium">Technical details</summary>
           <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 pb-1 text-xs">
             <dt>TagBack ID</dt>
@@ -224,8 +224,8 @@ export default function NfcSetup() {
 
           <TagContentForm profile={profile} setProfile={setProfile} errors={errors} setErrors={setErrors} />
 
-          <p className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-foreground" aria-hidden="true" />
             Only these fields and your lost message are ever shown publicly. Your email, phone and account details
             never are.
           </p>
@@ -240,8 +240,8 @@ export default function NfcSetup() {
         {/* OWN2: on phones the save button stays in reach while there are
             unsaved changes (above the bottom tab bar). */}
         {dirty && (
-          <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 flex items-center justify-between gap-3 border-t border-white/60 bg-base/95 px-4 py-2 backdrop-blur md:hidden">
-            <span className="text-sm text-slate-700 dark:text-slate-200">Unsaved changes</span>
+          <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 flex items-center justify-between gap-3 border-t border-white/60 bg-base/95 px-4 py-2 md:hidden">
+            <span className="text-sm text-foreground">Unsaved changes</span>
             <Button type="submit" variant="primary" size="sm" loading={saving}>
               {saving ? 'Saving…' : 'Save'}
             </Button>

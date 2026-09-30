@@ -12,15 +12,15 @@ export default function AdminRegister() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-base px-5 py-8">
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-warning-soft text-foreground">
           <ShieldAlert className="h-5.5 w-5.5" />
         </span>
-        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Create admin account</h1>
-        <p className="max-w-sm text-sm text-slate-600 dark:text-slate-400">
+        <h1 className="text-2xl font-extrabold text-foreground">Create admin account</h1>
+        <p className="max-w-sm text-sm text-muted-foreground">
           For TagBack staff only. You need the admin passcode from an existing admin.
         </p>
       </div>
-      <Card className="w-full max-w-sm rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
+      <Card className="w-full max-w-sm rounded-lg border-2 border-foreground bg-card shadow-card">
         <CardHeader className="sr-only">
           <CardTitle>Admin sign up</CardTitle>
           <CardDescription>Create an admin account with the admin passcode.</CardDescription>
@@ -29,20 +29,20 @@ export default function AdminRegister() {
           <SignupForm admin />
         </CardContent>
       </Card>
-      <div className="mt-5 flex max-w-sm flex-col items-center gap-1.5 text-center text-sm text-slate-600 dark:text-slate-400">
-        <Link to="/admin/login" className="hover:text-slate-800 dark:hover:text-slate-100">
+      <div className="mt-5 flex max-w-sm flex-col items-center gap-1.5 text-center text-sm text-muted-foreground">
+        <Link to="/admin/login" className="hover:text-foreground">
           Already an admin? Sign in
         </Link>
-        <Link to="/register" className="hover:text-slate-800 dark:hover:text-slate-100">
+        <Link to="/register" className="hover:text-foreground">
           Not staff? Create a regular account
         </Link>
-        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+        <p className="mt-2 text-xs text-muted-foreground">
           Already have a regular account with this email? Ask an admin to grant access instead — this page only creates
           new accounts.
         </p>
       </div>
       {!firebaseReady && (
-        <p className="mt-4 text-center text-xs text-amber-600">Firebase not configured — sign-up is stubbed for preview.</p>
+        <p className="mt-4 text-center text-xs text-foreground">Firebase not configured — sign-up is stubbed for preview.</p>
       )}
     </div>
   );

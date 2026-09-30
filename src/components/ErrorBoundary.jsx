@@ -15,16 +15,16 @@ export function newErrorRef() {
 export function ErrorScreen({ title = "Something went wrong", message, errorRef, onRetry, error }) {
   return (
     <div role="alert" className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-base px-6 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-warning-soft">
-        <AlertTriangle className="h-6 w-6 text-warning" aria-hidden="true" />
+      <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-warning-soft">
+        <AlertTriangle className="h-6 w-6 text-foreground" aria-hidden="true" />
       </span>
       <div className="max-w-sm space-y-1.5">
-        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">{title}</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <h1 className="text-xl font-bold text-foreground">{title}</h1>
+        <p className="text-sm text-muted-foreground">
           {message || "This page couldn't load properly. Please try again."}
         </p>
         {errorRef && (
-          <p className="text-xs text-slate-600 dark:text-slate-400">
+          <p className="text-xs text-muted-foreground">
             If it keeps happening, tell TagBack this code: <span className="font-mono font-semibold">{errorRef}</span>
           </p>
         )}
@@ -40,9 +40,9 @@ export function ErrorScreen({ title = "Something went wrong", message, errorRef,
         </Button>
       </div>
       {import.meta.env.DEV && error?.stack && (
-        <details className="w-full max-w-2xl text-left text-xs text-slate-600 dark:text-slate-400">
+        <details className="w-full max-w-2xl text-left text-xs text-muted-foreground">
           <summary className="cursor-pointer">Developer details</summary>
-          <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-xl bg-white/70 p-3 dark:bg-white/5">{error.stack}</pre>
+          <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-xl border-2 border-foreground bg-card p-3">{error.stack}</pre>
         </details>
       )}
     </div>

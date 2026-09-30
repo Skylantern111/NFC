@@ -76,8 +76,8 @@ export default function Login() {
       <div className="relative flex min-h-screen flex-col">
         <TopNav fallback="/" />
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-8">
-        <h1 className="text-center text-3xl font-extrabold text-slate-800 dark:text-slate-100">Welcome back</h1>
-        <p className="mb-6 mt-1 text-center text-sm text-slate-600 dark:text-slate-300">
+        <h1 className="text-center font-display text-3xl font-bold uppercase tracking-tight text-foreground">Welcome back</h1>
+        <p className="mb-6 mt-1 text-center text-sm text-muted-foreground">
           Sign in to manage your tagged items.
         </p>
         <GlassCard>
@@ -94,7 +94,7 @@ export default function Login() {
               />
             </FormField>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              <label htmlFor="password" className="text-sm font-bold text-foreground">
                 Password
               </label>
               <div className="relative">
@@ -111,7 +111,7 @@ export default function Login() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -126,20 +126,20 @@ export default function Login() {
               type="button"
               onClick={onReset}
               disabled={resetting}
-              className="min-h-11 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-50"
+              className="min-h-11 text-sm font-bold text-muted-foreground hover:text-foreground hover:underline underline-offset-4 disabled:opacity-50"
             >
               {resetting ? 'Sending reset link…' : 'Forgot password?'}
             </button>
           </form>
         </GlassCard>
-        <p className="mt-5 text-center text-sm text-slate-600 dark:text-slate-400">
+        <p className="mt-5 text-center text-sm text-muted-foreground">
           No account?{' '}
-          <Link to="/register" className="font-semibold text-purple-700 dark:text-purple-300 hover:underline">
+          <Link to="/register" className="font-bold text-primary hover:underline underline-offset-4">
             Create one
           </Link>
         </p>
         {!firebaseReady && (
-          <p className="mt-4 text-center text-xs text-amber-600">
+          <p className="mt-4 text-center text-xs font-bold text-foreground">
             Firebase not configured — sign-in is stubbed for preview.
           </p>
         )}

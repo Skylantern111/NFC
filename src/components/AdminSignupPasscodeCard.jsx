@@ -76,12 +76,12 @@ export default function AdminSignupPasscodeCard() {
   }
 
   return (
-    <Card className="rounded-3xl bg-white/80 dark:bg-white/5 shadow-card">
+    <Card className="rounded-lg border-2 border-foreground bg-card shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <KeyRound className="h-4 w-4" /> Admin signup passcode
         </CardTitle>
-        <CardDescription className="text-slate-600 dark:text-slate-400">
+        <CardDescription className="text-muted-foreground">
           Anyone who types this passcode on the admin signup page (/admin/register) becomes an admin. Checked by the database rules, never shipped to browsers. Turn it off when nobody is being
           onboarded. Status: {enabled === null ? 'loading…' : enabled ? 'on' : 'off (no passcode set)'}.
         </CardDescription>
@@ -126,7 +126,7 @@ export default function AdminSignupPasscodeCard() {
             {enabled ? 'Change passcode' : 'Set passcode'}
           </Button>
           {enabled && (
-            <Button type="button" variant="outline" className="text-rose-600" disabled={busy} onClick={() => setConfirmOff(true)}>
+            <Button type="button" variant="outline" className="text-foreground" disabled={busy} onClick={() => setConfirmOff(true)}>
               Turn off
             </Button>
           )}

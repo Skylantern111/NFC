@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-const CARD = 'rounded-3xl bg-white/80 dark:bg-white/5 shadow-card';
+const CARD = 'rounded-lg border-2 border-foreground bg-card shadow-card';
 
 // Crashes reported from users' browsers (lib/errorLog.js →
 // clientErrors). SYSTEM_AUDIT_ROUND4.md E1. Latest 100, grouped by message.
@@ -82,7 +82,7 @@ export default function Errors() {
               {!loading && <RefreshCw className="h-3.5 w-3.5" />} Refresh
             </Button>
             {rows.length > 0 && (
-              <Button variant="outline" size="sm" className="gap-1.5 text-red-700 dark:text-red-300" onClick={() => setConfirmClear(true)}>
+              <Button variant="outline" size="sm" className="gap-1.5 text-foreground" onClick={() => setConfirmClear(true)}>
                 <Trash2 className="h-3.5 w-3.5" /> Clear all
               </Button>
             )}
@@ -104,17 +104,17 @@ export default function Errors() {
                 aria-expanded={open === g.message}
                 onClick={() => setOpen(open === g.message ? null : g.message)}
               >
-                <span className="font-mono text-sm text-slate-800 dark:text-slate-100 break-all">{g.message}</span>
+                <span className="font-mono text-sm text-foreground break-all">{g.message}</span>
                 <span className="flex items-center gap-2">
                   <Badge variant="outline">{g.count}×</Badge>
-                  <span className="text-xs text-slate-600 dark:text-slate-400">
+                  <span className="text-xs text-muted-foreground">
                     {relativeTimeFromMs(toMillis(g.latest.at))}
                   </span>
                 </span>
               </button>
-              <p className="break-all text-xs text-slate-600 dark:text-slate-400">Pages: {[...g.pages].join(', ')}</p>
+              <p className="break-all text-xs text-muted-foreground">Pages: {[...g.pages].join(', ')}</p>
               {open === g.message && (
-                <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                <div className="space-y-1 text-xs text-muted-foreground">
                   <p>Browser: {g.latest.userAgent || '—'}</p>
                   <p>Signed-in user: {g.latest.uid || 'none'}</p>
                   {g.latest.stack && (

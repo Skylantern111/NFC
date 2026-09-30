@@ -9,9 +9,18 @@ const Toaster = ({ ...props }) => {
       theme={theme}
       className="toaster group"
       style={{
-        "--normal-bg": "var(--popover)",
-        "--normal-text": "var(--popover-foreground)",
-        "--normal-border": "var(--border)",
+        "--normal-bg": "hsl(var(--popover))",
+        "--normal-text": "hsl(var(--popover-foreground))",
+        "--normal-border": "hsl(var(--foreground))",
+        "--border-radius": "var(--radius)",
+      }}
+      toastOptions={{
+        classNames: {
+          toast:
+            "!border-2 !border-foreground !rounded-lg !shadow-brut font-sans",
+          title: "font-bold",
+          description: "text-muted-foreground",
+        },
       }}
       {...props}
     />
