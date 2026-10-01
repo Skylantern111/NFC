@@ -136,7 +136,7 @@ export default function AdminSettings() {
           to="/admin/errors"
           className={`${CARD} flex min-h-16 items-center gap-3 p-4 transition-colors hover:bg-white`}
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning-soft">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-warning-soft">
             <Bug className="h-5 w-5 text-foreground" aria-hidden="true" />
           </span>
           <span className="flex-1">

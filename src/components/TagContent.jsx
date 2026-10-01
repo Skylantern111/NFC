@@ -45,13 +45,13 @@ export function LinkPills({ profile, interactive = false }) {
       {links.map((k) => {
         const Icon = LINK_ICONS[k] || Globe;
         return (
-          <Tag key={k} {...linkProps(profile[k].trim())} className={cn(PILL, interactive && 'hover:shadow-neu-pressed-sm')}>
+          <Tag key={k} {...linkProps(profile[k].trim())} className={cn(PILL, interactive && 'hover:bg-muted')}>
             <Icon className="h-3.5 w-3.5" /> {LINK_LABELS[k]}
           </Tag>
         );
       })}
       {showContact && (
-        <Tag {...linkProps(profile.contactUrl.trim())} className={cn(PILL, interactive && 'hover:shadow-neu-pressed-sm')}>
+        <Tag {...linkProps(profile.contactUrl.trim())} className={cn(PILL, interactive && 'hover:bg-muted')}>
           <MessageCircle className="h-3.5 w-3.5" /> Contact
         </Tag>
       )}
@@ -82,7 +82,7 @@ export function ProfileCard({ profile, onReport, preview = false }) {
         {(name || '?').charAt(0).toUpperCase()}
       </div>
       <div>
-        <h2 className="text-xl font-extrabold text-foreground">{name || 'Your name'}</h2>
+        <h2 className="text-xl font-display font-bold text-foreground">{name || 'Your name'}</h2>
         {bio && <p className="mt-1 text-sm text-muted-foreground">{bio}</p>}
       </div>
       <LinkPills profile={profile} interactive={!preview} />
@@ -114,7 +114,7 @@ export function TapPreview({ profile }) {
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Preview — what a tap shows
       </p>
-      <div className="rounded-lg bg-base p-5 shadow-neu-pressed-sm">
+      <div className="rounded-lg bg-base p-5 border-2 border-foreground">
         {mode === 'redirect' ? (
           <p className="flex items-center justify-center gap-1.5 break-all text-center text-sm text-muted-foreground">
             <ExternalLink className="h-4 w-4 shrink-0" />
@@ -141,7 +141,7 @@ export function TapPreview({ profile }) {
   );
 }
 
-const BOX = 'rounded-xl bg-base p-3.5 shadow-neu-flat-sm';
+const BOX = 'rounded-md bg-base p-3.5 shadow-neu-flat-sm';
 
 // The tag content editor fields. Controlled: the parent owns profile/errors
 // state and the save action (owner and admin save differently).

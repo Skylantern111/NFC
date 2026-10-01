@@ -152,17 +152,17 @@ export default function Dashboard() {
         <LoadErrorState what="your items" error={loadError} onRetry={retryLoad} />
       ) : firstRun ? (
         <GlassCard data-tour="dashboard-status">
-          <h2 className="text-lg font-bold text-foreground">
+          <h2 className="font-display text-lg font-bold text-foreground">
             Get started in {steps.length === 4 ? 'four' : 'three'} steps
           </h2>
           <ol className="mt-4 space-y-3">
             {steps.map(({ icon: Icon, title, detail }, i) => (
               <li key={title} className="flex gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base text-sm font-bold text-primary shadow-neu-flat-sm">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border-2 border-foreground bg-accent font-mono text-sm font-bold text-accent-foreground">
                   {i + 1}
                 </span>
                 <div>
-                  <p className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <p className="flex items-center gap-1.5 font-bold text-foreground">
                     <Icon className="h-4 w-4 text-primary" aria-hidden="true" /> {title}
                   </p>
                   <p className="text-sm text-muted-foreground">{detail}</p>
@@ -186,7 +186,7 @@ export default function Dashboard() {
         </GlassCard>
       ) : incidents.length > 0 ? (
         <section className="space-y-3" aria-labelledby="incidents-heading" data-tour="dashboard-status">
-          <h2 id="incidents-heading" className="text-lg font-bold text-foreground">
+          <h2 id="incidents-heading" className="font-display text-lg font-bold text-foreground">
             Action needed
           </h2>
           {incidents.map(({ report, item, chat }) => (
@@ -194,7 +194,7 @@ export default function Dashboard() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">Someone found your item</p>
-                  <h3 className="truncate text-xl font-extrabold text-foreground">{item.itemName}</h3>
+                  <h3 className="truncate font-display text-xl font-bold text-foreground">{item.itemName}</h3>
                   <p className="text-xs text-muted-foreground">
                     Reported {relativeTimeFromMs(toMillis(report.timestamp)) || 'just now'}
                   </p>
@@ -204,7 +204,7 @@ export default function Dashboard() {
               <StatusStepper step={recoveryStep({ chat, hasReport: true })} />
               <ReportLocationMap location={report.location} />
               {chat?.lastMessageText && (
-                <blockquote className="rounded-lg bg-base px-4 py-3 text-sm text-foreground shadow-neu-pressed-sm">
+                <blockquote className="rounded-lg border-2 border-foreground bg-muted px-4 py-3 text-sm text-foreground">
                   “{chat.lastMessageText}”
                 </blockquote>
               )}
@@ -228,7 +228,7 @@ export default function Dashboard() {
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="mb-1 text-lg font-bold text-foreground">All clear</h2>
+            <h2 className="mb-1 font-display text-lg font-bold text-foreground">All clear</h2>
             <p className="text-sm text-muted-foreground">
               No one has reported finding your items. If something goes missing, turn on Lost Mode.
             </p>
@@ -244,7 +244,7 @@ export default function Dashboard() {
       {visibleStale.map((item) => (
         <div
           key={item.tagId}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/20 bg-warning-soft p-4"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-foreground bg-warning-soft p-4 shadow-brut-sm"
         >
           <div className="flex min-w-0 items-center gap-3">
             <Clock className="h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
@@ -276,7 +276,7 @@ export default function Dashboard() {
           anything that needs action, so numbers never outrank a finder. */}
       {!firstRun && !loadError && (
         <section aria-labelledby="items-heading" className="space-y-2">
-          <h2 id="items-heading" className="text-lg font-bold text-foreground">
+          <h2 id="items-heading" className="font-display text-lg font-bold text-foreground">
             Your items
           </h2>
           <div className="grid grid-cols-3 gap-3 sm:gap-4">
@@ -284,15 +284,15 @@ export default function Dashboard() {
               <Link
                 key={s.label}
                 to={s.to}
-                className="glass flex flex-col gap-2 p-3 transition-shadow hover:shadow-lg sm:p-5"
+                className="glass flex flex-col gap-2 p-3 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brut-lg sm:p-5"
               >
-                <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
+                <span className={`flex h-9 w-9 items-center justify-center rounded-md border-2 border-foreground ${s.tint}`}>
                   <s.icon className="h-4 w-4" aria-hidden="true" />
                 </span>
                 {loading ? (
                   <Skeleton className="h-8 w-10" />
                 ) : (
-                  <span className="text-2xl font-extrabold text-foreground">{s.value}</span>
+                  <span className="font-display text-2xl font-bold text-foreground">{s.value}</span>
                 )}
                 <span className="text-xs text-muted-foreground">{s.label}</span>
               </Link>
@@ -305,7 +305,7 @@ export default function Dashboard() {
       {!firstRun && recent.length > 0 && (
         <section aria-labelledby="recent-heading" className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 id="recent-heading" className="text-lg font-bold text-foreground">
+            <h2 id="recent-heading" className="font-display text-lg font-bold text-foreground">
               Recent activity
             </h2>
             <Link to="/dashboard/notifications" className="text-sm font-semibold text-primary hover:underline">

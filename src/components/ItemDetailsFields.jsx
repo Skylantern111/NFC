@@ -27,7 +27,7 @@ const ItemDetailsFields = forwardRef(function ItemDetailsFields(
 
       <FormField id="category" label="Category" error={errors.category}>
         <Select value={category} onValueChange={onCategoryChange}>
-          <SelectTrigger id="category" aria-invalid={errors.category ? true : undefined} className="h-11 w-full rounded-xl">
+          <SelectTrigger id="category" aria-invalid={errors.category ? true : undefined} className="h-11 w-full rounded-md">
             <SelectValue placeholder="Choose a category" />
           </SelectTrigger>
           <SelectContent>

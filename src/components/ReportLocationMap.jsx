@@ -25,7 +25,7 @@ export default function ReportLocationMap({ location, className = '' }) {
   const center = [location.lat, location.lng];
 
   return (
-    <div className={`overflow-hidden rounded-lg shadow-neu-pressed-sm ${className}`}>
+    <div className={`overflow-hidden rounded-lg border-2 border-foreground ${className}`}>
       <MapContainer
         center={center}
         zoom={15}

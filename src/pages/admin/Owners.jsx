@@ -202,7 +202,7 @@ export default function Owners() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
+              <div className="rounded-md sm:overflow-x-auto sm:bg-card sm:border-2 sm:border-foreground">
                 <Table className="stack-table">
                   <TableHeader>
                     <TableRow className="border-foreground hover:bg-transparent">

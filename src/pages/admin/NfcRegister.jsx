@@ -385,7 +385,7 @@ export default function NfcRegister() {
               <p className="font-semibold text-foreground">
                 This NFC tag is already registered.
               </p>
-              <div className="w-full space-y-1 rounded-xl bg-base p-4 text-left text-sm shadow-neu-pressed-sm">
+              <div className="w-full space-y-1 rounded-md bg-base p-4 text-left text-sm border-2 border-foreground">
                 <p><span className="text-muted-foreground">Tag ID:</span> <span className="font-mono">{existingTag.tagId}</span></p>
                 <p><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{existingTag.status}</Badge></p>
                 <p><span className="text-muted-foreground">Write status:</span> {existingTag.writeStatus || 'not_written'}</p>
@@ -400,7 +400,7 @@ export default function NfcRegister() {
             <>
               <Check className="h-10 w-10 text-foreground" />
               <p className="font-semibold text-foreground">Tag read successfully</p>
-              <div className="w-full space-y-1 rounded-xl bg-base p-4 text-left text-sm shadow-neu-pressed-sm">
+              <div className="w-full space-y-1 rounded-md bg-base p-4 text-left text-sm border-2 border-foreground">
                 <p>
                   <span className="text-muted-foreground">Physical UID:</span>{' '}
                   <span className="font-mono">{reading.physicalUid || 'not exposed by this browser/tag'}</span>
@@ -439,7 +439,7 @@ export default function NfcRegister() {
 
               <div className="space-y-2">
                 <Label>Written to the sticker</Label>
-                <div className="rounded-xl bg-base p-3 font-mono text-xs text-muted-foreground shadow-neu-pressed-sm">
+                <div className="rounded-md bg-base p-3 font-mono text-xs text-muted-foreground border-2 border-foreground">
                   {tagUrl(tag.tagId)}
                 </div>
                 <p className="text-xs text-muted-foreground">

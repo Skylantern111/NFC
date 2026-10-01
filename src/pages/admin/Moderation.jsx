@@ -145,21 +145,21 @@ export default function Moderation() {
       {!loading && chats.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-warning-soft text-foreground">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-warning-soft text-foreground">
               <Flag className="h-4.5 w-4.5" />
             </span>
             <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Reported</div>
             <div className="mt-1 text-2xl font-bold text-foreground">{chats.length}</div>
           </div>
           <div className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-soft text-foreground">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-success-soft text-foreground">
               <CheckCheck className="h-4.5 w-4.5" />
             </span>
             <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Reviewed</div>
             <div className="mt-1 text-2xl font-bold text-foreground">{reviewedTotal}</div>
           </div>
           <div className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive-soft text-foreground">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-destructive-soft text-foreground">
               <ShieldBan className="h-4.5 w-4.5" />
             </span>
             <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Banned tokens</div>

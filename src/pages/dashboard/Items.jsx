@@ -466,7 +466,7 @@ export default function Items() {
       {!loading && !loadError && recovered.length > 0 && !lostOnly && !search && (
         <section aria-labelledby="recovered-heading" className="space-y-2 pt-2">
           <div>
-            <h2 id="recovered-heading" className="text-lg font-bold text-foreground">
+            <h2 id="recovered-heading" className="font-display text-lg font-bold text-foreground">
               Recovered
             </h2>
             <p className="text-sm text-muted-foreground">
@@ -548,8 +548,8 @@ export default function Items() {
               />
             </FormField>
             {(armDialog?.lostMessage || Number(armDialog?.rewardAmount) > 0) && (
-              <div className="rounded-lg bg-base px-4 py-3 text-sm shadow-neu-pressed-sm">
-                <p className="text-xs font-semibold text-muted-foreground">Finders will see</p>
+              <div className="rounded-lg border-2 border-foreground bg-muted px-4 py-3 text-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finders will see</p>
                 <p className="mt-1 text-foreground">
                   {Number(armDialog?.rewardAmount) > 0 && <strong>Reward {formatReward(armDialog.rewardAmount)}. </strong>}
                   {armDialog?.lostMessage}

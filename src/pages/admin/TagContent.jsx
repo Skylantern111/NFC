@@ -220,7 +220,7 @@ export default function TagContent() {
               </div>
               {itemName && <p className="text-muted-foreground">Item: {itemName}</p>}
               {tag.status === 'claimed' && (
-                <p className="flex items-start gap-1.5 rounded-xl border border-foreground bg-warning-soft px-3.5 py-2.5 text-xs text-foreground">
+                <p className="flex items-start gap-1.5 rounded-md border border-foreground bg-warning-soft px-3.5 py-2.5 text-xs text-foreground">
                   <TriangleAlert className="h-3.5 w-3.5 shrink-0 translate-y-0.5" />
                   This tag belongs to an owner. Your save replaces their content, and their NFC profile page will show
                   it was last edited by an admin.
@@ -260,7 +260,7 @@ export default function TagContent() {
               )}
             </div>
             {confirmReset && (
-              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-foreground bg-destructive-soft px-3.5 py-2.5 text-sm text-foreground">
+              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-foreground bg-destructive-soft px-3.5 py-2.5 text-sm text-foreground">
                 <span className="flex-1">
                   Delete this tag's content? A tap will show the default Lost &amp; Found page. This can't be undone.
                 </span>

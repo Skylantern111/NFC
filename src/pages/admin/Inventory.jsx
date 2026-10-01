@@ -522,7 +522,7 @@ export default function Inventory() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-tour="inventory-status">
         {STATUS_TABS.map((s) => (
           <div key={s.value} className="rounded-lg border-2 border-foreground bg-card p-4 shadow-card">
-            <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${s.tint}`}>
+            <span className={`flex h-9 w-9 items-center justify-center rounded-md ${s.tint}`}>
               <s.icon className="h-4.5 w-4.5" />
             </span>
             <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">{s.label}</div>
@@ -560,12 +560,12 @@ export default function Inventory() {
                 className="sm:max-w-xs"
               />
               {serverSearching && (
-                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-muted-foreground shadow-neu-pressed-sm">
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-muted-foreground border-2 border-foreground">
                   <Search className="h-3 w-3 animate-pulse" /> Searching full inventory…
                 </span>
               )}
               {!serverSearching && serverMatches.length > 0 && (
-                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-muted-foreground shadow-neu-pressed-sm">
+                <span className="flex items-center gap-1.5 rounded-full bg-base px-2.5 py-1 text-xs text-muted-foreground border-2 border-foreground">
                   <Search className="h-3 w-3" /> Found beyond the loaded {ROW_LIMIT} — showing full-inventory match.
                 </span>
               )}
@@ -617,7 +617,7 @@ export default function Inventory() {
                   aria-pressed={statusFilter === s.value}
                   className={`min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium transition-shadow ${
                     statusFilter === s.value
-                      ? 'bg-primary/15 text-primary shadow-neu-pressed-sm'
+                      ? 'bg-primary/15 text-primary border-2 border-foreground'
                       : 'bg-base text-muted-foreground shadow-neu-flat-sm hover:text-foreground'
                   }`}
                 >
@@ -632,7 +632,7 @@ export default function Inventory() {
           <FormError>{rowsError}</FormError>
 
           {/* ADM3: cards on phones (stack-table), a table from `sm`. */}
-          <div className="rounded-xl sm:overflow-x-auto sm:bg-base sm:shadow-neu-pressed-sm">
+          <div className="rounded-md sm:overflow-x-auto sm:bg-card sm:border-2 sm:border-foreground">
             <Table className="stack-table">
               <TableHeader>
                 <TableRow className="border-foreground hover:bg-transparent">
@@ -750,7 +750,7 @@ export default function Inventory() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="w-52 rounded-xl border-foreground [&_[role=menuitem]]:cursor-pointer [&_[role=menuitem]]:outline-none"
+                            className="w-52 rounded-md border-foreground [&_[role=menuitem]]:cursor-pointer [&_[role=menuitem]]:outline-none"
                           >
                             {t.status !== 'blacklisted' && (
                               <DropdownMenuItem asChild>

@@ -81,7 +81,7 @@ export default function NfcScanPanel({
     <div
       className={cn(
         'flex flex-col items-center gap-3 rounded-lg p-5 text-center',
-        status === 'scanning' ? 'bg-base shadow-neu-pressed-sm' : 'bg-base shadow-neu-flat-sm'
+        status === 'scanning' ? 'bg-base border-2 border-foreground' : 'bg-base shadow-neu-flat-sm'
       )}
       aria-live="polite"
     >

@@ -21,7 +21,7 @@ production outages were rules deploys.
 ## Deploy
 
 ```bash
-git checkout main && git pull
+git checkout main ; git pull
 git status            # must be clean
 npm ci
 npm test              # optional locally; CI already ran it

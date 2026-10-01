@@ -12,10 +12,10 @@ export default function AdminRegister() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-base px-5 py-8">
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-warning-soft text-foreground">
+        <span className="flex h-11 w-11 items-center justify-center rounded-md bg-warning-soft text-foreground">
           <ShieldAlert className="h-5.5 w-5.5" />
         </span>
-        <h1 className="text-2xl font-extrabold text-foreground">Create admin account</h1>
+        <h1 className="text-2xl font-display font-bold text-foreground">Create admin account</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
           For TagBack staff only. You need the admin passcode from an existing admin.
         </p>

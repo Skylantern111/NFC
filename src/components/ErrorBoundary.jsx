@@ -42,7 +42,7 @@ export function ErrorScreen({ title = "Something went wrong", message, errorRef,
       {import.meta.env.DEV && error?.stack && (
         <details className="w-full max-w-2xl text-left text-xs text-muted-foreground">
           <summary className="cursor-pointer">Developer details</summary>
-          <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-xl border-2 border-foreground bg-card p-3">{error.stack}</pre>
+          <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-md border-2 border-foreground bg-card p-3">{error.stack}</pre>
         </details>
       )}
     </div>

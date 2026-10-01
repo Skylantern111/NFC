@@ -118,7 +118,7 @@ export default function Errors() {
                   <p>Browser: {g.latest.userAgent || '—'}</p>
                   <p>Signed-in user: {g.latest.uid || 'none'}</p>
                   {g.latest.stack && (
-                    <pre className="max-h-64 overflow-auto rounded-xl bg-base p-3 text-xs shadow-neu-pressed-sm whitespace-pre-wrap">
+                    <pre className="max-h-64 overflow-auto rounded-md bg-base p-3 text-xs border-2 border-foreground whitespace-pre-wrap">
                       {g.latest.stack}
                     </pre>
                   )}
